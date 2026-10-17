@@ -10,7 +10,7 @@ The website of the Photography Club of Samskara Germany e.V. (https://samskara-g
 - **Admins** use the admin page (`admin.html`) to approve or decline photos, edit or delete photos in the gallery, invite or remove members, choose Photos of the week, edit the home page and post photos directly. Approved photos appear in the gallery straight away.
 - **Comments:** members comment under each photo, with their name shown, and can add smileys. Members can delete their own comments; admins can delete any.
 - **Malayalam:** titles, descriptions, comments, names and the weekly theme can be in Malayalam, English or both. The site marks Malayalam text so phones use their own Malayalam font (no download), with more room between lines. Members type it with their phone's Malayalam keyboard; the About page explains how.
-- **Votes:** each member has 3 votes a week for photos added that week (weeks run Monday to Sunday, Berlin time). Votes are secret. On Monday an admin shows last week's top 3 as Photos of the week on the home page, which members see.
+- **Votes:** each member has 3 votes a week for photos added that week (weeks run Monday to Sunday, Berlin time). Votes are secret. On Monday an admin shows last week's top 3 as Photos of the week on the home page, which members see. The home page's large photo (tilted, like a print on a table) is last week's most-voted photo, picked automatically each Monday; until a week with votes has ended, it shows the newest photo.
 
 ## Setting it up
 

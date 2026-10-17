@@ -20,11 +20,14 @@
   Club.gallery().then(function (d) {
     var potw = ((d.potw && d.potw.items) || []).map(function (x) { var p = d.byId[x.id]; return p ? { p: p, votes: x.votes } : null; }).filter(Boolean);
 
-    // the large photo: last week's favourite, or else the newest photo
-    var lead = potw.length ? potw[0].p : d.photos[0];
+    // the large photo: the photo with the most votes last week (still in the gallery), else the latest
+    // Photos of the week, else the newest photo. This week's votes stay secret until the week is over.
+    var top = ((d.top && d.top.items) || []).filter(function (x) { return d.byId[x.id]; })[0];
+    var lead = top ? d.byId[top.id] : potw.length ? potw[0].p : d.photos[0];
+    var why = top ? ", most votes last week" : potw.length ? ", top photo of the week" : ", newest in the gallery";
     if (lead) {
       $("hero-photo").innerHTML = link(lead, img(d, lead, "full", lead.title, ' fetchpriority="high"')) +
-        "<figcaption><b" + ml(lead.title) + ">" + esc(lead.title) + "</b> by <span" + ml(lead.by) + ">" + esc(lead.by) + "</span>" + (potw.length ? ", top photo of the week" : ", newest in the gallery") + "</figcaption>";
+        "<figcaption><b" + ml(lead.title) + ">" + esc(lead.title) + "</b> by <span" + ml(lead.by) + ">" + esc(lead.by) + "</span>" + why + "</figcaption>";
       $("hero-photo").hidden = false; $("hero-card").hidden = true;
     } else {
       $("hero-card").querySelector("h2").textContent = "No photos yet";

@@ -215,12 +215,26 @@ async function viewer(request, env) {
 async function gallery(request, env) {
   const who = await viewer(request, env);
   const now = Date.now();
-  const [list, potw, token] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now)]);
+  const [list, potw, token, top] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastWeeksTop(env, now)]);
   const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), weekStart: weekStart(now, env), week: weekId(now, env),
-                 perWeek: votesPerWeek(env), token };
+                 perWeek: votesPerWeek(env), token, top };
   // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick
   const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + "}";
   return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+}
+
+// Last week's most-voted photos, best first: [{ id, votes }]. Last week's votes can't change any more,
+// so this is worked out once, on the first visit of the week, and kept (one storage write a week).
+// This week's votes stay secret until the week is over.
+async function lastWeeksTop(env, now) {
+  const week = weekId(now - 7 * 864e5, env), key = "top:" + week;
+  const kept = await env.INBOX.get(key, "json");
+  if (kept) return { week, items: kept.items };
+  const tally = {};
+  for (const k of await listAll(env, "v:" + week + ":")) for (const id of (k.metadata && k.metadata.votes) || []) tally[id] = (tally[id] || 0) + 1;
+  const items = Object.entries(tally).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 10);
+  await env.INBOX.put(key, JSON.stringify({ items }), { expirationTtl: 30 * 86400 });
+  return { week, items };
 }
 
 // A photo or thumbnail. Pages can't send the invite code with an <img>, so the address carries
