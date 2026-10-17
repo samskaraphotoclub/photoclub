@@ -10,6 +10,8 @@ body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24p
 h1 { font:500 clamp(2.6rem, 8vw, 4.4rem)/1 "Iowan Old Style", Palatino, Georgia, serif; margin:0 0 14px; }
 p { color:var(--muted); }
 a { display:inline-flex; align-items:center; min-height:44px; padding:0 20px; border-radius:999px; background:var(--red); color:#fff; text-decoration:none; font-weight:600; }
+.small { font-size:.85rem; margin-top:32px; }
+a.plain { display:inline; min-height:0; padding:0; background:none; color:inherit; text-decoration:underline; font-weight:400; }
 </style>
 </head>
 <body>
@@ -17,6 +19,7 @@ a { display:inline-flex; align-items:center; min-height:44px; padding:0 20px; bo
   <h1>Out of frame</h1>
   <p>There's no page at this address. It may have moved, or the link has a typo.</p>
   <a id="home" href="/">Back to the home page</a>
+  <p class="small">© 2026 Samskara Germany e.V. All rights reserved. · <a class="plain" href="https://samskara-germany.de/">Samskara Germany e.V.</a></p>
 </main>
 <script>
 // On a project site (name.github.io/repo/) send people to the repo's home page.
