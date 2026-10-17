@@ -1,6 +1,6 @@
 # The Conscious Frame – photo club website
 
-A lightweight club website: plain HTML, one CSS file and a few small scripts, no frameworks, no web fonts. The gallery is for members only. Members sign in with a personal invite code to see the photos, comment, vote and share their own photos from their phones. An admin approves each photo before it appears.
+The website of the Photography Club of Samskara Germany e.V. (https://samskara-germany.de/). A lightweight club website: plain HTML, one CSS file and a few small scripts, no frameworks, no web fonts. The gallery is for members only. Members sign in with a personal invite code to see the photos, comment, vote and share their own photos from their phones. An admin approves each photo before it appears.
 
 ## How it fits together
 
