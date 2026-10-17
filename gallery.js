@@ -11,6 +11,8 @@
     ["🙌", "raised hands"], ["❤️", "red heart"], ["🔥", "fire"], ["✨", "sparkles"], ["🌟", "glowing star"], ["💯", "hundred points"],
     ["📷", "camera"], ["🌅", "sunrise"], ["🌊", "wave"], ["🌲", "tree"], ["🍂", "autumn leaves"], ["🌙", "moon"]];
 
+  // lang="ml" on Malayalam text: phones then use a Malayalam font, line spacing and line breaking
+  function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }
   function setStatus(el, msg, isError) { if (el) { el.classList.add("status"); el.classList.toggle("error", !!isError); el.textContent = msg; } }
   function ago(ms) {
     var m = Math.round((Date.now() - ms) / 60000);
@@ -65,14 +67,14 @@
       .map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("");
     return '<figure class="tile ' + cat + (Club.thisWeek(data, p) ? " this-week" : "") + '" id="t-' + id + '">' +
       '<a href="#p-' + id + '"><img src="' + esc(Club.photoUrl(data, p, "thumb")) + '" alt="' + title + '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a>' +
-      "<figcaption><b>" + title + "</b>" + esc(p.by) + "</figcaption>" +
+      "<figcaption><b" + ml(p.title) + ">" + title + "</b><span" + ml(p.by) + ">" + esc(p.by) + "</span></figcaption>" +
       '<div class="viewer" id="p-' + id + '" role="dialog" aria-label="' + title + '">' +
         '<a class="shade" href="#t-' + id + '" aria-label="Close" tabindex="-1"></a>' +
         '<div class="box">' +
           '<a class="close" href="#t-' + id + '" aria-label="Close">×</a>' +
           '<div class="pic"><img src="' + esc(Club.photoUrl(data, p, "full")) + '" alt="' + title + '" width="' + (p.w | 0) + '" height="' + (p.h | 0) + '" loading="lazy"></div>' +
-          '<div class="info"><h2>' + title + '</h2><p class="by">' + esc(p.by) + ", " + esc(p.cat) + "</p>" +
-            (p.desc ? '<p class="desc">' + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "") + "</div>" +
+          '<div class="info"><h2' + ml(p.title) + '>' + title + '</h2><p class="by"' + ml(p.by) + '>' + esc(p.by) + ", " + esc(p.cat) + "</p>" +
+            (p.desc ? '<p class="desc"' + ml(p.desc) + '>' + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "") + "</div>" +
         "</div>" +
       "</div></figure>";
   }
@@ -155,13 +157,13 @@
     html += "<h3>Comments" + (d.comments.length ? " (" + d.comments.length + ")" : "") + "</h3>";
     html += d.comments.length
       ? '<ol class="comments">' + d.comments.map(function (c) {
-          return '<li data-cid="' + esc(c.cid) + '"><p class="who-said"><b>' + esc(c.name) + "</b> <time>" + ago(c.at) + '</time></p><p class="said">' + esc(c.text) + "</p>" +
+          return '<li data-cid="' + esc(c.cid) + '"><p class="who-said"><b' + ml(c.name) + '>' + esc(c.name) + "</b> <time>" + ago(c.at) + '</time></p><p class="said"' + ml(c.text) + '>' + esc(c.text) + "</p>" +
             (c.mine ? '<div class="del-box"><button class="linkish del" type="button">Delete</button></div>' : "") + "</li>";
         }).join("") + "</ol>"
       : '<p class="muted">No comments yet.' + (member ? " Start with what you like about the photo." : "") + "</p>";
     if (member) {
       html += '<form class="comment-form" novalidate><label class="f" for="cf-' + id + '">Your comment <small>(as ' + esc(d.member) + ")</small></label>" +
-        '<textarea id="cf-' + id + '" maxlength="500" placeholder="Start with what you like about the photo, then your suggestion"></textarea>' +
+        '<textarea id="cf-' + id + '" maxlength="1000" placeholder="Start with what you like about the photo, then your suggestion. English or Malayalam."></textarea>' +
         '<div class="emoji-pick" id="ep-' + id + '" role="group" aria-label="Smileys" hidden>' + SMILEYS.map(function (s) {
           return '<button type="button" data-e="' + s[0] + '" aria-label="' + s[1] + '" title="' + s[1] + '">' + s[0] + "</button>";
         }).join("") + "</div>" +
@@ -195,7 +197,7 @@
         var b = ev.target.closest("[data-e]");
         if (!b) return;
         var e = b.getAttribute("data-e"), s = area.selectionStart, end = area.selectionEnd, val = area.value;
-        if (val.length - (end - s) + e.length > 500) return;
+        if (val.length - (end - s) + e.length > 1000) return;
         area.value = val.slice(0, s) + e + val.slice(end);
         area.focus();
         area.setSelectionRange(s + e.length, s + e.length);

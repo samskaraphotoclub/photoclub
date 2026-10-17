@@ -8,6 +8,7 @@
   var esc = Club.esc;
   if (!Club.ready() || !Club.code()) return;      // visitors: the page stays as it is
 
+  function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }   // Malayalam text gets a Malayalam font
   function link(p, inner, label) {
     return '<a href="gallery.html#p-' + esc(p.id) + '"' + (label ? ' aria-label="' + esc(label) + '"' : "") + ">" + inner + "</a>";
   }
@@ -23,7 +24,7 @@
     var lead = potw.length ? potw[0].p : d.photos[0];
     if (lead) {
       $("hero-photo").innerHTML = link(lead, img(d, lead, "full", lead.title, ' fetchpriority="high"')) +
-        "<figcaption><b>" + esc(lead.title) + "</b> by " + esc(lead.by) + (potw.length ? ", top photo of the week" : ", newest in the gallery") + "</figcaption>";
+        "<figcaption><b" + ml(lead.title) + ">" + esc(lead.title) + "</b> by <span" + ml(lead.by) + ">" + esc(lead.by) + "</span>" + (potw.length ? ", top photo of the week" : ", newest in the gallery") + "</figcaption>";
       $("hero-photo").hidden = false; $("hero-card").hidden = true;
     } else {
       $("hero-card").querySelector("h2").textContent = "No photos yet";
@@ -33,7 +34,7 @@
 
     if (potw.length) {
       $("potw").innerHTML = potw.map(function (x) {
-        return '<figure class="print">' + link(x.p, img(d, x.p, "thumb", x.p.title)) + "<h3>" + esc(x.p.title) + "</h3><figcaption>" + esc(x.p.by) +
+        return '<figure class="print">' + link(x.p, img(d, x.p, "thumb", x.p.title)) + "<h3" + ml(x.p.title) + ">" + esc(x.p.title) + "</h3><figcaption" + ml(x.p.by) + ">" + esc(x.p.by) +
           (x.votes ? ", " + x.votes + (x.votes === 1 ? " vote" : " votes") : "") + "</figcaption></figure>";
       }).join("");
       $("potw-section").hidden = false;

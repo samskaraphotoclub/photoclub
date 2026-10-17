@@ -11,8 +11,9 @@
   --on-red: #ffffff;
   --accent: var(--red);
   --on-ink: #ffffff;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Noto Serif Malayalam", "Malayalam Sangam MN", "Nirmala UI", Kartika, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Malayalam", "Malayalam Sangam MN", "Nirmala UI", Kartika, sans-serif;
+  /* (the Malayalam fonts are the ones Android, iPhone, Mac and Windows already have; no download needed) */
   --gutter: max(16px, min(4vw, 40px));
   --gap: clamp(20px, 3vw, 32px);
   --ok-bg: #dcefe2; --ok-fg: #1d5733;   /* approved */
@@ -324,3 +325,8 @@ label.f small { font-weight: 400; color: var(--muted); }
 .pick-file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .pick-file:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pick-h { font: 600 1rem var(--sans); margin: 18px 0 4px; letter-spacing: 0; }
+/* Malayalam: its letters are taller and wider than English ones, so lines need more room */
+:lang(ml) { line-height: 1.8; }
+h1:lang(ml), h2:lang(ml), h3:lang(ml) { line-height: 1.4; }
+.theme:lang(ml) { line-height: 1.3; letter-spacing: 0; padding-top: .1em; }
+.tile figcaption b:lang(ml), .tile figcaption span:lang(ml) { line-height: 1.6; }

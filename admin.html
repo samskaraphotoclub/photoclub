@@ -265,6 +265,7 @@
   var github = function () { return cfg.owner && cfg.repo && cfg.token; };
   var inboxReady = function () { return /^https?:\/\//.test(cfg.inbox || "") && cfg.password; };
   function setStatus(el, msg, isError) { el.className = "status" + (isError ? " error" : ""); el.textContent = msg; }
+  function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }   // Malayalam text gets a Malayalam font
   function pretty(c) { return c.replace(/(.{4})(?=.)/g, "$1-"); }
 
   /* ---------- tabs ---------- */
@@ -393,7 +394,7 @@
     li.className = "rank g-row";
     function view() {
       li.innerHTML = '<img src="' + esc(thumbUrl(d, p)) + '" alt="" width="72" height="48" loading="lazy">' +
-        '<span><b><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc(p.cat) + (p.added ? ", added " + esc(day(p.added)) : "") + "</span></span>" +
+        '<span><b' + ml(p.title) + '><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc(p.cat) + (p.added ? ", added " + esc(day(p.added)) : "") + "</span></span>" +
         '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div>' +
         '<p class="status" aria-live="polite"></p>';
       var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
@@ -649,7 +650,7 @@
       list.forEach(function (c) {
         var li = document.createElement("li"), g = map[c.photo];
         li.innerHTML = "<b>" + esc(c.name) + '</b><span class="meta">' + T.ago(c.at) + ' on <a href="gallery.html#p-' + esc(c.photo) + '">' + esc(g ? g.title : c.photo) + "</a></span>" +
-          '<p class="said">' + esc(c.text) + '</p><div class="row-btns"><button class="btn btn-light btn-small" type="button">Delete</button></div><p class="status" aria-live="polite"></p>';
+          '<p class="said"' + ml(c.text) + '>' + esc(c.text) + '</p><div class="row-btns"><button class="btn btn-light btn-small" type="button">Delete</button></div><p class="status" aria-live="polite"></p>';
         var row = li.querySelector(".row-btns"), st = li.querySelector(".status");
         row.querySelector("button").addEventListener("click", function () {
           row.innerHTML = '<span class="meta" style="flex-basis:100%">Delete this comment? Nobody will see it any more.</span>' +
@@ -738,12 +739,12 @@
       contests.push(c);
     });
     if (missing) { setStatus(st, "Give each contest a title, or remove it.", true); missing.focus(); return; }
-    var themeHtml = '    <p class="kicker">This week\'s theme</p>\n    <h1 class="theme">' + esc(theme) + "</h1>\n" +
-      (lede ? '    <p class="lede">' + esc(lede) + "</p>\n" : "");
+    var themeHtml = '    <p class="kicker">This week\'s theme</p>\n    <h1 class="theme"' + ml(theme) + '>' + esc(theme) + "</h1>\n" +
+      (lede ? '    <p class="lede"' + ml(lede) + '>' + esc(lede) + "</p>\n" : "");
     var contestHtml = contests.map(function (c) {
       // only the photo's name goes on the page; members' browsers fetch the photo itself from the inbox
-      return '    <div class="contest"' + (c.photo ? ' data-photo="' + esc(c.photo) + '"' : "") + '><span class="tag' + (LIVE.indexOf(c.status) >= 0 ? " live" : "") + '">' + esc(c.status) + "</span><h3>" +
-        esc(c.title) + "</h3>" + (c.desc ? "<p>" + esc(c.desc) + "</p>" : "") + "</div>\n";
+      return '    <div class="contest"' + (c.photo ? ' data-photo="' + esc(c.photo) + '"' : "") + '><span class="tag' + (LIVE.indexOf(c.status) >= 0 ? " live" : "") + '">' + esc(c.status) + "</span><h3" + ml(c.title) + ">" +
+        esc(c.title) + "</h3>" + (c.desc ? "<p" + ml(c.desc) + ">" + esc(c.desc) + "</p>" : "") + "</div>\n";
     }).join("") || '    <p class="muted">No contests at the moment.</p>\n';
     $("h-publish").disabled = true; setStatus(st, "Publishing…");
     Publish.publishSections(cfg, { THEME: themeHtml, CONTESTS: contestHtml }, "Home page: theme “" + theme + "”").then(function () {

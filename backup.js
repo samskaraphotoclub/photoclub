@@ -41,7 +41,7 @@ var Backup = (function () {
   function text(name, s) { return { name: name, data: new TextEncoder().encode(s) }; }
   function csv(photos) {
     var q = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    return ["name,title,photographer,category,added,description"].concat(photos.map(function (p) {
+    return "\ufeff" + ["name,title,photographer,category,added,description"].concat(photos.map(function (p) {
       return [p.id, p.title, p.by, p.cat, p.added, p.desc].map(q).join(",");
     })).join("\r\n") + "\r\n";
   }

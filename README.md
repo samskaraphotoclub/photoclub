@@ -9,6 +9,7 @@ A lightweight club website: plain HTML, one CSS file and a few small scripts, no
 - **Members** sign in once on each phone with their invite code. They browse the gallery, comment, vote, and send photos on the Share a photo page (`submit.html`). Photos are resized on the phone first.
 - **Admins** use the admin page (`admin.html`) to approve or decline photos, edit or delete photos in the gallery, invite or remove members, choose Photos of the week, edit the home page and post photos directly. Approved photos appear in the gallery straight away.
 - **Comments:** members comment under each photo, with their name shown, and can add smileys. Members can delete their own comments; admins can delete any.
+- **Malayalam:** titles, descriptions, comments, names and the weekly theme can be in Malayalam, English or both. The site marks Malayalam text so phones use their own Malayalam font (no download), with more room between lines. Members type it with their phone's Malayalam keyboard; the About page explains how.
 - **Votes:** each member has 3 votes a week for photos added that week (weeks run Monday to Sunday, Berlin time). Votes are secret. On Monday an admin shows last week's top 3 as Photos of the week on the home page, which members see.
 
 ## Setting it up
@@ -66,7 +67,7 @@ The token and password are stored only in that phone's browser. Don't set the ad
 
 **Restore:** admin page > **Settings** > **Restore from a backup** > choose the backup file. The page lists the photos and members that are missing now; tick the ones to bring back. Their comments, votes and sent-photo history come back with them. Nothing already in the club is changed or deleted, and codes replaced with **New code** never come back. Into an empty inbox (say, after setting up a new Cloudflare account), everything is ticked. Cloudflare's free plan allows roughly 200 restored photos a day, so a big gallery takes a few days: choose the file again the next day and it carries on.
 
-**Limits for members:** each member can send 5 photos a week, have up to 10 waiting at once, post 20 comments a day and give 3 votes a week. To change the photo or vote numbers, set `WEEKLY_LIMIT` or `VOTES_PER_WEEK` in the inbox settings (see `inbox/SETUP.md`).
+**Limits for members:** each member can send 5 photos a week, have up to 10 waiting at once, post 20 comments a day (up to 1,000 characters each) and give 3 votes a week. To change the photo or vote numbers, set `WEEKLY_LIMIT` or `VOTES_PER_WEEK` in the inbox settings (see `inbox/SETUP.md`).
 
 **More than one admin:** each admin needs the inbox admin password, which is enough for approving, the gallery, members, votes and comments. The **Home page** tab also needs a GitHub token. GitHub's limited tokens only work for the repository owner or members of a GitHub organisation, so for several admins who edit the home page, move the repository into a free GitHub organisation and give each admin their own token.
 

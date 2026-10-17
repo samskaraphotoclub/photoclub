@@ -18,7 +18,7 @@ const MAX_FULL = 3 * 1024 * 1024;      // bytes, large version (the site resizes
 const MAX_THUMB = 600 * 1024;          // bytes, thumbnail
 const MAX_WAITING = 10;                // photos per member waiting for approval at once
 const HISTORY = 30;                    // decisions each member can see on their page
-const MAX_COMMENT = 500;               // characters
+const MAX_COMMENT = 1000;              // characters (Malayalam needs more of them per word than English)
 const COMMENTS_PER_DAY = 20;           // per member
 const MAX_COMMENTS_PER_PHOTO = 300;
 const RECENT_COMMENTS = 60;            // kept for the admin's Comments tab
@@ -313,7 +313,7 @@ async function addComment(request, env) {
   await env.INBOX.put(quota, String(today + 1), { expirationTtl: 2 * 86400 });
   try {
     const recent = (await env.INBOX.get("recent-comments", "json")) || [];
-    recent.unshift({ photo: id, cid: c.cid, name: c.name, text: Array.from(c.text).slice(0, 300).join(""), at: c.at });   // whole characters, so smileys aren't cut in half
+    recent.unshift({ photo: id, cid: c.cid, name: c.name, text: cut(c.text, 300), at: c.at });   // whole letters, so smileys and Malayalam letters aren't cut in half
     await env.INBOX.put("recent-comments", JSON.stringify(recent.slice(0, RECENT_COMMENTS)));
   } catch { /* the admin list is a convenience; the comment itself is saved */ }
   return json({ comment: publicComment(c, m.codes) });
@@ -402,7 +402,7 @@ async function decide(request, env, sid) {
     const entry = await addToGallery(env, p, { full: full.value, thumb: thumb.value, type: (full.metadata && full.metadata.type) || "image/jpeg" });
     update.galleryId = entry.id;
   }
-  if (decision === "declined" && body.note) update.note = String(body.note).trim().slice(0, 300);
+  if (decision === "declined" && body.note) update.note = cut(String(body.note).trim(), 300);
   const code = (await env.INBOX.get("moved:" + meta.code)) || meta.code;   // the member may have had a new code since
   const own = (await env.INBOX.get("own:" + code, "json")) || [];
   const entry = own.find((x) => x.sid === sid);
@@ -671,6 +671,19 @@ function slugify(s) {
   return String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+/, "").slice(0, 50).replace(/-+$/, "") || "photo";
 }
+// the first n letters of a text, never splitting a letter made of several characters
+// (a Malayalam conjunct, an emoji with a skin tone)
+function cut(s, n) {
+  s = String(s || "");
+  if (s.length <= n) return s;
+  try {
+    const out = [];
+    for (const g of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(s)) { if (out.length >= n) break; out.push(g.segment); }
+    return noHalfLetter(out.join(""));
+  } catch { return noHalfLetter(Array.from(s).slice(0, n).join("")); }
+}
+// some systems split a Malayalam conjunct (like ക്ഷ) into two letters: don't end on its first half
+function noHalfLetter(s) { return s.replace(/[\u0D00-\u0D7F][\u0D4D\u200C\u200D]+$/, ""); }
 function randomString(n) {
   const bytes = crypto.getRandomValues(new Uint8Array(n));
   return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
