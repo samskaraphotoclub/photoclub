@@ -195,12 +195,20 @@
       <div class="row-btns"><button class="btn btn-light btn-small" type="button" id="forget">Remove token and password from this phone</button></div>
       <p class="note">These are stored only in this browser on this device. Don't set this up on a shared phone or computer.</p>
     </form>
+    <section class="card" aria-labelledby="b-h">
+      <h2 id="b-h">Backup</h2>
+      <p class="muted">Download everything in the club as one .zip file: the gallery's photos with their titles and details, members and their invite codes, comments and votes. Keep it somewhere private, because it contains the invite codes.</p>
+      <button class="btn btn-dark wide" type="button" id="backup">Download backup</button>
+      <p class="status" id="backup-status" aria-live="polite"></p>
+      <p class="note"><span id="backup-last"></span>Once a month is plenty. Once the gallery has hundreds of photos, do it on a computer: the file gets large.</p>
+    </section>
   </section>
 </main>
 
 <script src="config.js"></script>
 <script src="photo-tools.js"></script>
 <script src="publish.js"></script>
+<script src="backup.js"></script>
 <script>
 (function () {
   "use strict";
@@ -497,9 +505,27 @@
       d.members.forEach(function (m) {
         var li = document.createElement("li");
         li.innerHTML = "<b>" + esc(m.name) + '</b><span class="meta">Code ' + pretty(m.code) + ", added " + new Date(m.created).toLocaleDateString() + "</span>" +
-          '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="send">Send invite again</button><button class="btn btn-light btn-small" type="button" data-a="remove">Remove</button></div><p class="status" aria-live="polite"></p>';
+          '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="send">Send invite again</button><button class="btn btn-light btn-small" type="button" data-a="renew">New code</button><button class="btn btn-light btn-small" type="button" data-a="remove">Remove</button></div><p class="status" aria-live="polite"></p>';
         var st = li.querySelector(".status");
         li.querySelector('[data-a="send"]').addEventListener("click", function () { share(inviteText(m.name, m.code), st); });
+        li.querySelector('[data-a="renew"]').addEventListener("click", function () {
+          var box = document.createElement("div");
+          box.innerHTML = '<p class="meta" style="margin:10px 0 0">Give ' + esc(m.name) + ' a new invite code? Their current code stops working straight away, on every phone. Their photos, comments and votes stay theirs.</p>' +
+            '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, new code</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>';
+          var row = li.querySelector(".row-btns");
+          row.hidden = true; li.insertBefore(box, st);
+          box.querySelector('[data-a="no"]').addEventListener("click", function () { box.remove(); row.hidden = false; });
+          box.querySelector('[data-a="yes"]').addEventListener("click", function () {
+            box.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+            inbox("/admin/members/" + m.code + "/new-code", { method: "POST" }).then(function (r) {
+              lastInvite = inviteText(r.name, r.code);
+              $("invite-text").value = lastInvite; $("invite").hidden = false;
+              setStatus($("m-status"), "New code for " + r.name + ". Their old code no longer works. Send them this message:");
+              $("add-member").scrollIntoView({ behavior: "smooth" });
+              loadMembers();
+            }).catch(function (e) { box.remove(); row.hidden = false; setStatus(st, e.message, true); });
+          });
+        });
         li.querySelector('[data-a="remove"]').addEventListener("click", function () {
           var box = document.createElement("div");
           box.innerHTML = '<p class="meta" style="margin:10px 0 0">Remove ' + esc(m.name) + '? Their invite code stops working straight away. Their photos already in the gallery stay.</p>' +
@@ -741,6 +767,26 @@
       $("preview").hidden = true; $("pick").hidden = false; prepared = null;
     }).catch(function (e) { setStatus($("post-status"), e.message, true); })
       .then(function () { $("publish").disabled = false; });
+  });
+
+  /* ---------- backup ---------- */
+  function photoUrl(d, p, size) {
+    return cfg.inbox.replace(/\/+$/, "") + "/img/" + encodeURIComponent(p.id) + "/" + size + "?v=" + encodeURIComponent(p.v || "") + "&t=" + encodeURIComponent(d.token);
+  }
+  function showLastBackup() {
+    $("backup-last").textContent = cfg.lastBackup ? "Last backup from this phone: " + new Date(cfg.lastBackup).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) + ". " : "";
+  }
+  showLastBackup();
+  $("backup").addEventListener("click", function () {
+    var st = $("backup-status"), btn = $("backup");
+    if (!inboxReady()) { setStatus(st, "Add the inbox address and admin password above first.", true); return; }
+    btn.disabled = true;
+    Backup.make(inbox, photoUrl, function (m) { setStatus(st, m); }).then(function (b) {
+      Backup.save(b.blob, b.name);
+      cfg.lastBackup = Date.now(); save(); showLastBackup();
+      setStatus(st, "Saved " + b.name + " (" + T.kb(b.blob.size) + ", " + b.photos + (b.photos === 1 ? " photo, " : " photos, ") + b.members + (b.members === 1 ? " member" : " members") + "). Keep it somewhere private.");
+    }).catch(function (e) { setStatus(st, e.message, true); })
+      .then(function () { btn.disabled = false; });
   });
 
   /* ---------- settings ---------- */

@@ -43,7 +43,7 @@ p { margin: 0 0 1em; }
   border: 1px solid var(--black); background: none; font: 600 .95rem var(--sans); color: var(--ink); text-decoration: none; white-space: nowrap; cursor: pointer; }
 .btn:hover { background: var(--shade); }
 .btn-dark { background: var(--red); color: var(--on-red); }
-.btn-dark:hover { box-shadow: 0 0 0 3px var(--shade); }
+.btn-dark:hover { background: var(--red); box-shadow: 0 0 0 3px var(--shade); }   /* stays red when tapped or hovered */
 .btn-light { border-color: var(--rule); color: var(--ink); }
 .btn-small { min-height: 40px; padding: 0 16px; font-size: .9rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
@@ -239,6 +239,7 @@ label.f small { font-weight: 400; color: var(--muted); }
 .status { margin: 12px 0 0; font-weight: 600; min-height: 1.5em; }
 .status.error { color: var(--accent); }
 .row-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.row-btns .btn { white-space: normal; text-align: center; max-width: 100%; }
 .note { color: var(--muted); font-size: .9rem; margin: 12px 0 0; }
 .who { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .who p { margin: 0; }

@@ -54,11 +54,15 @@ The token and password are stored only in that phone's browser. Don't set the ad
 
 **Editing or deleting a photo:** admin page > **Gallery**. **Edit** changes the title, photographer, category or description. **Delete** removes the photo and its comments for good.
 
+**A new code for a member:** if someone's code has been shared by mistake, admin page > **Members** > **New code**. Their old code stops working straight away, on every phone; their photos, comments and votes stay theirs. Send them the new message the page shows.
+
 **Removing a member:** admin page > **Members** > **Remove**. Their code stops working straight away, including in the gallery. Their photos and comments stay; delete them in the **Gallery** and **Comments** tabs if needed.
 
 **Photos of the week:** every Monday, open admin page > **Votes** and tap **Show the top 3 on the home page**. The tab also shows how this week's voting is going. Only admins see the numbers.
 
 **Comments:** admin page > **Comments** lists the latest 60 comments, newest first, each with a **Delete** button.
+
+**Backup:** once a month, admin page > **Settings** > **Download backup**. It saves the gallery's photos with their details, members and their invite codes, comments and votes as one .zip file. Keep it somewhere private, because it contains the invite codes. Once the gallery has hundreds of photos, do this on a computer.
 
 **Limits for members:** each member can send 5 photos a week, have up to 10 waiting at once, post 20 comments a day and give 3 votes a week. To change the photo or vote numbers, set `WEEKLY_LIMIT` or `VOTES_PER_WEEK` in the inbox settings (see `inbox/SETUP.md`).
 
@@ -98,6 +102,7 @@ gallery.js             The gallery page: photos, viewer, comments and votes
 home.js                The home page's photos, for members
 photo-tools.js         Resizing and camera settings, used by submit.html and admin.html
 publish.js             Changes to the site on GitHub, used by admin.html
+backup.js              The admin page's Backup button
 config.js              The inbox address (written by the admin page)
 inbox/worker.js        The photo inbox and gallery, runs on Cloudflare
 inbox/SETUP.md         How to set up the photo inbox

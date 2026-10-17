@@ -62,7 +62,7 @@ async function route(request, env) {
   if (parts[0] === "comment" && method === "POST" && parts[1] === "delete") {
     const m = await member(request, env);
     const body = await request.json().catch(() => ({}));
-    return removeComment(env, body.photo, body.cid, m.code);
+    return removeComment(env, body.photo, body.cid, m.codes);
   }
 
   if (parts[0] === "admin") {
@@ -79,6 +79,8 @@ async function route(request, env) {
     if (what === "members" && method === "GET" && !a) return listMembers(env);
     if (what === "members" && method === "POST" && !a) return addMember(request, env);
     if (what === "members" && method === "DELETE" && a) return removeMember(env, a);
+    if (what === "members" && method === "POST" && a && b === "new-code") return newCode(env, a);
+    if (what === "export" && method === "GET") return exportPart(url, env);
     if (what === "votes" && method === "GET") return standings(url, env);
     if (what === "comments" && method === "GET") return json({ comments: (await env.INBOX.get("recent-comments", "json")) || [] });
     if (what === "comment" && a === "delete" && method === "POST") {
@@ -95,7 +97,7 @@ async function member(request, env) {
   if (!code) throw fail(401, "Enter your invite code.");
   const m = await env.INBOX.get("member:" + code, "json");
   if (!m) throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
-  return { code, ...m };
+  return { code, ...m, codes: [code].concat(m.prev || []) };
 }
 
 async function me(request, env) {
@@ -185,8 +187,8 @@ async function photoInfo(request, env, rawId) {
   if (who.code) {
     const [mine, owner] = await Promise.all([env.INBOX.get("v:" + week + ":" + who.code, "json"), env.INBOX.get("owner:" + id)]);
     const votes = mine || [];
-    Object.assign(out, { member: who.name, voted: votes.includes(id), votesLeft: Math.max(0, perWeek - votes.length), own: owner === who.code });
-    out.comments = comments.map((c) => publicComment(c, who.code));
+    Object.assign(out, { member: who.name, voted: votes.includes(id), votesLeft: Math.max(0, perWeek - votes.length), own: !!owner && who.codes.includes(owner) });
+    out.comments = comments.map((c) => publicComment(c, who.codes));
   }
   return json(out);
 }
@@ -198,7 +200,7 @@ async function viewer(request, env) {
   if (!given) throw fail(401, "Sign in with your invite code to see the gallery.");
   const code = normalize(given);
   const m = code ? await env.INBOX.get("member:" + code, "json") : null;
-  if (m) return { code, name: m.name };
+  if (m) return { code, name: m.name, codes: [code].concat(m.prev || []) };
   if (await isAdmin(given, env)) return { admin: true, name: "Admin" };
   throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
 }
@@ -277,7 +279,7 @@ async function vote(request, env) {
   const votes = (await env.INBOX.get(key, "json")) || [];
   if (votes.includes(id)) votes.splice(votes.indexOf(id), 1);          // voting again takes the vote back
   else {
-    if ((await env.INBOX.get("owner:" + id)) === m.code) throw fail(403, "You can't vote for your own photo.");
+    if (m.codes.includes(await env.INBOX.get("owner:" + id))) throw fail(403, "You can't vote for your own photo.");
     if (votes.length >= perWeek) throw fail(409, "You've used your " + perWeek + " votes this week. Take one back to vote for this photo.");
     votes.push(id);
   }
@@ -308,15 +310,15 @@ async function addComment(request, env) {
     recent.unshift({ photo: id, cid: c.cid, name: c.name, text: Array.from(c.text).slice(0, 300).join(""), at: c.at });   // whole characters, so smileys aren't cut in half
     await env.INBOX.put("recent-comments", JSON.stringify(recent.slice(0, RECENT_COMMENTS)));
   } catch { /* the admin list is a convenience; the comment itself is saved */ }
-  return json({ comment: publicComment(c, m.code) });
+  return json({ comment: publicComment(c, m.codes) });
 }
 
-async function removeComment(env, rawId, cid, code) {
+async function removeComment(env, rawId, cid, codes) {
   const id = photoId(rawId);
   const list = (await env.INBOX.get("c:" + id, "json")) || [];
   const i = list.findIndex((c) => c.cid === cid);
   if (i < 0) return json({ ok: true, already: true });
-  if (code && list[i].code !== code) throw fail(403, "You can only delete your own comments.");
+  if (codes && !codes.includes(list[i].code)) throw fail(403, "You can only delete your own comments.");
   list.splice(i, 1);
   await env.INBOX.put("c:" + id, JSON.stringify(list));
   try {
@@ -344,9 +346,9 @@ async function standings(url, env) {
   return json({ week, current, previous, voters, ranking });
 }
 
-function publicComment(c, code) {
+function publicComment(c, codes) {
   const out = { cid: c.cid, name: c.name, text: c.text, at: c.at };   // member codes are never shown
-  if (code && c.code === code) out.mine = true;
+  if (codes && codes.includes(c.code)) out.mine = true;
   return out;
 }
 
@@ -395,12 +397,13 @@ async function decide(request, env, sid) {
     update.galleryId = entry.id;
   }
   if (decision === "declined" && body.note) update.note = String(body.note).trim().slice(0, 300);
-  const own = (await env.INBOX.get("own:" + meta.code, "json")) || [];
+  const code = (await env.INBOX.get("moved:" + meta.code)) || meta.code;   // the member may have had a new code since
+  const own = (await env.INBOX.get("own:" + code, "json")) || [];
   const entry = own.find((x) => x.sid === sid);
   if (entry) Object.assign(entry, update);
   else own.unshift({ sid, title: meta.title, sent: meta.sent, ...update });
-  await env.INBOX.put("own:" + meta.code, JSON.stringify(own.slice(0, HISTORY)));
-  if (update.galleryId) await env.INBOX.put("owner:" + update.galleryId, meta.code);   // so members can't vote for their own photo
+  await env.INBOX.put("own:" + code, JSON.stringify(own.slice(0, HISTORY)));
+  if (update.galleryId) await env.INBOX.put("owner:" + update.galleryId, code);   // so members can't vote for their own photo
   await Promise.all(["sub:" + sid, "img:" + sid + ":full", "img:" + sid + ":thumb"].map((k) => env.INBOX.delete(k)));
   return json({ ok: true, id: update.galleryId });
 }
@@ -480,6 +483,42 @@ async function addMember(request, env) {
   const m = { name, created: Date.now() };
   await env.INBOX.put("member:" + code, JSON.stringify(m), { metadata: m });
   return json({ code, ...m });
+}
+
+// A new invite code for a member, e.g. when theirs has been shared by mistake. The old code stops
+// working at once; their photos, comments, votes and sent-photo history stay theirs.
+async function newCode(env, raw) {
+  const old = normalize(raw);
+  const m = await env.INBOX.get("member:" + old, "json");
+  if (!m) throw fail(404, "That member isn't in the club any more. Refresh the list.");
+  const code = randomString(12), now = Date.now(), week = weekId(now, env);
+  const prev = (m.prev || []).concat(old).slice(-10);
+  await env.INBOX.put("member:" + code, JSON.stringify({ name: m.name, created: m.created, renewed: now, prev }), { metadata: { name: m.name, created: m.created } });
+  const [own, votes] = await Promise.all([env.INBOX.get("own:" + old), env.INBOX.getWithMetadata("v:" + week + ":" + old)]);
+  if (own) await env.INBOX.put("own:" + code, own);
+  if (votes.value) await env.INBOX.put("v:" + week + ":" + code, votes.value, { metadata: votes.metadata, expirationTtl: 120 * 86400 });
+  for (const p of prev) await env.INBOX.put("moved:" + p, code);     // photos they sent earlier, still waiting, follow them
+  await Promise.all(["member:" + old, "own:" + old, "v:" + week + ":" + old].map((k) => env.INBOX.delete(k)));
+  return json({ code, name: m.name, created: m.created });
+}
+
+// For the admin page's backup: one part of the club's records at a time, 250 entries per call
+// (a Worker may only make 1,000 storage calls per request).
+const EXPORTABLE = ["member:", "c:", "owner:", "own:", "v:", "moved:"];
+async function exportPart(url, env) {
+  const prefix = url.searchParams.get("prefix") || "";
+  if (!EXPORTABLE.includes(prefix)) throw fail(400, "Unknown part of the backup.");
+  const limit = Math.min(250, Math.max(1, parseInt(url.searchParams.get("limit"), 10) || 250));
+  const page = await env.INBOX.list({ prefix, cursor: url.searchParams.get("cursor") || undefined, limit });
+  const entries = prefix === "v:"
+    ? page.keys.map((k) => ({ key: k.name, value: (k.metadata && k.metadata.votes) || [] }))   // votes are kept in the key's metadata too
+    : await Promise.all(page.keys.map(async (k) => {
+        const raw = await env.INBOX.get(k.name);
+        let value = raw;                                   // owner: and moved: hold a plain invite code
+        if (prefix === "member:" || prefix === "c:" || prefix === "own:") try { value = JSON.parse(raw); } catch { /* keep the text */ }
+        return { key: k.name, value };
+      }));
+  return json({ prefix, entries, cursor: page.list_complete ? null : page.cursor });
 }
 
 async function removeMember(env, code) {
