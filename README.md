@@ -1,2 +1,2 @@
 # photoclub
-The Photography Club of Samskara Germany e.V.,
+The Photography Club of Samskara Germany e.V.
