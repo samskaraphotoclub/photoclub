@@ -186,7 +186,8 @@ footer p.note { flex-basis: 100%; padding-top: 18px; margin: 0; border-top: 1px 
 .viewer .prev { left: 12px; } .viewer .next { right: 12px; }
 @media (max-width: 820px) {
   .viewer { padding: 0; place-items: stretch; }
-  .viewer .box { grid-template-columns: 1fr; grid-template-rows: auto 1fr; max-height: none; height: 100dvh; border-radius: 0; overflow-y: auto; }
+  /* Plain top-to-bottom stack on phones. (A grid here let tall portrait photos spill over the text below.) */
+  .viewer .box { display: block; max-height: none; height: 100dvh; border-radius: 0; overflow-y: auto; }
   .viewer .pic { min-height: 45dvh; padding-top: env(safe-area-inset-top); }
   .viewer .pic img { max-height: 62dvh; }
   .viewer .close { top: calc(12px + env(safe-area-inset-top)); }
