@@ -319,3 +319,8 @@ label.f small { font-weight: 400; color: var(--muted); }
 .pick-list label.tick { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
 .tick input { width: 20px; height: 20px; margin: 3px 0 0; flex: none; accent-color: var(--red); }
 .tick b { display: block; }
+/* admin: restoring from a backup */
+.pick-file { position: relative; }
+.pick-file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pick-file:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pick-h { font: 600 1rem var(--sans); margin: 18px 0 4px; letter-spacing: 0; }

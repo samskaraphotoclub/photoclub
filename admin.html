@@ -202,6 +202,18 @@
       <p class="status" id="backup-status" aria-live="polite"></p>
       <p class="note"><span id="backup-last"></span>Once a month is plenty. Once the gallery has hundreds of photos, do it on a computer: the file gets large.</p>
     </section>
+    <section class="card" aria-labelledby="r-h">
+      <h2 id="r-h">Restore from a backup</h2>
+      <p class="muted">Brings back photos and members that are missing, with their comments and votes, from a backup file. Nothing already in the club is changed or deleted, so it's safe to try.</p>
+      <label class="btn btn-light wide pick-file">Choose a backup file<input type="file" id="restore-file" accept=".zip,application/zip"></label>
+      <p class="status" id="restore-status" aria-live="polite"></p>
+      <div id="restore-plan" hidden>
+        <p id="restore-info"></p>
+        <div id="restore-photos-box"><h3 class="pick-h">Photos missing from the gallery</h3><ul class="list pick-list" id="restore-photos"></ul></div>
+        <div id="restore-members-box"><h3 class="pick-h">Members missing now</h3><p class="note" style="margin-top:0">Only tick people who should be members again: anyone you removed on purpose is listed here too. Codes you replaced with New code never come back.</p><ul class="list pick-list" id="restore-members"></ul></div>
+        <button class="btn btn-dark wide" type="button" id="restore-go">Restore</button>
+      </div>
+    </section>
   </section>
 </main>
 
@@ -787,6 +799,77 @@
       setStatus(st, "Saved " + b.name + " (" + T.kb(b.blob.size) + ", " + b.photos + (b.photos === 1 ? " photo, " : " photos, ") + b.members + (b.members === 1 ? " member" : " members") + "). Keep it somewhere private.");
     }).catch(function (e) { setStatus(st, e.message, true); })
       .then(function () { btn.disabled = false; });
+  });
+
+  /* ---------- restore ---------- */
+  var restoring = null;   // { backup, have }
+  function allExport(prefix) {
+    var out = [];
+    function page(cursor) {
+      return inbox("/admin/export?prefix=" + encodeURIComponent(prefix) + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "")).then(function (r) {
+        out = out.concat(r.entries);
+        return r.cursor ? page(r.cursor) : out;
+      });
+    }
+    return page(null);
+  }
+  function tickList(el, items, ticked) {
+    el.innerHTML = items.map(function (x) {
+      return '<li><label class="tick"><input type="checkbox" value="' + esc(x.value) + '"' + (ticked ? " checked" : "") + "> <span><b>" + esc(x.title) + '</b><span class="meta">' + esc(x.meta) + "</span></span></label></li>";
+    }).join("");
+  }
+  function restoreLabel() {
+    var n = $("restore-photos").querySelectorAll("input:checked").length, m = $("restore-members").querySelectorAll("input:checked").length;
+    var bits = [];
+    if (n) bits.push(n + (n === 1 ? " photo" : " photos"));
+    if (m) bits.push(m + (m === 1 ? " member" : " members"));
+    $("restore-go").textContent = bits.length ? "Restore " + bits.join(" and ") : "Bring back missing comments and votes";
+  }
+  $("restore-plan").addEventListener("change", restoreLabel);
+  $("restore-file").addEventListener("change", function () {
+    var file = this.files[0], st = $("restore-status");
+    if (!file) return;
+    if (!inboxReady()) { setStatus(st, "Add the inbox address and admin password above first.", true); return; }
+    $("restore-plan").hidden = true; restoring = null;
+    setStatus(st, "Reading the backup…");
+    file.arrayBuffer().then(Backup.unzip).then(function (files) {
+      var b = Backup.read(files);
+      setStatus(st, "Comparing it with the club…");
+      return Promise.all([inbox("/gallery"), inbox("/admin/members"), allExport("moved:")]).then(function (res) {
+        var have = { photos: {}, members: {} }, replaced = {};
+        res[0].photos.forEach(function (p) { have.photos[p.id] = true; });
+        res[1].members.forEach(function (m) { have.members[m.code] = true; });
+        res[2].forEach(function (e) { replaced[e.key.slice(6)] = true; });
+        var photos = b.gallery.filter(function (p) { return !have.photos[p.id]; });
+        var members = (b.data.members || []).filter(function (e) { var c = e.key.slice(7); return !have.members[c] && !replaced[c]; });
+        restoring = { backup: b, have: have };
+        var made = b.made ? new Date(b.made).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "an unknown date";
+        $("restore-info").textContent = "Backup from " + made + ": " + b.gallery.length + (b.gallery.length === 1 ? " photo, " : " photos, ") + (b.data.members || []).length + " members. " +
+          (photos.length || members.length ? "Missing from the club now: " + photos.length + (photos.length === 1 ? " photo" : " photos") + " and " + members.length + (members.length === 1 ? " member." : " members.") +
+            (res[0].photos.length ? " Photos deleted on purpose are listed too, so they start unticked." : "") :
+            "Every photo and member in it is already in the club. You can still bring back any comments or votes that are missing.");
+        tickList($("restore-photos"), photos.map(function (p) { return { value: p.id, title: p.title, meta: p.by + (p.added ? ", added " + day(p.added) : "") }; }), !res[0].photos.length);
+        tickList($("restore-members"), members.map(function (e) { return { value: e.key.slice(7), title: e.value.name, meta: "Code " + pretty(e.key.slice(7)) }; }), !res[1].members.length);
+        $("restore-photos-box").hidden = !photos.length; $("restore-members-box").hidden = !members.length;
+        restoreLabel();
+        $("restore-plan").hidden = false; setStatus(st, "");
+      });
+    }).catch(function (e) { setStatus(st, e instanceof SyntaxError ? "The backup's records can't be read. Use the original file." : e.message, true); });
+    this.value = "";
+  });
+  $("restore-go").addEventListener("click", function () {
+    if (!restoring) return;
+    var st = $("restore-status"), btn = $("restore-go");
+    var ids = [].map.call($("restore-photos").querySelectorAll("input:checked"), function (i) { return i.value; });
+    var codes = [].map.call($("restore-members").querySelectorAll("input:checked"), function (i) { return i.value; });
+    btn.disabled = true;
+    Backup.restore(inbox, restoring.backup, ids, codes, restoring.have, function (m) { setStatus(st, m); }).then(function (done) {
+      galleryInfo = null; restoring = null; $("restore-plan").hidden = true;
+      setStatus(st, "Done. Restored " + done.photos + (done.photos === 1 ? " photo" : " photos") + " and " + done.members + (done.members === 1 ? " member" : " members") +
+        (done.records ? ", and brought back " + done.records + (done.records === 1 ? " record" : " records") + " of comments, votes and sent photos." : ". No comments or votes were missing."));
+    }).catch(function (e) {
+      setStatus(st, e.message + (/daily limit/.test(e.message) ? " Choose the backup file again tomorrow to finish: what's already restored stays." : ""), true);
+    }).then(function () { btn.disabled = false; });
   });
 
   /* ---------- settings ---------- */

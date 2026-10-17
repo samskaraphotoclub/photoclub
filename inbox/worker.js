@@ -36,6 +36,10 @@ export default {
     try {
       response = await route(request, env);
     } catch (err) {
+      if (!err.status && /limit/i.test(String(err && err.message))) {   // e.g. "KV put() limit exceeded for the day"
+        err.status = 429;
+        err.message = "Cloudflare's free daily limit of saved changes is used up. Try again tomorrow; nothing already saved is lost.";
+      }
       response = json({ error: err.status ? err.message : "The inbox had a problem. Try again in a minute." }, err.status || 500);
       if (!err.status) console.error(err);
     }
@@ -81,6 +85,8 @@ async function route(request, env) {
     if (what === "members" && method === "DELETE" && a) return removeMember(env, a);
     if (what === "members" && method === "POST" && a && b === "new-code") return newCode(env, a);
     if (what === "export" && method === "GET") return exportPart(url, env);
+    if (what === "restore" && a === "records" && method === "POST") return restoreRecords(request, env);
+    if (what === "restore" && a === "photo" && method === "POST") return restorePhoto(request, env);
     if (what === "votes" && method === "GET") return standings(url, env);
     if (what === "comments" && method === "GET") return json({ comments: (await env.INBOX.get("recent-comments", "json")) || [] });
     if (what === "comment" && a === "delete" && method === "POST") {
@@ -519,6 +525,90 @@ async function exportPart(url, env) {
         return { key: k.name, value };
       }));
   return json({ prefix, entries, cursor: page.list_complete ? null : page.cursor });
+}
+
+/* ------------------------------------------------------------------ restoring from a backup */
+// Restoring only ever adds what's missing: nothing already in the club is overwritten or deleted,
+// and running it twice changes nothing. Comments and members' sent-photo lists are merged.
+const CODE_RE = /^[0-9A-Z]{8,32}$/;
+async function restoreRecords(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const entries = Array.isArray(body.entries) ? body.entries.slice(0, 120) : [];
+  let added = 0, merged = 0, skipped = 0;
+  for (const e of entries) {
+    const key = String(e && e.key || ""), v = e && e.value;
+    const [prefix, rest] = [key.slice(0, key.indexOf(":") + 1), key.slice(key.indexOf(":") + 1)];
+    if (prefix === "member:") {
+      if (!CODE_RE.test(rest) || !v || typeof v.name !== "string") throw fail(400, "The backup has a member that can't be read.");
+      // never bring back a code that has since been replaced, or one that's still there
+      if ((await env.INBOX.get("member:" + rest)) || (await env.INBOX.get("moved:" + rest))) { skipped++; continue; }
+      const m = { name: clean(v.name, 60, "name", true), created: +v.created || Date.now() };
+      if (Array.isArray(v.prev)) m.prev = v.prev.filter((c) => CODE_RE.test(c)).slice(-10);
+      await env.INBOX.put("member:" + rest, JSON.stringify(m), { metadata: { name: m.name, created: m.created } });
+      added++;
+    } else if (prefix === "c:") {
+      const id = photoId(rest);
+      const list = (await env.INBOX.get("c:" + id, "json")) || [], have = new Set(list.map((c) => c.cid));
+      const extra = (Array.isArray(v) ? v : []).filter((c) => c && typeof c.cid === "string" && !have.has(c.cid) && typeof c.text === "string")
+        .map((c) => ({ cid: c.cid.slice(0, 40), code: String(c.code || "").slice(0, 32), name: String(c.name || "").slice(0, 60), text: c.text.slice(0, MAX_COMMENT), at: +c.at || 0 }));
+      if (!extra.length) { skipped++; continue; }
+      const all = list.concat(extra).sort((x, y) => x.at - y.at).slice(-MAX_COMMENTS_PER_PHOTO);
+      await env.INBOX.put("c:" + id, JSON.stringify(all));
+      list.length ? merged++ : added++;
+    } else if (prefix === "own:") {
+      if (!CODE_RE.test(rest)) throw fail(400, "The backup has a record that can't be read.");
+      const list = (await env.INBOX.get("own:" + rest, "json")) || [], have = new Set(list.map((x) => x.sid));
+      const extra = (Array.isArray(v) ? v : []).filter((x) => x && typeof x.sid === "string" && !have.has(x.sid));
+      if (!extra.length) { skipped++; continue; }
+      const all = list.concat(extra).sort((x, y) => (y.sent || 0) - (x.sent || 0)).slice(0, HISTORY);
+      await env.INBOX.put("own:" + rest, JSON.stringify(all));
+      list.length ? merged++ : added++;
+    } else if (prefix === "owner:" || prefix === "moved:") {
+      const name = prefix === "owner:" ? photoId(rest) : rest;
+      if (!CODE_RE.test(name) && prefix === "moved:") throw fail(400, "The backup has a record that can't be read.");
+      if (typeof v !== "string" || !CODE_RE.test(v)) throw fail(400, "The backup has a record that can't be read.");
+      if (await env.INBOX.get(prefix + name)) { skipped++; continue; }
+      await env.INBOX.put(prefix + name, v);
+      added++;
+    } else if (prefix === "v:") {
+      const m = rest.match(/^(\d{4}-W\d{2}):([0-9A-Z]{8,32})$/);
+      if (!m || !Array.isArray(v)) throw fail(400, "The backup has a vote that can't be read.");
+      if (await env.INBOX.get(key)) { skipped++; continue; }
+      const votes = v.map((x) => photoId(x)).slice(0, 10);
+      await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 120 * 86400 });
+      added++;
+    } else if (key === POTW) {
+      if (await env.INBOX.get(POTW)) { skipped++; continue; }
+      if (!v || !/^\d{4}-W\d{2}$/.test(v.week) || !Array.isArray(v.items)) throw fail(400, "The backup's Photos of the week can't be read.");
+      await env.INBOX.put(POTW, JSON.stringify({ week: v.week, items: v.items.slice(0, 3).map((x) => ({ id: photoId(x.id), votes: +x.votes || 0 })), at: +v.at || Date.now() }));
+      added++;
+    } else throw fail(400, "The backup has a record the inbox doesn't know.");
+  }
+  return json({ ok: true, added, merged, skipped });
+}
+
+// One photo from a backup, with its original name, dates and details. Skipped if it's already in the gallery.
+async function restorePhoto(request, env) {
+  const form = await readForm(request);
+  const id = photoId(form.get("id"));
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  if (list.some((x) => x.id === id)) return json({ ok: true, already: true, id });
+  const { p, files } = await photoFields(form);
+  const at = parseInt(form.get("at"), 10) || Date.now(), added = String(form.get("added") || "");
+  const entry = { id, title: p.title, by: clean(form.get("by"), 60, "photographer's name", true), cat: p.cat, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
+                  ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: /^\d{4}-\d{2}-\d{2}$/.test(added) ? added : "", at, v: Date.now().toString(36) };
+  const sub = String(form.get("sub") || "").replace(/[^a-z0-9-]/gi, "").slice(0, 40);
+  if (sub) entry.sub = sub;
+  for (const k of ["desc", "lens", "ap", "sh", "iso"]) if (!entry[k]) delete entry[k];
+  await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
+  await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
+  const fresh = (await env.INBOX.get(GALLERY, "json")) || [];       // read again: the images took a moment
+  if (fresh.some((x) => x.id === id)) return json({ ok: true, already: true, id });
+  let i = fresh.findIndex((x) => (x.at || 0) < at);                 // back in its place, newest first
+  if (i < 0) i = fresh.length;
+  fresh.splice(i, 0, entry);
+  await env.INBOX.put(GALLERY, JSON.stringify(fresh));
+  return json({ ok: true, id, photo: entry });
 }
 
 async function removeMember(env, code) {

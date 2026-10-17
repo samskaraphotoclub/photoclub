@@ -111,5 +111,89 @@ var Backup = (function () {
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
   }
-  return { make: make, save: save, zip: zip, csv: csv };
+  /* ---------- restoring ---------- */
+  // A .zip -> { "name": Uint8Array }. Handles the club's own backups (stored) and re-packed ones (deflated).
+  function unzip(buf) {
+    var u8 = new Uint8Array(buf), dv = new DataView(buf), eocd = -1, dec = new TextDecoder();
+    for (var i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) return Promise.reject(new Error("That file isn't a .zip backup."));
+    var count = dv.getUint16(eocd + 10, true), p = dv.getUint32(eocd + 16, true), jobs = [];
+    for (var n = 0; n < count; n++) {
+      if (p + 46 > u8.length || dv.getUint32(p, true) !== 0x02014b50) return Promise.reject(new Error("The backup file is damaged."));
+      var method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nlen = dv.getUint16(p + 28, true),
+          xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      var name = dec.decode(u8.subarray(p + 46, p + 46 + nlen));
+      var start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+      jobs.push(inflate(name, method, u8.subarray(start, start + csize)));
+      p += 46 + nlen + xlen + clen;
+    }
+    return Promise.all(jobs).then(function (list) { var out = {}; list.forEach(function (f) { if (f) out[f.name] = f.data; }); return out; });
+  }
+  function inflate(name, method, data) {
+    if (/\/$/.test(name) || /(^|\/)(__MACOSX|\.)/.test(name)) return Promise.resolve(null);   // folders and Mac extras
+    if (method === 0) return Promise.resolve({ name: name, data: data });
+    if (method === 8 && window.DecompressionStream)
+      return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer().then(function (b) { return { name: name, data: new Uint8Array(b) }; });
+    return Promise.reject(new Error("This phone can't open a backup that has been re-packed. Use the original file, or a computer."));
+  }
+  // What's in a backup: { made, gallery, potw, data, photoFile(name) }
+  function read(files) {
+    var root = Object.keys(files).filter(function (k) { return /(^|\/)gallery\.json$/.test(k); }).sort(function (a, b) { return a.length - b.length; })[0];
+    if (root == null) throw new Error("That .zip isn't a club backup: it has no gallery.json.");
+    var pre = root.slice(0, root.length - "gallery.json".length), dec = new TextDecoder();
+    var json = function (name) { var f = files[pre + name]; return f ? JSON.parse(dec.decode(f)) : null; };
+    var data = json("data.json") || {};
+    return { made: data.made || "", gallery: json("gallery.json") || [], potw: json("photos-of-the-week.json"), data: data,
+             photoFile: function (name) { return files[pre + "photos/" + name]; } };
+  }
+  /* Restores the chosen photos and members, then adds back comments, votes and the other records for
+     everything that's in the club afterwards. inbox(path, opts) is the admin page's inbox call.
+     photoIds/memberCodes: what to restore. have: { photos: {id: true}, members: {code: true} } now in the club. */
+  function restore(inbox, b, photoIds, memberCodes, have, onStatus) {
+    var data = b.data, done = { photos: 0, members: 0, records: 0 };
+    var photos = {}, members = {};
+    Object.keys(have.photos).forEach(function (id) { photos[id] = true; });
+    Object.keys(have.members).forEach(function (c) { members[c] = true; });
+    function records(entries, label) {
+      var i = 0;
+      function next() {
+        if (i >= entries.length) return Promise.resolve();
+        onStatus("Restoring " + label + "…");
+        var batch = entries.slice(i, i + 100); i += 100;
+        return inbox("/admin/restore/records", { method: "POST", json: { entries: batch } }).then(function (r) { done.records += r.added + r.merged; }).then(next);
+      }
+      return next();
+    }
+    var wantMembers = (data.members || []).filter(function (e) { return memberCodes.indexOf(e.key.slice(7)) >= 0; });
+    return records(wantMembers, "members").then(function () {
+      wantMembers.forEach(function (e) { members[e.key.slice(7)] = true; });
+      done.members = wantMembers.length;
+      var list = b.gallery.filter(function (p) { return photoIds.indexOf(p.id) >= 0; }), n = 0;
+      function nextPhoto() {
+        if (n >= list.length) return Promise.resolve();
+        var p = list[n++];
+        onStatus("Restoring photo " + n + " of " + list.length + ": “" + p.title + "”…");
+        var full = b.photoFile(p.id + "." + p.ext), thumb = b.photoFile(p.id + "-sm." + p.ext);
+        if (!full || !thumb) return Promise.reject(new Error("The backup is missing the files for “" + p.title + "”."));
+        var type = p.ext === "webp" ? "image/webp" : "image/jpeg", f = new FormData();
+        ["id", "title", "by", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th"].forEach(function (k) { f.append(k, p[k] == null ? "" : p[k]); });
+        f.append("full", new Blob([full], { type: type }), "photo." + p.ext);
+        f.append("thumb", new Blob([thumb], { type: type }), "thumb." + p.ext);
+        return inbox("/admin/restore/photo", { form: f }).then(function (r) { if (!r.already) done.photos++; photos[p.id] = true; }).then(nextPhoto);
+      }
+      return nextPhoto();
+    }).then(function () {
+      var code = function (e) { return e.key.slice(e.key.lastIndexOf(":") + 1); };
+      var rest = []
+        .concat((data.comments || []).filter(function (e) { return photos[e.key.slice(2)]; }))
+        .concat((data.owners || []).filter(function (e) { return photos[e.key.slice(6)]; }))
+        .concat((data.sent || []).filter(function (e) { return members[e.key.slice(4)]; }))
+        .concat((data.votes || []).filter(function (e) { return members[code(e)]; }))
+        .concat(data.earlierCodes || []);
+      if (b.potw) rest.push({ key: "potw", value: b.potw });
+      return records(rest, "comments and votes");
+    }).then(function () { return done; });
+  }
+
+  return { make: make, save: save, zip: zip, csv: csv, unzip: unzip, read: read, restore: restore };
 })();
