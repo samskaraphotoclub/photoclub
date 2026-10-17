@@ -153,7 +153,7 @@
       var chip = x.status === "approved" ? '<span class="chip ok">In the gallery</span>'
                : x.status === "declined" ? '<span class="chip no">Not accepted</span>'
                : '<span class="chip">Waiting for approval</span>';
-      var extra = x.status === "approved" && x.galleryId ? ' <a href="gallery.html#p-' + esc(x.galleryId) + '">View it</a>'
+      var extra = x.status === "approved" && x.galleryId ? ' <a href="gallery.html?v=' + Date.now().toString(36) + '#p-' + esc(x.galleryId) + '">View it</a>'
                 : x.status === "declined" && x.note ? '<span class="meta">Note from the admins: ' + esc(x.note) + "</span>" : "";
       return "<li>" + chip + "<b>" + esc(x.title) + "</b><span class=\"meta\">Sent " + T.ago(x.sent) + "</span>" +
              (x.status === "approved" ? '<span class="meta">Approved ' + T.ago(x.decided) + "." + extra + "</span>" : extra) + "</li>";

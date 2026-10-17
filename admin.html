@@ -304,10 +304,31 @@
         markDecided(p.sid);
         return inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", galleryId: id } }).then(function () { return id; });
       }).then(function (id) {
-        done(el, "Published “" + title + "” by " + p.name + ". It will be live in about a minute.", "gallery.html#p-" + id);
+        var what = "“" + title + "” by " + p.name;
+        done(el, "Published " + what + ". GitHub is putting it on the site, which usually takes a minute or two…");
+        whenLive(id, function (live) {
+          el.innerHTML = '<p class="status" style="margin:0">' + esc(live ? what + " is now in the gallery." : "Published " + what + ". GitHub is taking longer than usual, so it may need a few more minutes.") +
+            ' <a href="' + esc(fresh("gallery.html")) + "#p-" + id + '">View in the gallery</a></p>';
+        });
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
     });
     return el;
+  }
+  /* A page address that skips the phone's saved copy (GitHub Pages lets phones keep pages for 10 minutes). */
+  function fresh(page) { return page + "?v=" + Date.now().toString(36); }
+  /* GitHub needs a minute or two to rebuild the site after a commit. Check the live gallery
+     every 8 seconds for up to about 5 minutes, then call back with true (live) or false (still waiting). */
+  function whenLive(id, callback) {
+    var tries = 0;
+    (function check() {
+      fetch(fresh("gallery.html"), { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.text() : ""; }, function () { return ""; })
+        .then(function (html) {
+          if (html.indexOf('id="t-' + id + '"') >= 0) callback(true);
+          else if (++tries < 40) setTimeout(check, 8000);
+          else callback(false);
+        });
+    })();
   }
   function done(el, msg, link) {
     el.innerHTML = '<p class="status" style="margin:0">' + esc(msg) + (link ? ' <a href="' + link + '">View in the gallery</a>' : "") + "</p>";
@@ -435,7 +456,7 @@
     $("potw").disabled = true; setStatus($("potw-status"), "Publishing…");
     Publish.publishHome(cfg, items, lastWeek.data.week).then(function () {
       var s = $("potw-status"); s.className = "status";
-      s.innerHTML = 'Done. The home page will show them in about a minute. <a href="index.html">View the home page</a>';
+      s.innerHTML = 'Done. The home page will show them in a minute or two. <a href="' + fresh("index.html") + '">View the home page</a>';
     }).catch(function (e) { setStatus($("potw-status"), e.message, true); })
       .then(function () { $("potw").disabled = false; });
   });
@@ -552,7 +573,7 @@
     $("h-publish").disabled = true; setStatus(st, "Publishing…");
     Publish.publishSections(cfg, { THEME: themeHtml, CONTESTS: contestHtml }, "Home page: theme “" + theme + "”").then(function () {
       st.className = "status";
-      st.innerHTML = 'Published. The home page will update in about a minute. <a href="index.html">View the home page</a>';
+      st.innerHTML = 'Published. The home page will update in a minute or two. <a href="' + fresh("index.html") + '">View the home page</a>';
     }).catch(function (e) { setStatus(st, e.message, true); })
       .then(function () { $("h-publish").disabled = false; });
   });
@@ -589,7 +610,11 @@
     $("publish").disabled = true;
     Publish.publish(cfg, p, prepared.full.blob, prepared.thumb.blob, function (m) { setStatus($("post-status"), m); }).then(function (id) {
       var s = $("post-status"); s.className = "status";
-      s.innerHTML = "Published. It will be live in about a minute: <a href=\"gallery.html#p-" + id + "\">view it in the gallery</a>.";
+      s.textContent = "Published. GitHub is putting it on the site, which usually takes a minute or two…";
+      whenLive(id, function (live) {
+        s.innerHTML = (live ? "It's now in the gallery." : "Published. GitHub is taking longer than usual, so it may need a few more minutes.") +
+          ' <a href="' + esc(fresh("gallery.html")) + "#p-" + id + '">View it in the gallery</a>';
+      });
       $("post").reset(); $("by").value = cfg.by; $("exif-note").textContent = "";
       $("preview").hidden = true; $("pick").hidden = false; prepared = null;
     }).catch(function (e) { setStatus($("post-status"), e.message, true); })
