@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gallery – The Conscious Frame</title>
-<meta name="description" content="Browse photos shared by members of The Conscious Frame.">
+<meta name="description" content="The members-only gallery of The Conscious Frame.">
+<meta name="robots" content="noindex">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -26,360 +27,35 @@
 <section class="wrap page-head">
   <h1>Gallery</h1>
   <p>Photos shared by club members, newest first. Select a photo to see it larger, with the camera settings and members' comments.</p>
+  <p class="signed-in" id="g-who" hidden>Signed in as <b id="g-name"></b>. <button class="linkish" type="button" id="sign-out">Sign out</button></p>
 </section>
 <section class="wrap gallery" aria-label="Photos">
-  <div class="chips" role="radiogroup" aria-label="Category">
-    <input type="radio" name="cat" id="c-all" checked><label for="c-all">All</label>
-    <input type="radio" name="cat" id="c-landscape"><label for="c-landscape">Landscape</label>
-    <input type="radio" name="cat" id="c-nature"><label for="c-nature">Nature</label>
-    <input type="radio" name="cat" id="c-travel"><label for="c-travel">Travel</label>
-    <input type="radio" name="cat" id="c-street"><label for="c-street">Street</label>
-    <input type="radio" name="cat" id="c-architecture"><label for="c-architecture">Architecture</label>
-    <input type="radio" name="cat" id="c-night"><label for="c-night">Night</label>
-    <input type="radio" name="cat" id="c-abstract"><label for="c-abstract">Abstract</label>
-    <input type="radio" name="cat" id="c-week"><label for="c-week" id="l-week" hidden>This week</label>
-  </div>
-  <div class="grid">
-    <!-- NEW PHOTOS GO HERE: the Add photo page inserts new photos below this line -->
-    <figure class="tile landscape" id="t-foreground-background-trials-with-different-exposu" data-sub="mvcpry6o-vyq3am" data-added="2026-10-17">
-      <a href="#p-foreground-background-trials-with-different-exposu"><img src="photos/foreground-background-trials-with-different-exposu-sm.jpg" alt="foreground background trials with different exposure" width="700" height="467" loading="lazy"></a>
-      <figcaption><b>foreground background trials with different exposure</b>RevanthR</figcaption>
-      <div class="viewer" id="p-foreground-background-trials-with-different-exposu" role="dialog" aria-label="foreground background trials with different exposure">
-        <a class="shade" href="#t-foreground-background-trials-with-different-exposu" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-foreground-background-trials-with-different-exposu" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/foreground-background-trials-with-different-exposu.jpg" alt="foreground background trials with different exposure" width="1600" height="1067" loading="lazy"></div>
-          <div class="info">
-            <h2>foreground background trials with different exposure</h2>
-            <p class="by">RevanthR, Landscape</p>
-            <dl><dt>Lens</dt><dd>117 mm</dd><dt>Aperture</dt><dd>f/13</dd><dt>Shutter</dt><dd>1/30 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile landscape" id="t-dresden-train" data-sub="mvcn1r0n-5lafxk" data-added="2026-10-17">
-      <a href="#p-dresden-train"><img src="photos/dresden-train-sm.webp" alt="Dresden Train" width="700" height="525" loading="lazy"></a>
-      <figcaption><b>Dresden Train</b>NanduG</figcaption>
-      <div class="viewer" id="p-dresden-train" role="dialog" aria-label="Dresden Train">
-        <a class="shade" href="#t-dresden-train" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-dresden-train" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/dresden-train.webp" alt="Dresden Train" width="1600" height="1200" loading="lazy"></div>
-          <div class="info">
-            <h2>Dresden Train</h2>
-            <p class="by">NanduG, Landscape</p>
-            <p class="desc">GG</p>
-            <dl><dt>Lens</dt><dd>15 mm</dd><dt>Aperture</dt><dd>f/5</dd><dt>Shutter</dt><dd>1/320 s</dd><dt>ISO</dt><dd>500</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile landscape" id="t-autumn-in-dresden" data-sub="mvcmto4q-t5s4k4" data-added="2026-10-17">
-      <a href="#p-autumn-in-dresden"><img src="photos/autumn-in-dresden-sm.webp" alt="Autumn in Dresden" width="527" height="700" loading="lazy"></a>
-      <figcaption><b>Autumn in Dresden</b>NanduG</figcaption>
-      <div class="viewer" id="p-autumn-in-dresden" role="dialog" aria-label="Autumn in Dresden">
-        <a class="shade" href="#t-autumn-in-dresden" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-autumn-in-dresden" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/autumn-in-dresden.webp" alt="Autumn in Dresden" width="1205" height="1600" loading="lazy"></div>
-          <div class="info">
-            <h2>Autumn in Dresden</h2>
-            <p class="by">NanduG, Landscape</p>
-            <p class="desc">While walking to University, saw trees in different colours.</p>
-            <dl><dt>Lens</dt><dd>24 mm</dd><dt>Aperture</dt><dd>f/1.7</dd><dt>Shutter</dt><dd>1/790 s</dd><dt>ISO</dt><dd>20</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile landscape" id="t-sunset" data-sub="mvcmqy87-5jjxlg" data-added="2026-10-17">
-      <a href="#p-sunset"><img src="photos/sunset-sm.jpg" alt="Sunset" width="525" height="700" loading="lazy"></a>
-      <figcaption><b>Sunset</b>AparnaM</figcaption>
-      <div class="viewer" id="p-sunset" role="dialog" aria-label="Sunset">
-        <a class="shade" href="#t-sunset" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-sunset" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/sunset.jpg" alt="Sunset" width="1200" height="1600" loading="lazy"></div>
-          <div class="info">
-            <h2>Sunset</h2>
-            <p class="by">AparnaM, Landscape</p>
-            <p class="desc">A shot captured while sipping some tea in my balcony</p>
-            <dl><dt>Lens</dt><dd>24 mm</dd><dt>Aperture</dt><dd>f/1.8</dd><dt>Shutter</dt><dd>1/121 s</dd><dt>ISO</dt><dd>125</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile landscape" id="t-first-light">
-      <a href="#p-first-light"><img src="photos/first-light-sm.webp" alt="First light over the ridges" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>First light over the ridges</b>Mara Lindqvist</figcaption>
-      <div class="viewer" id="p-first-light" role="dialog" aria-label="First light over the ridges">
-        <a class="shade" href="#t-first-light" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-first-light" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/first-light.webp" alt="First light over the ridges" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>First light over the ridges</h2>
-            <p class="by">Mara Lindqvist, Landscape</p>
-            <p class="desc">Up at 4:40 for this. The valley filled with haze right as the sun cleared the far ridge.</p>
-            <dl><dt>Lens</dt><dd>70 mm</dd><dt>Aperture</dt><dd>f/8</dd><dt>Shutter</dt><dd>1/320 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile landscape" id="t-seven-blues">
-      <a href="#p-seven-blues"><img src="photos/seven-blues-sm.webp" alt="Seven layers of blue" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Seven layers of blue</b>Oskar Nyberg</figcaption>
-      <div class="viewer" id="p-seven-blues" role="dialog" aria-label="Seven layers of blue">
-        <a class="shade" href="#t-seven-blues" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-seven-blues" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/seven-blues.webp" alt="Seven layers of blue" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Seven layers of blue</h2>
-            <p class="by">Oskar Nyberg, Landscape</p>
-            <p class="desc">Counted the ridges twice. Long lens from the fire tower, no colour grading beyond white balance.</p>
-            <dl><dt>Lens</dt><dd>200 mm</dd><dt>Aperture</dt><dd>f/11</dd><dt>Shutter</dt><dd>1/500 s</dd><dt>ISO</dt><dd>200</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile landscape" id="t-old-oak">
-      <a href="#p-old-oak"><img src="photos/old-oak-sm.webp" alt="The old oak at dusk" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>The old oak at dusk</b>Tobias Reiner</figcaption>
-      <div class="viewer" id="p-old-oak" role="dialog" aria-label="The old oak at dusk">
-        <a class="shade" href="#t-old-oak" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-old-oak" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/old-oak.webp" alt="The old oak at dusk" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>The old oak at dusk</h2>
-            <p class="by">Tobias Reiner, Landscape</p>
-            <p class="desc">This tree is on my walk home. I&#x27;ve photographed it in every season; this is my favourite so far.</p>
-            <dl><dt>Lens</dt><dd>50 mm</dd><dt>Aperture</dt><dd>f/8</dd><dt>Shutter</dt><dd>1/100 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile landscape" id="t-three-trees">
-      <a href="#p-three-trees"><img src="photos/three-trees-sm.webp" alt="Three trees in snow" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Three trees in snow</b>Aiko Tanaka</figcaption>
-      <div class="viewer" id="p-three-trees" role="dialog" aria-label="Three trees in snow">
-        <a class="shade" href="#t-three-trees" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-three-trees" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/three-trees.webp" alt="Three trees in snow" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Three trees in snow</h2>
-            <p class="by">Aiko Tanaka, Landscape</p>
-            <p class="desc">Overexposed by two stops to keep the snow white. Almost nothing in the frame, and that was the point.</p>
-            <dl><dt>Lens</dt><dd>135 mm</dd><dt>Aperture</dt><dd>f/8</dd><dt>Shutter</dt><dd>1/500 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile nature" id="t-spruce-fog">
-      <a href="#p-spruce-fog"><img src="photos/spruce-fog-sm.webp" alt="Spruce in the fog" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Spruce in the fog</b>Tobias Reiner</figcaption>
-      <div class="viewer" id="p-spruce-fog" role="dialog" aria-label="Spruce in the fog">
-        <a class="shade" href="#t-spruce-fog" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-spruce-fog" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/spruce-fog.webp" alt="Spruce in the fog" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Spruce in the fog</h2>
-            <p class="by">Tobias Reiner, Nature</p>
-            <p class="desc">Layers of forest disappearing into the cloud. Nearly monochrome, with a hint of green left in.</p>
-            <dl><dt>Lens</dt><dd>105 mm</dd><dt>Aperture</dt><dd>f/8</dd><dt>Shutter</dt><dd>1/125 s</dd><dt>ISO</dt><dd>200</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile nature" id="t-morning-dew">
-      <a href="#p-morning-dew"><img src="photos/morning-dew-sm.webp" alt="Morning dew" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Morning dew</b>Hannah Kowalski</figcaption>
-      <div class="viewer" id="p-morning-dew" role="dialog" aria-label="Morning dew">
-        <a class="shade" href="#t-morning-dew" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-morning-dew" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/morning-dew.webp" alt="Morning dew" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Morning dew</h2>
-            <p class="by">Hannah Kowalski, Nature</p>
-            <p class="desc">Macro on a grass stem in the back garden, before breakfast.</p>
-            <dl><dt>Lens</dt><dd>100 mm macro</dd><dt>Aperture</dt><dd>f/4</dd><dt>Shutter</dt><dd>1/200 s</dd><dt>ISO</dt><dd>400</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile travel" id="t-low-tide">
-      <a href="#p-low-tide"><img src="photos/low-tide-sm.webp" alt="Low tide, late sun" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Low tide, late sun</b>Inês Duarte</figcaption>
-      <div class="viewer" id="p-low-tide" role="dialog" aria-label="Low tide, late sun">
-        <a class="shade" href="#t-low-tide" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-low-tide" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/low-tide.webp" alt="Low tide, late sun" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Low tide, late sun</h2>
-            <p class="by">Inês Duarte, Travel</p>
-            <p class="desc">The water had pulled back so far that the reflections went on forever.</p>
-            <dl><dt>Lens</dt><dd>24 mm</dd><dt>Aperture</dt><dd>f/9</dd><dt>Shutter</dt><dd>1/200 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile travel" id="t-dune-lines">
-      <a href="#p-dune-lines"><img src="photos/dune-lines-sm.webp" alt="Dune lines" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Dune lines</b>Samir Haddad</figcaption>
-      <div class="viewer" id="p-dune-lines" role="dialog" aria-label="Dune lines">
-        <a class="shade" href="#t-dune-lines" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-dune-lines" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/dune-lines.webp" alt="Dune lines" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Dune lines</h2>
-            <p class="by">Samir Haddad, Travel</p>
-            <p class="desc">Side light at 9 a.m. gives the ripples their shape. An hour later it was flat and white.</p>
-            <dl><dt>Lens</dt><dd>85 mm</dd><dt>Aperture</dt><dd>f/8</dd><dt>Shutter</dt><dd>1/1000 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile street" id="t-neon-drizzle">
-      <a href="#p-neon-drizzle"><img src="photos/neon-drizzle-sm.webp" alt="Neon drizzle" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Neon drizzle</b>Priya Raman</figcaption>
-      <div class="viewer" id="p-neon-drizzle" role="dialog" aria-label="Neon drizzle">
-        <a class="shade" href="#t-neon-drizzle" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-neon-drizzle" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/neon-drizzle.webp" alt="Neon drizzle" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Neon drizzle</h2>
-            <p class="by">Priya Raman, Street</p>
-            <p class="desc">Shot through a rain-covered window on the night bus.</p>
-            <dl><dt>Lens</dt><dd>35 mm</dd><dt>Aperture</dt><dd>f/2</dd><dt>Shutter</dt><dd>1/60 s</dd><dt>ISO</dt><dd>3200</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile street" id="t-after-the-rain">
-      <a href="#p-after-the-rain"><img src="photos/after-the-rain-sm.webp" alt="After the rain" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>After the rain</b>Jonas Weber</figcaption>
-      <div class="viewer" id="p-after-the-rain" role="dialog" aria-label="After the rain">
-        <a class="shade" href="#t-after-the-rain" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-after-the-rain" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/after-the-rain.webp" alt="After the rain" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>After the rain</h2>
-            <p class="by">Jonas Weber, Street</p>
-            <p class="desc">Wet cobbles turn every street lamp into two.</p>
-            <dl><dt>Lens</dt><dd>35 mm</dd><dt>Aperture</dt><dd>f/2.8</dd><dt>Shutter</dt><dd>1/30 s</dd><dt>ISO</dt><dd>1600</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile architecture" id="t-pink-facade">
-      <a href="#p-pink-facade"><img src="photos/pink-facade-sm.webp" alt="Pink facade at noon" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Pink facade at noon</b>Luca Bianchi</figcaption>
-      <div class="viewer" id="p-pink-facade" role="dialog" aria-label="Pink facade at noon">
-        <a class="shade" href="#t-pink-facade" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-pink-facade" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/pink-facade.webp" alt="Pink facade at noon" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Pink facade at noon</h2>
-            <p class="by">Luca Bianchi, Architecture</p>
-            <p class="desc">Harsh midday light usually ruins things, but here the shadow does all the work.</p>
-            <dl><dt>Lens</dt><dd>28 mm</dd><dt>Aperture</dt><dd>f/8</dd><dt>Shutter</dt><dd>1/800 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile architecture" id="t-colonnade">
-      <a href="#p-colonnade"><img src="photos/colonnade-sm.webp" alt="Colonnade shadows" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Colonnade shadows</b>Inês Duarte</figcaption>
-      <div class="viewer" id="p-colonnade" role="dialog" aria-label="Colonnade shadows">
-        <a class="shade" href="#t-colonnade" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-colonnade" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/colonnade.webp" alt="Colonnade shadows" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Colonnade shadows</h2>
-            <p class="by">Inês Duarte, Architecture</p>
-            <p class="desc">Waited for the empty moment between tour groups.</p>
-            <dl><dt>Lens</dt><dd>35 mm</dd><dt>Aperture</dt><dd>f/8</dd><dt>Shutter</dt><dd>1/250 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile architecture" id="t-window-study">
-      <a href="#p-window-study"><img src="photos/window-study-sm.webp" alt="Window study in teal" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Window study in teal</b>Kwame Mensah</figcaption>
-      <div class="viewer" id="p-window-study" role="dialog" aria-label="Window study in teal">
-        <a class="shade" href="#t-window-study" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-window-study" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/window-study.webp" alt="Window study in teal" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Window study in teal</h2>
-            <p class="by">Kwame Mensah, Architecture</p>
-            <p class="desc">Trying to get the verticals perfectly straight in-camera. Did I manage it?</p>
-            <dl><dt>Lens</dt><dd>24 mm tilt-shift</dd><dt>Aperture</dt><dd>f/8</dd><dt>Shutter</dt><dd>1/320 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile night" id="t-green-curtains">
-      <a href="#p-green-curtains"><img src="photos/green-curtains-sm.webp" alt="Green curtains" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Green curtains</b>Oskar Nyberg</figcaption>
-      <div class="viewer" id="p-green-curtains" role="dialog" aria-label="Green curtains">
-        <a class="shade" href="#t-green-curtains" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-green-curtains" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/green-curtains.webp" alt="Green curtains" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Green curtains</h2>
-            <p class="by">Oskar Nyberg, Night</p>
-            <p class="desc">Kp 6 and a clear sky for once. Fifteen-second exposure, tripod in the snow.</p>
-            <dl><dt>Lens</dt><dd>14 mm</dd><dt>Aperture</dt><dd>f/2.8</dd><dt>Shutter</dt><dd>15 s</dd><dt>ISO</dt><dd>1600</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile night" id="t-moonrise">
-      <a href="#p-moonrise"><img src="photos/moonrise-sm.webp" alt="Moonrise" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Moonrise</b>Aiko Tanaka</figcaption>
-      <div class="viewer" id="p-moonrise" role="dialog" aria-label="Moonrise">
-        <a class="shade" href="#t-moonrise" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-moonrise" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/moonrise.webp" alt="Moonrise" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Moonrise</h2>
-            <p class="by">Aiko Tanaka, Night</p>
-            <p class="desc">My first attempt at a moon blend. I&#x27;d love advice on the transition around the ridge line.</p>
-            <dl><dt>Lens</dt><dd>135 mm</dd><dt>Aperture</dt><dd>f/4</dd><dt>Shutter</dt><dd>2 s</dd><dt>ISO</dt><dd>800</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
-    <figure class="tile abstract" id="t-pool-light">
-      <a href="#p-pool-light"><img src="photos/pool-light-sm.webp" alt="Pool light" width="600" height="400" loading="lazy"></a>
-      <figcaption><b>Pool light</b>Priya Raman</figcaption>
-      <div class="viewer" id="p-pool-light" role="dialog" aria-label="Pool light">
-        <a class="shade" href="#t-pool-light" aria-label="Close" tabindex="-1"></a>
-        <div class="box">
-          <a class="close" href="#t-pool-light" aria-label="Close">×</a>
-          <div class="pic"><img src="photos/pool-light.webp" alt="Pool light" width="1200" height="800" loading="lazy"></div>
-          <div class="info">
-            <h2>Pool light</h2>
-            <p class="by">Priya Raman, Abstract</p>
-            <p class="desc">Caustics on the bottom of the hotel pool, shot from the diving board.</p>
-            <dl><dt>Lens</dt><dd>35 mm</dd><dt>Aperture</dt><dd>f/5.6</dd><dt>Shutter</dt><dd>1/1000 s</dd><dt>ISO</dt><dd>100</dd></dl>
-          </div>
-        </div>
-      </div>
-    </figure>
+  <form class="card gate" id="gate" novalidate hidden>
+    <h2>The gallery is for members</h2>
+    <p>Sign in with the invite code the club sent you. You only need to do this once on each phone or computer.</p>
+    <div class="signin-row">
+      <label class="visually-hidden" for="gate-code">Invite code</label>
+      <input type="text" id="gate-code" placeholder="Invite code" autocapitalize="characters" autocomplete="off" spellcheck="false">
+      <button class="btn btn-dark" type="submit">Sign in</button>
+    </div>
+    <p class="status" id="gate-status" aria-live="polite"></p>
+    <p class="note">Not a member yet? <a href="about.html#join">How to join</a></p>
+  </form>
+  <p class="muted g-status" id="g-status" aria-live="polite">Loading…</p>
+  <noscript><p class="muted">The gallery needs JavaScript switched on.</p></noscript>
+  <div id="g-photos" hidden>
+    <div class="chips" role="radiogroup" aria-label="Category">
+      <input type="radio" name="cat" id="c-all" checked><label for="c-all">All</label>
+      <input type="radio" name="cat" id="c-landscape"><label for="c-landscape">Landscape</label>
+      <input type="radio" name="cat" id="c-nature"><label for="c-nature">Nature</label>
+      <input type="radio" name="cat" id="c-travel"><label for="c-travel">Travel</label>
+      <input type="radio" name="cat" id="c-street"><label for="c-street">Street</label>
+      <input type="radio" name="cat" id="c-architecture"><label for="c-architecture">Architecture</label>
+      <input type="radio" name="cat" id="c-night"><label for="c-night">Night</label>
+      <input type="radio" name="cat" id="c-abstract"><label for="c-abstract">Abstract</label>
+      <input type="radio" name="cat" id="c-week"><label for="c-week" id="l-week" hidden>This week</label>
+    </div>
+    <div class="grid" id="grid"></div>
   </div>
 </section>
 
@@ -397,46 +73,11 @@
       <li><a href="about.html#join">How to join</a></li>
       <li><a href="mailto:hello@example.com">hello@example.com</a></li>
     </ul>
-    <p class="note">© 2026 The Conscious Frame. Photos and member names shown here are sample content.</p>
+    <p class="note">© 2026 The Conscious Frame. Every photo belongs to the member who took it.</p>
   </div>
 </footer>
-<script>
-// Optional extras: previous/next buttons, swipe, arrow keys and Esc in the photo viewer.
-(function () {
-  function open() { return document.querySelector(".viewer:target"); }
-  function go(step) {
-    var cur = open(); if (!cur) return;
-    var tiles = [].filter.call(document.querySelectorAll(".tile"), function (t) { return t.offsetParent || t.contains(cur); });
-    var i = tiles.indexOf(cur.closest(".tile"));
-    location.replace("#" + tiles[(i + step + tiles.length) % tiles.length].querySelector(".viewer").id);
-  }
-  function close() { var cur = open(); if (cur) location.replace(cur.querySelector(".close").getAttribute("href")); }
-  document.querySelectorAll(".viewer .pic").forEach(function (pic) {
-    pic.insertAdjacentHTML("beforeend", '<button class="step prev" type="button" aria-label="Previous photo">‹</button><button class="step next" type="button" aria-label="Next photo">›</button>');
-  });
-  document.addEventListener("click", function (e) {
-    var b = e.target.closest(".step, .viewer .close, .viewer .shade");
-    if (!b) return;
-    e.preventDefault();
-    b.classList.contains("step") ? go(b.classList.contains("prev") ? -1 : 1) : close();
-  });
-  document.addEventListener("keydown", function (e) {
-    if (!open() || e.target.closest("input, textarea, select, [contenteditable]")) return;
-    if (e.key === "Escape") close();
-    if (e.key === "ArrowLeft") go(-1);
-    if (e.key === "ArrowRight") go(1);
-  });
-  var x0 = null, y0 = 0;
-  document.addEventListener("touchstart", function (e) { if (e.target.closest(".viewer .pic")) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; } }, { passive: true });
-  document.addEventListener("touchend", function (e) {
-    if (x0 === null) return;
-    var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
-    x0 = null;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
-  });
-})();
-</script>
 <script src="config.js"></script>
-<script src="members.js"></script>
+<script src="club.js"></script>
+<script src="gallery.js"></script>
 </body>
 </html>

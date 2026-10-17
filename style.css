@@ -23,7 +23,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-padding-top: 76px; -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--surface); color: var(--ink); font: 17px/1.55 var(--sans); overflow-x: hidden; }
-body:has(.viewer:target) { overflow: hidden; }
+body:has(.viewer:target), body:has(.viewer.open) { overflow: hidden; }
 img { display: block; max-width: 100%; height: auto; }
 a { color: inherit; text-underline-offset: 3px; }
 h1, h2, h3 { font-family: var(--serif); font-weight: 500; line-height: 1.1; margin: 0; }
@@ -119,6 +119,12 @@ footer p.note { flex-basis: 100%; padding-top: 18px; margin: 0; border-top: 1px 
 @media (max-width: 520px) { .sheet { grid-template-columns: repeat(2, 1fr); } }
 .sheet a:hover img, .tile > a:hover img { opacity: .88; }
 
+/* the home page's invitation for visitors, where members see a photo */
+.members-card { background: var(--sheet); border-radius: 6px; padding: clamp(22px, 4vw, 44px); align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; min-height: clamp(220px, 30vw, 400px); }
+.members-card p { color: var(--muted); max-width: 40ch; }
+.members-card .actions { margin-bottom: 0; }
+
 /* contests */
 .contest img { aspect-ratio: 4/3; object-fit: cover; border-radius: 2px; margin-bottom: 12px; }
 .contest a { text-decoration: none; }
@@ -167,7 +173,7 @@ footer p.note { flex-basis: 100%; padding-top: 18px; margin: 0; border-top: 1px 
 
 /* photo viewer: shown when its #id is in the address bar (:target) */
 .viewer { display: none; position: fixed; inset: 0; z-index: 50; padding: 16px; place-items: center; }
-.viewer:target { display: grid; }
+.viewer:target, .viewer.open { display: grid; }   /* the gallery adds .open for photos loaded after the page */
 .viewer .shade { position: absolute; inset: 0; background: rgb(10 10 12 / .88); }
 .viewer .box { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 320px; width: min(1200px, 100%);
   max-height: calc(100dvh - 32px); background: var(--sheet); border-radius: 6px; overflow: hidden; }
@@ -253,6 +259,16 @@ label.f small { font-weight: 400; color: var(--muted); }
 .tool .invite-text { min-height: 200px; line-height: 1.45; }
 [hidden] { display: none !important; }
 
+/* ------------------------------------------------------------------ signing in to the members-only gallery */
+.gate { max-width: 560px; margin-top: 22px; }
+.gate p { margin: 6px 0 14px; }
+.gate input[type=text] { flex: 1; min-width: 0; min-height: 48px; padding: 10px 14px; font: 17px var(--sans); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+.gate .note { margin: 4px 0 0; }
+.page-head .signed-in { font-size: .95rem; margin-top: 8px; }
+.signed-in .linkish { padding: 0; }
+.g-status { margin: 22px 0 0; }
+
 /* ------------------------------------------------------------------ votes and comments in the photo viewer */
 .chips label[hidden] { display: none; }
 .gallery:has(#c-week:checked) .tile:not(.this-week) { display: none; }
@@ -290,3 +306,15 @@ label.f small { font-weight: 400; color: var(--muted); }
 .contest-edit legend { font-weight: 600; padding: 0 6px; }
 .contest-edit .c-remove { margin-top: 8px; }
 #h-add { margin-bottom: 4px; }
+/* admin: the Gallery tab */
+.g-row { grid-template-columns: 72px minmax(0, 1fr); align-items: center; column-gap: 12px; }
+.g-row img { width: 72px; height: 48px; object-fit: cover; border-radius: 3px; }
+.g-row b { display: block; }
+.g-row b a { text-decoration: none; }
+.g-row .row-btns, .g-row > .status, .g-row form { grid-column: 1 / -1; }
+.g-row .row-btns { margin-top: 8px; }
+.g-row > .status:empty { display: none; }
+.wide { white-space: normal; text-align: center; }
+.pick-list label.tick { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.tick input { width: 20px; height: 20px; margin: 3px 0 0; flex: none; accent-color: var(--red); }
+.tick b { display: block; }

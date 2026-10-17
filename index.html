@@ -36,58 +36,31 @@
     </div>
     <p class="about">The Conscious Frame is a friendly online photo club. Share your pictures, take part in the weekly theme and get honest, kind feedback.</p>
   </div>
-  <figure class="print">
-    <a href="gallery.html#p-low-tide"><img src="photos/low-tide.webp" srcset="photos/low-tide-sm.webp 600w, photos/low-tide.webp 1200w" sizes="(max-width: 860px) 100vw, 700px" alt="Low tide, late sun" width="1200" height="800" fetchpriority="high"></a>
-    <figcaption><b>Low tide, late sun</b> by Inês Duarte, leading entry this week</figcaption>
-  </figure>
+  <div class="members-card" id="hero-card">
+    <h2>The gallery is for members</h2>
+    <p>Club members see everyone's photos, the newest shares and Photos of the week, and can comment and vote.</p>
+    <div class="actions"><a class="btn btn-dark" href="gallery.html">Sign in</a><a class="btn btn-light" href="about.html#join">How to join</a></div>
+  </div>
+  <figure class="print" id="hero-photo" hidden></figure>
 </section>
 
-<section class="wrap section">
+<section class="wrap section" id="potw-section" hidden>
   <div class="head"><h2>Photos of the week</h2><p>Last week's favourite photos, picked by member votes. <a href="gallery.html#this-week">Vote for this week's photos</a></p></div>
-  <div class="three row" id="potw">
-    <!-- POTW:START -->
-    <figure class="print">
-      <a href="gallery.html#p-seven-blues"><img src="photos/seven-blues-sm.webp" alt="Seven layers of blue" width="600" height="400" loading="lazy"></a>
-      <h3>Seven layers of blue</h3>
-      <figcaption>Oskar Nyberg</figcaption>
-    </figure>
-    <figure class="print">
-      <a href="gallery.html#p-old-oak"><img src="photos/old-oak-sm.webp" alt="The old oak at dusk" width="600" height="400" loading="lazy"></a>
-      <h3>The old oak at dusk</h3>
-      <figcaption>Tobias Reiner</figcaption>
-    </figure>
-    <figure class="print">
-      <a href="gallery.html#p-green-curtains"><img src="photos/green-curtains-sm.webp" alt="Green curtains" width="600" height="400" loading="lazy"></a>
-      <h3>Green curtains</h3>
-      <figcaption>Oskar Nyberg</figcaption>
-    </figure>
-    <!-- POTW:END -->
-  </div>
+  <div class="three row" id="potw"></div>
 </section>
 
-<section class="wrap section">
+<section class="wrap section" id="newest-section" hidden>
   <div class="head"><h2>New in the gallery</h2><a href="gallery.html">See all photos</a></div>
-  <div class="sheet">
-    <!-- NEWEST:START -->
-    <a href="gallery.html#p-foreground-background-trials-with-different-exposu" aria-label="foreground background trials with different exposure by RevanthR"><img src="photos/foreground-background-trials-with-different-exposu-sm.jpg" alt="" width="700" height="467" loading="lazy"></a>
-    <a href="gallery.html#p-dresden-train" aria-label="Dresden Train by NanduG"><img src="photos/dresden-train-sm.webp" alt="" width="700" height="525" loading="lazy"></a>
-    <a href="gallery.html#p-autumn-in-dresden" aria-label="Autumn in Dresden by NanduG"><img src="photos/autumn-in-dresden-sm.webp" alt="" width="527" height="700" loading="lazy"></a>
-    <a href="gallery.html#p-sunset" aria-label="Sunset by AparnaM"><img src="photos/sunset-sm.jpg" alt="" width="525" height="700" loading="lazy"></a>
-    <a href="gallery.html#p-moonrise" aria-label="Moonrise by Aiko Tanaka"><img src="photos/moonrise-sm.webp" alt="" width="600" height="400" loading="lazy"></a>
-    <a href="gallery.html#p-morning-dew" aria-label="Morning dew by Hannah Kowalski"><img src="photos/morning-dew-sm.webp" alt="" width="600" height="400" loading="lazy"></a>
-    <a href="gallery.html#p-window-study" aria-label="Window study in teal by Kwame Mensah"><img src="photos/window-study-sm.webp" alt="" width="600" height="400" loading="lazy"></a>
-    <a href="gallery.html#p-neon-drizzle" aria-label="Neon drizzle by Priya Raman"><img src="photos/neon-drizzle-sm.webp" alt="" width="600" height="400" loading="lazy"></a>
-    <!-- NEWEST:END -->
-  </div>
+  <div class="sheet" id="newest"></div>
 </section>
 
 <section class="wrap section">
   <div class="head"><h2>Contests</h2><a href="about.html#contests">How contests work</a></div>
   <div class="three row">
     <!-- CONTESTS:START -->
-    <div class="contest"><img src="photos/after-the-rain-sm.webp" alt="" width="600" height="400" loading="lazy"><span class="tag live">Open for entries</span><h3>Long exposure</h3><p>Light trails, smooth water, moving crowds. Entries close 31 October.</p></div>
-    <div class="contest"><img src="photos/colonnade-sm.webp" alt="" width="600" height="400" loading="lazy"><span class="tag live">Voting now</span><h3>Symmetry</h3><p>Mirror images and perfect balance. Voting ends 20 October.</p></div>
-    <div class="contest"><a href="gallery.html#p-three-trees"><img src="photos/three-trees-sm.webp" alt="" width="600" height="400" loading="lazy"></a><span class="tag">Winners announced</span><h3>Quiet places</h3><p>First place: Three trees in snow by Aiko Tanaka.</p></div>
+    <div class="contest" data-photo="after-the-rain"><span class="tag live">Open for entries</span><h3>Long exposure</h3><p>Light trails, smooth water, moving crowds. Entries close 31 October.</p></div>
+    <div class="contest" data-photo="colonnade"><span class="tag live">Voting now</span><h3>Symmetry</h3><p>Mirror images and perfect balance. Voting ends 20 October.</p></div>
+    <div class="contest" data-photo="three-trees"><span class="tag">Winners announced</span><h3>Quiet places</h3><p>First place: Three trees in snow by Aiko Tanaka.</p></div>
     <!-- CONTESTS:END -->
   </div>
 </section>
@@ -118,7 +91,7 @@
       <li><a href="about.html#join">How to join</a></li>
       <li><a href="mailto:hello@example.com">hello@example.com</a></li>
     </ul>
-    <p class="note">© 2026 The Conscious Frame. Photos and member names shown here are sample content.</p>
+    <p class="note">© 2026 The Conscious Frame. Every photo belongs to the member who took it.</p>
   </div>
 </footer>
 <script>
@@ -140,5 +113,8 @@
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
 })();
 </script>
+<script src="config.js"></script>
+<script src="club.js"></script>
+<script src="home.js"></script>
 </body>
 </html>

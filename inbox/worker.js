@@ -1,7 +1,8 @@
 /*
- * The Conscious Frame – photo inbox
+ * The Conscious Frame – photo inbox and members-only gallery
  * A small Cloudflare Worker that keeps members' photos private until an admin approves them,
- * and stores members' comments and weekly votes.
+ * keeps the approved photos in the club's gallery (shown only to members), and stores
+ * members' comments and weekly votes.
  *
  * Needs (set in the Cloudflare dashboard, see SETUP.md):
  *   INBOX           KV namespace binding
@@ -23,6 +24,9 @@ const MAX_COMMENTS_PER_PHOTO = 300;
 const RECENT_COMMENTS = 60;            // kept for the admin's Comments tab
 const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";   // no 0/O or 1/I
 const CATEGORIES = ["Landscape", "Nature", "Travel", "Street", "Architecture", "Night", "Abstract"];
+const GALLERY = "gallery";             // the approved photos, newest first, kept as one list
+const POTW = "potw";                   // Photos of the week, chosen by an admin on Mondays
+const LINK_HOURS = 12;                 // photo links work for 12 to 24 hours, then the page gets new ones
 
 export default {
   async fetch(request, env) {
@@ -50,6 +54,8 @@ async function route(request, env) {
   if (parts[0] === "" && method === "GET") return json({ ok: true, service: "photo inbox" });
   if (parts[0] === "me" && method === "GET") return me(request, env);
   if (parts[0] === "submit" && method === "POST") return submit(request, env);
+  if (parts[0] === "gallery" && method === "GET") return gallery(request, env);
+  if (parts[0] === "img" && method === "GET" && parts[1] && (parts[2] === "full" || parts[2] === "thumb")) return servePhoto(url, env, parts[1], parts[2]);
   if (parts[0] === "photo" && method === "GET" && parts[1]) return photoInfo(request, env, parts[1]);
   if (parts[0] === "vote" && method === "POST") return vote(request, env);
   if (parts[0] === "comment" && method === "POST" && !parts[1]) return addComment(request, env);
@@ -66,6 +72,10 @@ async function route(request, env) {
     if (what === "pending" && method === "GET") return pending(env);
     if (what === "photo" && method === "GET" && a && (b === "full" || b === "thumb")) return photo(env, a, b);
     if (what === "decide" && method === "POST" && a) return decide(request, env, a);
+    if (what === "post" && method === "POST") return post(request, env);
+    if (what === "gallery" && method === "POST" && a) return editPhoto(request, env, a);
+    if (what === "gallery" && method === "DELETE" && a) return deletePhoto(env, a);
+    if (what === "potw" && method === "POST") return setPotw(request, env);
     if (what === "members" && method === "GET" && !a) return listMembers(env);
     if (what === "members" && method === "POST" && !a) return addMember(request, env);
     if (what === "members" && method === "DELETE" && a) return removeMember(env, a);
@@ -94,34 +104,44 @@ async function me(request, env) {
   return json({ name: m.name, photos: own, weeklyLimit: weeklyLimit(env) });
 }
 
-async function submit(request, env) {
-  const m = await member(request, env);
-  let form;
-  try { form = await request.formData(); } catch { throw fail(400, "The photo didn't arrive in one piece. Try again."); }
-
-  const text = (k, max, required) => {
-    const v = String(form.get(k) || "").trim().replace(/\s+/g, " ");
-    if (required && !v) throw fail(400, k === "title" ? "Add a title." : "Missing " + k + ".");
-    if (v.length > max) throw fail(400, "The " + k + " is too long (" + max + " characters at most).");
-    return v;
-  };
+async function readForm(request) {
+  try { return await request.formData(); } catch { throw fail(400, "The photo didn't arrive in one piece. Try again."); }
+}
+function clean(v, max, label, required) {
+  v = String(v == null ? "" : v).trim().replace(/\s+/g, " ");
+  if (required && !v) throw fail(400, label === "title" ? "Add a title." : "Add the " + label + ".");
+  if (v.length > max) throw fail(400, "The " + label + " is too long (" + max + " characters at most).");
+  return v;
+}
+function category(v) {
+  if (!CATEGORIES.includes(v)) throw fail(400, "Choose one of the categories.");
+  return v;
+}
+// The text, sizes and both image files of a photo sent as a form (Share a photo, or an admin posting one).
+async function photoFields(form) {
   const int = (k) => {
     const v = parseInt(form.get(k), 10);
     if (!(v > 0 && v <= 5000)) throw fail(400, "The photo size information is missing. Choose the photo again.");
     return v;
   };
   const p = {
-    title: text("title", 80, true), desc: text("desc", 400), cat: text("cat", 20, true),
-    lens: text("lens", 30), ap: text("ap", 30), sh: text("sh", 30), iso: text("iso", 30),
+    title: clean(form.get("title"), 80, "title", true), desc: clean(form.get("desc"), 400, "description"), cat: category(clean(form.get("cat"), 20, "category", true)),
+    lens: clean(form.get("lens"), 30, "lens"), ap: clean(form.get("ap"), 30, "aperture"), sh: clean(form.get("sh"), 30, "shutter speed"), iso: clean(form.get("iso"), 30, "ISO"),
     w: int("w"), h: int("h"), tw: int("tw"), th: int("th"),
   };
-  if (!CATEGORIES.includes(p.cat)) throw fail(400, "Choose one of the categories.");
-
   const full = form.get("full"), thumb = form.get("thumb");
   const fullBytes = await image(full, MAX_FULL, "photo");
   const thumbBytes = await image(thumb, MAX_THUMB, "thumbnail");
-  const ext = full.type === "image/webp" ? "webp" : "jpg";
   if (thumb.type !== full.type) throw fail(400, "The photo and thumbnail must be the same format.");
+  p.ext = full.type === "image/webp" ? "webp" : "jpg";
+  return { p, files: { full: fullBytes, thumb: thumbBytes, type: full.type } };
+}
+
+async function submit(request, env) {
+  const m = await member(request, env);
+  const { p, files } = await photoFields(await readForm(request));
+  const fullBytes = files.full, thumbBytes = files.thumb, ext = p.ext;
+  const full = { type: files.type }, thumb = { type: files.type };
 
   const own = (await env.INBOX.get("own:" + m.code, "json")) || [];
   const now = Date.now();
@@ -154,25 +174,99 @@ async function image(file, max, label) {
 }
 
 /* ------------------------------------------------------------------ comments and votes */
-// Anyone can read a photo's comments. With a valid member code, the reply also says
-// whether they've voted for it, how many votes they have left and which comments are theirs.
+// A photo's comments, for members (and admins). For a member, the reply also says whether
+// they've voted for it, how many votes they have left and which comments are theirs.
 async function photoInfo(request, env, rawId) {
+  const who = await viewer(request, env);
   const id = photoId(rawId);
   const comments = (await env.INBOX.get("c:" + id, "json")) || [];
   const week = weekId(Date.now(), env), perWeek = votesPerWeek(env);
   const out = { photo: id, week, perWeek, comments: comments.map((c) => publicComment(c)) };
-  const code = normalize(bearer(request));
-  if (code) {
-    const m = await env.INBOX.get("member:" + code, "json");
-    if (!m) out.signedOut = true;
-    else {
-      const [mine, owner] = await Promise.all([env.INBOX.get("v:" + week + ":" + code, "json"), env.INBOX.get("owner:" + id)]);
-      const votes = mine || [];
-      Object.assign(out, { member: m.name, voted: votes.includes(id), votesLeft: Math.max(0, perWeek - votes.length), own: owner === code });
-      out.comments = comments.map((c) => publicComment(c, code));
-    }
+  if (who.code) {
+    const [mine, owner] = await Promise.all([env.INBOX.get("v:" + week + ":" + who.code, "json"), env.INBOX.get("owner:" + id)]);
+    const votes = mine || [];
+    Object.assign(out, { member: who.name, voted: votes.includes(id), votesLeft: Math.max(0, perWeek - votes.length), own: owner === who.code });
+    out.comments = comments.map((c) => publicComment(c, who.code));
   }
   return json(out);
+}
+
+/* ------------------------------------------------------------------ the members-only gallery */
+// Who is asking: a member (invite code) or an admin (admin password). Anyone else is turned away.
+async function viewer(request, env) {
+  const given = bearer(request);
+  if (!given) throw fail(401, "Sign in with your invite code to see the gallery.");
+  const code = normalize(given);
+  const m = code ? await env.INBOX.get("member:" + code, "json") : null;
+  if (m) return { code, name: m.name };
+  if (await isAdmin(given, env)) return { admin: true, name: "Admin" };
+  throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
+}
+
+// The whole gallery, Photos of the week and a photo link key that works for 12 to 24 hours.
+async function gallery(request, env) {
+  const who = await viewer(request, env);
+  const now = Date.now();
+  const [list, potw, token] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now)]);
+  const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), weekStart: weekStart(now, env), week: weekId(now, env),
+                 perWeek: votesPerWeek(env), token };
+  // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick
+  const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + "}";
+  return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+}
+
+// A photo or thumbnail. Pages can't send the invite code with an <img>, so the address carries
+// a signed key from /gallery instead. Keys change every 12 hours and stop working after 24.
+async function servePhoto(url, env, rawId, size) {
+  const id = photoId(rawId);
+  if (!(await checkPhotoToken(env, url.searchParams.get("t")))) throw fail(403, "This photo is for club members. Sign in to the gallery to see it.");
+  const { value, metadata } = await env.INBOX.getWithMetadata("pimg:" + id + ":" + size, { type: "stream" });
+  if (!value) throw fail(404, "This photo isn't in the gallery any more.");
+  return new Response(value, { headers: { "Content-Type": (metadata && metadata.type) || "image/jpeg", "Cache-Control": "private, max-age=86400" } });
+}
+
+async function photoKey(env) {
+  const set = env.ADMIN_PASSWORD || "";
+  if (set.length < 12) throw fail(503, "Set an ADMIN_PASSWORD secret of at least 12 characters in the Worker settings.");
+  const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("conscious-frame photo links:" + set));
+  return crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+}
+async function signExpiry(env, exp) {
+  const sig = new Uint8Array(await crypto.subtle.sign("HMAC", await photoKey(env), new TextEncoder().encode("photos until " + exp)));
+  return btoa(String.fromCharCode(...sig.slice(0, 18))).replace(/\+/g, "-").replace(/\//g, "_");
+}
+async function photoToken(env, now) {
+  const step = LINK_HOURS * 3600 * 1000, exp = (Math.floor(now / step) + 2) * step;   // the same key for everyone for 12 hours, so phones can keep photos
+  return exp.toString(36) + "." + (await signExpiry(env, exp));
+}
+async function checkPhotoToken(env, token) {
+  const [e, sig] = String(token || "").split(".");
+  const exp = parseInt(e, 36), now = Date.now(), step = LINK_HOURS * 3600 * 1000;
+  if (!sig || !(exp > now && exp - now <= 2 * step)) return false;
+  const enc = new TextEncoder(), a = enc.encode(await signExpiry(env, exp)), b = enc.encode(sig);
+  return a.byteLength === b.byteLength && crypto.subtle.timingSafeEqual(a, b);
+}
+
+// Puts a photo into the gallery: both images first, then its entry at the top of the list.
+// p.id keeps an existing name (when moving photos from the old gallery); p.sub stops one submission going in twice.
+async function addToGallery(env, p, files) {
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  if (p.sub) { const same = list.find((x) => x.sub === p.sub); if (same) return same; }
+  if (p.id && p.keepId) { const same = list.find((x) => x.id === p.id); if (same) return same; }
+  const taken = new Set(list.map((x) => x.id));
+  const base = p.id || slugify(p.title);
+  let id = base, n = 2;
+  while (taken.has(id)) id = base.slice(0, 70) + "-" + n++;
+  const now = Date.now();
+  const entry = { id, title: p.title, by: p.by, cat: p.cat, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
+                  ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: p.added == null ? clubDate(now, env) : p.added, at: now, v: now.toString(36) };
+  if (p.sub) entry.sub = p.sub;
+  for (const k of ["desc", "lens", "ap", "sh", "iso"]) if (!entry[k]) delete entry[k];
+  await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
+  await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
+  list.unshift(entry);
+  await env.INBOX.put(GALLERY, JSON.stringify(list));
+  return entry;
 }
 
 async function vote(request, env) {
@@ -257,13 +351,16 @@ function publicComment(c, code) {
 }
 
 /* ------------------------------------------------------------------ admin */
-async function requireAdmin(request, env) {
+async function isAdmin(given, env) {
   const set = env.ADMIN_PASSWORD || "";
-  if (set.length < 12) throw fail(503, "Set an ADMIN_PASSWORD secret of at least 12 characters in the Worker settings.");
-  const given = bearer(request);
+  if (set.length < 12 || !given) return false;
   const enc = new TextEncoder();
   const [a, b] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(given)), crypto.subtle.digest("SHA-256", enc.encode(set))]);
-  if (!given || !crypto.subtle.timingSafeEqual(a, b)) throw fail(401, "Wrong admin password.");
+  return crypto.subtle.timingSafeEqual(a, b);
+}
+async function requireAdmin(request, env) {
+  if ((env.ADMIN_PASSWORD || "").length < 12) throw fail(503, "Set an ADMIN_PASSWORD secret of at least 12 characters in the Worker settings.");
+  if (!(await isAdmin(bearer(request), env))) throw fail(401, "Wrong admin password.");
 }
 
 async function pending(env) {
@@ -285,17 +382,86 @@ async function decide(request, env, sid) {
   if (decision !== "approved" && decision !== "declined") throw fail(400, "Choose approve or decline.");
   const meta = await env.INBOX.get("sub:" + sid, "json");
   if (!meta) return json({ ok: true, already: true });            // decided on another device a moment ago
+  const update = { status: decision, decided: Date.now() };
+  if (decision === "approved") {
+    // the admin may have corrected the title, category or description
+    const p = { ...meta, by: meta.name, sub: sid,
+                title: clean(body.title == null ? meta.title : body.title, 80, "title", true),
+                cat: category(body.cat == null ? meta.cat : body.cat),
+                desc: clean(body.desc == null ? meta.desc : body.desc, 400, "description") };
+    const [full, thumb] = await Promise.all(["full", "thumb"].map((s) => env.INBOX.getWithMetadata("img:" + sid + ":" + s, "arrayBuffer")));
+    if (!full.value || !thumb.value) throw fail(409, "This photo's files are missing from the inbox. Decline it and ask the member to send it again.");
+    const entry = await addToGallery(env, p, { full: full.value, thumb: thumb.value, type: (full.metadata && full.metadata.type) || "image/jpeg" });
+    update.galleryId = entry.id;
+  }
+  if (decision === "declined" && body.note) update.note = String(body.note).trim().slice(0, 300);
   const own = (await env.INBOX.get("own:" + meta.code, "json")) || [];
   const entry = own.find((x) => x.sid === sid);
-  const update = { status: decision, decided: Date.now() };
-  if (decision === "approved" && body.galleryId) update.galleryId = photoId(body.galleryId);
-  if (decision === "declined" && body.note) update.note = String(body.note).trim().slice(0, 300);
   if (entry) Object.assign(entry, update);
   else own.unshift({ sid, title: meta.title, sent: meta.sent, ...update });
   await env.INBOX.put("own:" + meta.code, JSON.stringify(own.slice(0, HISTORY)));
   if (update.galleryId) await env.INBOX.put("owner:" + update.galleryId, meta.code);   // so members can't vote for their own photo
   await Promise.all(["sub:" + sid, "img:" + sid + ":full", "img:" + sid + ":thumb"].map((k) => env.INBOX.delete(k)));
+  return json({ ok: true, id: update.galleryId });
+}
+
+// An admin posts a photo straight into the gallery. Also used to move photos from the old public gallery:
+// then "id" keeps the photo's old name (so its comments and votes stay with it) and "added" its old date.
+async function post(request, env) {
+  const form = await readForm(request);
+  const { p, files } = await photoFields(form);
+  p.by = clean(form.get("by"), 60, "photographer's name", true);
+  if (form.get("id")) { p.id = photoId(form.get("id")); p.keepId = true; }
+  const added = String(form.get("added") || "");
+  if (form.has("added")) p.added = /^\d{4}-\d{2}-\d{2}$/.test(added) ? added : "";
+  if (form.get("sub")) p.sub = String(form.get("sub")).replace(/[^a-z0-9-]/gi, "").slice(0, 40);
+  const entry = await addToGallery(env, p, files);
+  return json({ ok: true, id: entry.id, photo: entry });
+}
+
+async function editPhoto(request, env, rawId) {
+  const id = photoId(rawId);
+  const body = await request.json().catch(() => ({}));
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  const x = list.find((e) => e.id === id);
+  if (!x) throw fail(404, "This photo isn't in the gallery any more.");
+  if (body.title != null) x.title = clean(body.title, 80, "title", true);
+  if (body.by != null) x.by = clean(body.by, 60, "photographer's name", true);
+  if (body.cat != null) x.cat = category(body.cat);
+  if (body.desc != null) { x.desc = clean(body.desc, 400, "description"); if (!x.desc) delete x.desc; }
+  await env.INBOX.put(GALLERY, JSON.stringify(list));
+  return json({ ok: true, photo: x });
+}
+
+// Removes a photo from the gallery for good, with its comments.
+async function deletePhoto(env, rawId) {
+  const id = photoId(rawId);
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  const rest = list.filter((e) => e.id !== id);
+  if (rest.length !== list.length) await env.INBOX.put(GALLERY, JSON.stringify(rest));
+  const potw = await env.INBOX.get(POTW, "json");
+  if (potw && potw.items && potw.items.some((x) => x.id === id)) {
+    potw.items = potw.items.filter((x) => x.id !== id);
+    await env.INBOX.put(POTW, JSON.stringify(potw));
+  }
+  await Promise.all(["pimg:" + id + ":full", "pimg:" + id + ":thumb", "owner:" + id, "c:" + id].map((k) => env.INBOX.delete(k)));
   return json({ ok: true });
+}
+
+// Photos of the week: up to three photos from last week's vote, shown on the home page to members.
+async function setPotw(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const week = String(body.week || "");
+  if (!/^\d{4}-W\d{2}$/.test(week)) throw fail(400, "Unknown week.");
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  const ids = new Set(list.map((e) => e.id));
+  const items = (Array.isArray(body.items) ? body.items : []).slice(0, 3)
+    .map((x) => ({ id: photoId(x.id), votes: Math.max(0, parseInt(x.votes, 10) || 0) }))
+    .filter((x) => ids.has(x.id));
+  if (!items.length) throw fail(400, "None of those photos are in the gallery.");
+  const potw = { week, items, at: Date.now() };
+  await env.INBOX.put(POTW, JSON.stringify(potw));
+  return json({ ok: true, potw });
 }
 
 async function listMembers(env) {
@@ -324,11 +490,16 @@ async function removeMember(env, code) {
 /* ------------------------------------------------------------------ helpers */
 function corsHeaders(request, env) {
   const origin = request.headers.get("Origin") || "";
-  const allowed = String(env.ALLOWED_ORIGIN || "*").split(",").map((s) => s.trim().replace(/\/+$/, ""));
+  // Forgiving about capitals, a trailing slash or a pasted path: keep only scheme + host.
+  const allowed = String(env.ALLOWED_ORIGIN || "*").split(",").map((s) => {
+    s = s.trim().toLowerCase();
+    const m = s.match(/^https?:\/\/[^/]+/);
+    return m ? m[0] : s;
+  });
   const h = { "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type",
               "Access-Control-Max-Age": "86400", Vary: "Origin" };
   if (allowed.includes("*")) h["Access-Control-Allow-Origin"] = "*";
-  else if (allowed.includes(origin)) h["Access-Control-Allow-Origin"] = origin;
+  else if (origin && allowed.includes(origin.toLowerCase())) h["Access-Control-Allow-Origin"] = origin;
   return h;
 }
 function json(data, status = 200) {
@@ -358,6 +529,18 @@ function weekId(ms, env) {
   const jan4 = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
   const week = 1 + Math.round(((t - jan4) / 864e5 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
   return t.getUTCFullYear() + "-W" + String(week).padStart(2, "0");
+}
+// the Monday of this week in the club's time zone, YYYY-MM-DD
+function weekStart(ms, env) {
+  const [y, m, d] = clubDate(ms, env).split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+  return t.toISOString().slice(0, 10);
+}
+// a photo's name in links, from its title: "Autumn in Dresden" -> autumn-in-dresden
+function slugify(s) {
+  return String(s).normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "").slice(0, 50).replace(/-+$/, "") || "photo";
 }
 function randomString(n) {
   const bytes = crypto.getRandomValues(new Uint8Array(n));

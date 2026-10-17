@@ -24,6 +24,7 @@
   <h1>Club admin</h1>
   <div class="tabs" role="tablist" aria-label="Admin sections">
     <button type="button" role="tab" id="tab-approve" aria-controls="panel-approve" aria-selected="true">To approve <span id="count"></span></button>
+    <button type="button" role="tab" id="tab-gallery" aria-controls="panel-gallery" aria-selected="false">Gallery</button>
     <button type="button" role="tab" id="tab-members" aria-controls="panel-members" aria-selected="false">Members</button>
     <button type="button" role="tab" id="tab-votes" aria-controls="panel-votes" aria-selected="false">Votes</button>
     <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false">Comments</button>
@@ -39,6 +40,23 @@
       <button class="linkish" type="button" id="refresh">Refresh</button>
     </div>
     <div id="queue"></div>
+  </section>
+
+  <!-- ===================== Gallery ===================== -->
+  <section id="panel-gallery" role="tabpanel" aria-labelledby="tab-gallery" hidden>
+    <section class="card" id="move" hidden>
+      <h2>Move photos from the old gallery</h2>
+      <p class="muted" id="move-info"></p>
+      <ul class="list pick-list" id="move-list"></ul>
+      <button class="btn btn-dark wide" type="button" id="move-go">Move photos</button>
+      <p class="status" id="move-status" aria-live="polite"></p>
+      <p class="note">Moving also deletes all the old photo files from the public site, including any you leave unticked. GitHub keeps them in the repository's history.</p>
+    </section>
+    <div class="card who">
+      <p id="g-status" aria-live="polite">Loading…</p>
+      <button class="linkish" type="button" id="g-refresh">Refresh</button>
+    </div>
+    <section class="card" id="g-card" aria-label="Photos in the gallery" hidden><ul class="list" id="g-list"></ul></section>
   </section>
 
   <!-- ===================== Members ===================== -->
@@ -73,7 +91,7 @@
       <ol class="list ranking" id="v-prev"></ol>
       <button class="btn btn-dark wide" type="button" id="potw" disabled>Show the top 3 on the home page</button>
       <p class="status" id="potw-status" aria-live="polite"></p>
-      <p class="note">Do this on Monday. The top photos replace Photos of the week on the home page.</p>
+      <p class="note">Do this on Monday. The top photos replace Photos of the week on the home page, which only members see.</p>
     </section>
     <section class="card" aria-labelledby="v-cur-h">
       <h2 id="v-cur-h">This week so far</h2>
@@ -115,7 +133,7 @@
   <!-- ===================== Post a photo ===================== -->
   <section id="panel-post" role="tabpanel" aria-labelledby="tab-post" hidden>
     <form class="card" id="post" novalidate>
-      <p class="muted" style="margin-top:0">Publish a photo straight to the gallery, without the approval step.</p>
+      <p class="muted" style="margin-top:0">Put a photo straight into the gallery, without the approval step.</p>
       <label class="pick" id="pick">
         <input type="file" id="file" accept="image/*">
         Choose a photo
@@ -155,7 +173,7 @@
   <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
     <form class="card" id="settings" novalidate>
       <h2>GitHub</h2>
-      <p class="muted">Where the site lives. Approved photos are published here.</p>
+      <p class="muted">Where the site lives. Needed for the Home page tab, and to connect the site to the inbox.</p>
       <label class="f" for="owner">GitHub username or organisation</label>
       <input type="text" id="owner" autocapitalize="off" autocomplete="off" spellcheck="false">
       <label class="f" for="repo">Repository name</label>
@@ -166,7 +184,7 @@
       <input type="password" id="token" autocomplete="off" spellcheck="false">
 
       <h2 style="margin-top:26px">Photo inbox</h2>
-      <p class="muted">Where members' photos wait for approval. See inbox/SETUP.md.</p>
+      <p class="muted">Where members' photos wait for approval, and where the members-only gallery is kept. See inbox/SETUP.md.</p>
       <label class="f" for="inbox">Inbox address</label>
       <input type="url" id="inbox" placeholder="https://conscious-frame-inbox.yourname.workers.dev" autocapitalize="off" autocomplete="off" spellcheck="false">
       <label class="f" for="password">Admin password</label>
@@ -214,13 +232,14 @@
   function pretty(c) { return c.replace(/(.{4})(?=.)/g, "$1-"); }
 
   /* ---------- tabs ---------- */
-  var tabs = ["approve", "members", "votes", "comments", "home", "post", "settings"];
+  var tabs = ["approve", "gallery", "members", "votes", "comments", "home", "post", "settings"];
   function show(name) {
     tabs.forEach(function (t) {
       $("tab-" + t).setAttribute("aria-selected", t === name);
       $("panel-" + t).hidden = t !== name;
     });
     if (name === "approve") loadQueue();
+    if (name === "gallery") loadAdminGallery();
     if (name === "members") loadMembers();
     if (name === "votes") loadVotes();
     if (name === "comments") loadComments();
@@ -233,7 +252,7 @@
     opts = opts || {};
     var headers = { Authorization: "Bearer " + cfg.password };
     if (opts.json) headers["Content-Type"] = "application/json";
-    return fetch(cfg.inbox.replace(/\/+$/, "") + path, { method: opts.method || "GET", headers: headers, body: opts.json ? JSON.stringify(opts.json) : undefined })
+    return fetch(cfg.inbox.replace(/\/+$/, "") + path, { method: opts.method || (opts.form ? "POST" : "GET"), headers: headers, body: opts.form || (opts.json ? JSON.stringify(opts.json) : undefined) })
       .then(function (r) {
         if (r.ok && opts.blob) return r.blob();
         return r.json().catch(function () { return {}; }).then(function (d) {
@@ -275,7 +294,7 @@
       '<label class="f">Category<select class="e-cat">' + cats.map(function (c) { return "<option" + (c === p.cat ? " selected" : "") + ">" + c + "</option>"; }).join("") + "</select></label>" +
       '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
       (settings ? '<p class="sub-settings">' + esc(settings) + "</p>" : "") +
-      '<div class="row-btns"><button class="btn btn-dark approve" type="button">Approve and publish</button><button class="btn btn-light decline" type="button">Decline</button></div>' +
+      '<div class="row-btns"><button class="btn btn-dark approve" type="button">Approve</button><button class="btn btn-light decline" type="button">Decline</button></div>' +
       '<div class="decline-box" hidden><label class="f">Note to ' + esc(p.name.split(" ")[0]) + ' <small>(optional, they will see it)</small><textarea class="e-note" maxlength="300" placeholder="For example: a bit soft, try a faster shutter speed"></textarea></label>' +
       '<div class="row-btns"><button class="btn btn-dark confirm-decline" type="button">Decline photo</button><button class="btn btn-light cancel-decline" type="button">Cancel</button></div></div>' +
       '<p class="status" aria-live="polite"></p>';
@@ -292,50 +311,160 @@
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
     });
     el.querySelector(".approve").addEventListener("click", function () {
-      if (!github()) { setStatus(status, "Connect GitHub in Settings first.", true); return; }
       var title = el.querySelector(".e-title").value.trim();
       if (!title) { setStatus(status, "Add a title.", true); return; }
-      var photo = { title: title, by: p.name, cat: el.querySelector(".e-cat").value, desc: el.querySelector(".e-desc").value.trim(),
-        lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso, ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, sub: p.sid };
-      buttons(false); setStatus(status, "Getting the photo…");
-      Promise.all([inbox("/admin/photo/" + p.sid + "/full", { blob: true }), inbox("/admin/photo/" + p.sid + "/thumb", { blob: true })]).then(function (b) {
-        return Publish.publish(cfg, photo, b[0], b[1], function (m) { setStatus(status, m); });
-      }).then(function (id) {
-        markDecided(p.sid);
-        return inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", galleryId: id } }).then(function () { return id; });
-      }).then(function (id) {
-        var what = "“" + title + "” by " + p.name;
-        done(el, "Published " + what + ". GitHub is putting it on the site, which usually takes a minute or two…");
-        whenLive(id, function (live) {
-          el.innerHTML = '<p class="status" style="margin:0">' + esc(live ? what + " is now in the gallery." : "Published " + what + ". GitHub is taking longer than usual, so it may need a few more minutes.") +
-            ' <a href="' + esc(fresh("gallery.html")) + "#p-" + id + '">View in the gallery</a></p>';
-        });
+      buttons(false); setStatus(status, "Approving…");
+      inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cat: el.querySelector(".e-cat").value, desc: el.querySelector(".e-desc").value.trim() } }).then(function (r) {
+        markDecided(p.sid); galleryInfo = null;
+        done(el, "“" + title + "” by " + p.name + " is now in the gallery.", r.id ? "gallery.html#p-" + r.id : "");
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
     });
     return el;
   }
   /* A page address that skips the phone's saved copy (GitHub Pages lets phones keep pages for 10 minutes). */
   function fresh(page) { return page + "?v=" + Date.now().toString(36); }
-  /* GitHub needs a minute or two to rebuild the site after a commit. Check the live gallery
-     every 8 seconds for up to about 5 minutes, then call back with true (live) or false (still waiting). */
-  function whenLive(id, callback) {
-    var tries = 0;
-    (function check() {
-      fetch(fresh("gallery.html"), { cache: "no-store" })
-        .then(function (r) { return r.ok ? r.text() : ""; }, function () { return ""; })
-        .then(function (html) {
-          if (html.indexOf('id="t-' + id + '"') >= 0) callback(true);
-          else if (++tries < 40) setTimeout(check, 8000);
-          else callback(false);
-        });
-    })();
-  }
   function done(el, msg, link) {
     el.innerHTML = '<p class="status" style="margin:0">' + esc(msg) + (link ? ' <a href="' + link + '">View in the gallery</a>' : "") + "</p>";
     var left = document.querySelectorAll("#queue .approve").length;
     setCount(left);
     $("queue-status").textContent = left ? left + (left === 1 ? " photo is" : " photos are") + " waiting for approval." : "All done. Nothing else is waiting.";
   }
+
+  /* ---------- gallery: edit or delete photos, and move photos from the old public gallery ---------- */
+  var CATS = ["Landscape", "Nature", "Travel", "Street", "Architecture", "Night", "Abstract"];
+  var SAMPLES = ["first-light", "seven-blues", "old-oak", "green-curtains", "low-tide", "moonrise", "morning-dew", "window-study", "neon-drizzle",
+                 "dune-lines", "pink-facade", "pool-light", "after-the-rain", "colonnade", "three-trees", "spruce-fog"];   // the photos the site came with
+  function day(iso) {   // 2026-10-17 -> 17 Oct 2026
+    var d = new Date(iso + "T12:00:00Z");
+    return isNaN(d) ? iso : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  }
+  function loadAdminGallery() {
+    if (!inboxReady()) { $("g-status").textContent = "Add the inbox address and admin password in Settings first."; $("g-list").innerHTML = ""; return; }
+    $("g-status").textContent = "Loading…";
+    loadGallery().then(function () {
+      var d = galleryData;
+      $("g-status").textContent = d.photos.length ? d.photos.length + (d.photos.length === 1 ? " photo" : " photos") + " in the gallery, newest first. Only members can see them." : "The gallery is empty.";
+      $("g-list").innerHTML = "";
+      d.photos.forEach(function (p) { $("g-list").appendChild(galleryRow(d, p)); });
+      $("g-card").hidden = !d.photos.length;
+      checkOldGallery(d);
+    }).catch(function (e) { $("g-status").textContent = e.message; });
+  }
+  $("g-refresh").addEventListener("click", loadAdminGallery);
+
+  function galleryRow(d, p) {
+    var li = document.createElement("li");
+    li.className = "rank g-row";
+    function view() {
+      li.innerHTML = '<img src="' + esc(thumbUrl(d, p)) + '" alt="" width="72" height="48" loading="lazy">' +
+        '<span><b><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc(p.cat) + (p.added ? ", added " + esc(day(p.added)) : "") + "</span></span>" +
+        '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div>' +
+        '<p class="status" aria-live="polite"></p>';
+      var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
+      li.querySelector('[data-a="edit"]').addEventListener("click", edit);
+      li.querySelector('[data-a="delete"]').addEventListener("click", function () {
+        row.innerHTML = '<span class="meta" style="flex-basis:100%">Delete “' + esc(p.title) + '” and its comments? This can\'t be undone.</span>' +
+          '<button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, delete</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button>';
+        row.querySelector('[data-a="no"]').addEventListener("click", view);
+        row.querySelector('[data-a="yes"]').addEventListener("click", function () {
+          row.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+          inbox("/admin/gallery/" + encodeURIComponent(p.id), { method: "DELETE" }).then(function () {
+            galleryInfo = null;
+            li.innerHTML = '<p class="status" style="margin:0">Deleted “' + esc(p.title) + "”.</p>";
+          }).catch(function (e) { view(); setStatus(li.querySelector(".status"), e.message, true); });
+        });
+      });
+    }
+    function edit() {
+      li.innerHTML = '<img src="' + esc(thumbUrl(d, p)) + '" alt="" width="72" height="48">' +
+        '<form class="g-edit" novalidate>' +
+        '<label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(p.title) + '"></label>' +
+        '<label class="f">Photographer<input type="text" class="e-by" maxlength="60" value="' + esc(p.by) + '"></label>' +
+        '<label class="f">Category<select class="e-cat">' + CATS.map(function (c) { return "<option" + (c === p.cat ? " selected" : "") + ">" + c + "</option>"; }).join("") + "</select></label>" +
+        '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
+        '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
+        '<p class="status" aria-live="polite"></p></form>';
+      var form = li.querySelector("form");
+      form.querySelector('[data-a="cancel"]').addEventListener("click", view);
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var st = form.querySelector(".status");
+        setStatus(st, "Saving…");
+        inbox("/admin/gallery/" + encodeURIComponent(p.id), { method: "POST", json: { title: form.querySelector(".e-title").value, by: form.querySelector(".e-by").value,
+          cat: form.querySelector(".e-cat").value, desc: form.querySelector(".e-desc").value } }).then(function (r) {
+          p = r.photo; galleryInfo = null; view(); setStatus(li.querySelector(".status"), "Saved.");
+        }).catch(function (e) { setStatus(st, e.message, true); });
+      });
+      form.querySelector(".e-title").focus();
+    }
+    view();
+    return li;
+  }
+
+  // Photos still in the old public gallery on GitHub (from before the gallery became members-only).
+  var oldGallery = null;
+  function checkOldGallery(d) {
+    if (!github()) { $("move").hidden = true; return; }
+    Publish.findOldGallery(cfg).then(function (old) {
+      oldGallery = old;
+      if (!old) { $("move").hidden = true; return; }
+      var have = {};
+      d.photos.forEach(function (p) { have[p.id] = true; });
+      var left = old.photos.filter(function (p) { return !have[p.id]; });
+      var moved = old.photos.length - left.length;
+      $("move-info").textContent = (left.length
+        ? "These photos are still in the old gallery, where anyone could see them. Tick the ones to bring into the members-only gallery. The sample photos the site came with are unticked."
+        : "All the photos you wanted are in the members-only gallery.") +
+        (moved ? " Already moved: " + moved + "." : "");
+      $("move-list").innerHTML = left.map(function (p) {
+        var sample = SAMPLES.indexOf(p.id) >= 0 && !p.sub;
+        return '<li><label class="tick"><input type="checkbox" value="' + esc(p.id) + '"' + (sample ? "" : " checked") + "> <span><b>" + esc(p.title) + '</b><span class="meta">' +
+          esc(p.by) + (sample ? ", sample photo" : "") + (p.added ? ", added " + esc(day(p.added)) : "") + "</span></span></label></li>";
+      }).join("");
+      $("move-list").onchange = moveLabel;
+      moveLabel();
+      $("move").hidden = false;
+    }).catch(function (e) { $("move").hidden = false; $("move-info").textContent = "Couldn't check the old gallery on GitHub: " + e.message; $("move-list").innerHTML = ""; $("move-go").hidden = true; });
+  }
+  function moveLabel() {
+    var n = $("move-list").querySelectorAll("input:checked").length;
+    $("move-go").hidden = false;
+    $("move-go").textContent = n ? "Move " + n + (n === 1 ? " photo" : " photos") : "Delete the old photo files";
+  }
+  $("move-go").addEventListener("click", function () {
+    if (!oldGallery) return;
+    var st = $("move-status"), btn = $("move-go");
+    var wanted = {};
+    $("move-list").querySelectorAll("input:checked").forEach(function (i) { wanted[i.value] = true; });
+    var list = oldGallery.photos.filter(function (p) { return wanted[p.id]; }).reverse();   // oldest first, so the gallery keeps its order
+    btn.disabled = true;
+    var i = 0;
+    function next() {
+      if (i >= list.length) return Promise.resolve();
+      var p = list[i++];
+      setStatus(st, "Moving " + i + " of " + list.length + ": “" + p.title + "”…");
+      var type = p.ext === "webp" ? "image/webp" : "image/jpeg";
+      return Promise.all([Publish.fileAt(cfg, oldGallery.sha, p.full), Publish.fileAt(cfg, oldGallery.sha, p.thumb)]).then(function (b) {
+        var f = new FormData();
+        ["id", "title", "by", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "w", "h", "tw", "th"].forEach(function (k) { f.append(k, p[k] == null ? "" : p[k]); });
+        if (CATS.indexOf(p.cat) < 0) f.set("cat", "Landscape");
+        f.append("full", new Blob([b[0]], { type: type }), "photo." + p.ext);
+        f.append("thumb", new Blob([b[1]], { type: type }), "thumb." + p.ext);
+        return inbox("/admin/post", { form: f });
+      }).then(next);
+    }
+    next().then(function () {
+      setStatus(st, "Deleting the old photo files from the public site…");
+      return Publish.removeFolder(cfg, "photos", "Move the photos into the members-only gallery");
+    }).then(function (n) {
+      galleryInfo = null;
+      setStatus(st, (list.length ? "Moved " + list.length + (list.length === 1 ? " photo" : " photos") + " into the members-only gallery. " : "") +
+        (n ? "Deleted " + n + " old photo files from the public site." : "The old photo files were already gone."));
+      $("move-list").innerHTML = ""; btn.hidden = true;
+      loadAdminGallery();
+    }).catch(function (e) { setStatus(st, e.message + " Nothing has been deleted from GitHub. You can try again.", true); })
+      .then(function () { btn.disabled = false; });
+  });
 
   /* ---------- members ---------- */
   var lastInvite = "";
@@ -405,18 +534,15 @@
   $("copy-invite").addEventListener("click", function () { copy(lastInvite, $("m-status")); });
 
   /* ---------- votes ---------- */
-  var galleryInfo = null, lastWeek = null;
-  function loadGallery() {   // id -> title, photographer and thumbnail, from the current gallery
-    var viaSite = function () { return fetch("gallery.html", { cache: "no-store" }).then(function (r) { return r.text(); }); };
-    return (github() ? Publish.readSiteFile(cfg, "gallery.html").catch(viaSite) : viaSite()).then(function (html) {
-      var doc = new DOMParser().parseFromString(html, "text/html"), map = {};
-      doc.querySelectorAll(".tile").forEach(function (t) {
-        var img = t.querySelector("img"), cap = t.querySelector("figcaption"), b = cap && cap.querySelector("b");
-        var id = t.id.replace(/^t-/, ""), title = b ? b.textContent : id;
-        map[id] = { id: id, title: title, by: cap ? cap.textContent.slice(title.length) : "", src: img ? img.getAttribute("src") : "",
-                    w: img ? img.getAttribute("width") : 600, h: img ? img.getAttribute("height") : 400 };
-      });
-      galleryInfo = map;
+  var galleryInfo = null, galleryData = null, lastWeek = null;
+  function thumbUrl(d, p) {
+    return cfg.inbox.replace(/\/+$/, "") + "/img/" + encodeURIComponent(p.id) + "/thumb?v=" + encodeURIComponent(p.v || "") + "&t=" + encodeURIComponent(d.token);
+  }
+  function loadGallery() {   // id -> title, photographer and thumbnail, from the members-only gallery
+    return inbox("/gallery").then(function (d) {
+      var map = {};
+      d.photos.forEach(function (p) { map[p.id] = { id: p.id, title: p.title, by: p.by, src: thumbUrl(d, p), w: p.tw, h: p.th }; });
+      galleryData = d; galleryInfo = map;
       return map;
     });
   }
@@ -446,17 +572,13 @@
     }).catch(function (e) { $("v-prev-info").textContent = e.message; });
   }
   $("potw").addEventListener("click", function () {
-    if (!github()) { setStatus($("potw-status"), "Connect GitHub in Settings first.", true); return; }
     if (!lastWeek) return;
     var map = lastWeek.map;
-    var items = lastWeek.data.ranking.filter(function (x) { return map[x.photo]; }).slice(0, 3).map(function (x) {
-      var g = map[x.photo];
-      return { id: g.id, title: g.title, by: g.by, src: g.src, w: g.w, h: g.h, votes: x.votes };
-    });
-    $("potw").disabled = true; setStatus($("potw-status"), "Publishing…");
-    Publish.publishHome(cfg, items, lastWeek.data.week).then(function () {
+    var items = lastWeek.data.ranking.filter(function (x) { return map[x.photo]; }).slice(0, 3).map(function (x) { return { id: x.photo, votes: x.votes }; });
+    $("potw").disabled = true; setStatus($("potw-status"), "Saving…");
+    inbox("/admin/potw", { method: "POST", json: { week: lastWeek.data.week, items: items } }).then(function () {
       var s = $("potw-status"); s.className = "status";
-      s.innerHTML = 'Done. The home page will show them in a minute or two. <a href="' + fresh("index.html") + '">View the home page</a>';
+      s.innerHTML = 'Done. Members see them on the home page now. <a href="index.html">View the home page</a>';
     }).catch(function (e) { setStatus($("potw-status"), e.message, true); })
       .then(function () { $("potw").disabled = false; });
   });
@@ -508,7 +630,7 @@
       '<label class="f">Status<select class="c-status">' + statuses.map(function (s) { return "<option" + (s === c.status ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("") + "</select></label>" +
       '<label class="f">Title<input type="text" class="c-title" maxlength="60" value="' + esc(c.title) + '"></label>' +
       '<label class="f">Description <small>(what it\'s about, and the dates)</small><textarea class="c-desc" maxlength="200">' + esc(c.desc) + "</textarea></label>" +
-      '<label class="f">Photo <small>(from the gallery)</small><select class="c-photo">' + photoOptions(c.photo) + "</select></label>" +
+      '<label class="f">Photo <small>(from the gallery, shown to members)</small><select class="c-photo"><option value="">No photo</option>' + photoOptions(c.photo) + "</select></label>" +
       '<button class="linkish c-remove" type="button">Remove this contest</button>';
     f.querySelector(".c-remove").addEventListener("click", function () { f.remove(); numberContests(); });
     return f;
@@ -531,7 +653,7 @@
       $("h-lede").value = lede ? lede.textContent.trim() : "";
       $("h-contests").innerHTML = "";
       doc.querySelectorAll(".contest").forEach(function (el) {
-        var img = el.querySelector("img"), m = img && (img.getAttribute("src") || "").match(/photos\/(.+?)-sm\./);
+        var img = el.querySelector("img"), m = el.getAttribute("data-photo") ? [0, el.getAttribute("data-photo")] : img && (img.getAttribute("src") || "").match(/photos\/(.+?)-sm\./);
         $("h-contests").appendChild(contestFields({
           status: (el.querySelector(".tag") || {}).textContent || "Open for entries",
           title: (el.querySelector("h3") || {}).textContent || "",
@@ -565,9 +687,8 @@
     var themeHtml = '    <p class="kicker">This week\'s theme</p>\n    <h1 class="theme">' + esc(theme) + "</h1>\n" +
       (lede ? '    <p class="lede">' + esc(lede) + "</p>\n" : "");
     var contestHtml = contests.map(function (c) {
-      var g = homeGallery[c.photo];
-      var img = g ? '<a href="gallery.html#p-' + esc(c.photo) + '"><img src="' + esc(g.src) + '" alt="" width="' + g.w + '" height="' + g.h + '" loading="lazy"></a>' : "";
-      return '    <div class="contest">' + img + '<span class="tag' + (LIVE.indexOf(c.status) >= 0 ? " live" : "") + '">' + esc(c.status) + "</span><h3>" +
+      // only the photo's name goes on the page; members' browsers fetch the photo itself from the inbox
+      return '    <div class="contest"' + (c.photo ? ' data-photo="' + esc(c.photo) + '"' : "") + '><span class="tag' + (LIVE.indexOf(c.status) >= 0 ? " live" : "") + '">' + esc(c.status) + "</span><h3>" +
         esc(c.title) + "</h3>" + (c.desc ? "<p>" + esc(c.desc) + "</p>" : "") + "</div>\n";
     }).join("") || '    <p class="muted">No contests at the moment.</p>\n';
     $("h-publish").disabled = true; setStatus(st, "Publishing…");
@@ -600,21 +721,22 @@
   $("change").addEventListener("click", function () { $("file").value = ""; $("file").click(); });
   $("post").addEventListener("submit", function (ev) {
     ev.preventDefault();
-    if (!github()) { setStatus($("post-status"), "Connect GitHub in Settings first.", true); return; }
+    if (!inboxReady()) { setStatus($("post-status"), "Add the inbox address and admin password in Settings first.", true); return; }
     if (!prepared) { setStatus($("post-status"), "Choose a photo first.", true); return; }
     if (!$("title").value.trim() || !$("by").value.trim()) { setStatus($("post-status"), "Add a title and the photographer's name.", true); return; }
     cfg.by = $("by").value.trim(); save();
-    var p = { title: $("title").value.trim(), by: cfg.by, cat: $("cat").value, desc: $("desc").value.trim(),
+    var f = new FormData();
+    var fields = { title: $("title").value.trim(), by: cfg.by, cat: $("cat").value, desc: $("desc").value.trim(),
       lens: $("lens").value.trim(), ap: $("ap").value.trim(), sh: $("sh").value.trim(), iso: $("iso").value.trim(),
-      ext: prepared.full.ext, w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h };
-    $("publish").disabled = true;
-    Publish.publish(cfg, p, prepared.full.blob, prepared.thumb.blob, function (m) { setStatus($("post-status"), m); }).then(function (id) {
+      w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h };
+    Object.keys(fields).forEach(function (k) { f.append(k, fields[k]); });
+    f.append("full", prepared.full.blob, "photo." + prepared.full.ext);
+    f.append("thumb", prepared.thumb.blob, "thumb." + prepared.thumb.ext);
+    $("publish").disabled = true; setStatus($("post-status"), "Uploading…");
+    inbox("/admin/post", { form: f }).then(function (r) {
+      galleryInfo = null;
       var s = $("post-status"); s.className = "status";
-      s.textContent = "Published. GitHub is putting it on the site, which usually takes a minute or two…";
-      whenLive(id, function (live) {
-        s.innerHTML = (live ? "It's now in the gallery." : "Published. GitHub is taking longer than usual, so it may need a few more minutes.") +
-          ' <a href="' + esc(fresh("gallery.html")) + "#p-" + id + '">View it in the gallery</a>';
-      });
+      s.innerHTML = "It's in the gallery now. <a href=\"gallery.html#p-" + esc(r.id) + "\">View it</a>";
       $("post").reset(); $("by").value = cfg.by; $("exif-note").textContent = "";
       $("preview").hidden = true; $("pick").hidden = false; prepared = null;
     }).catch(function (e) { setStatus($("post-status"), e.message, true); })
@@ -631,20 +753,21 @@
     cfg.inbox = url; $("inbox").value = url;
     save();
     var s = $("settings-status"), notes = [];
-    if (!github()) { setStatus(s, "Fill in the GitHub username, repository and token.", true); return; }
+    if (!github() && !cfg.inbox) { setStatus(s, "Fill in the GitHub details and the inbox address.", true); return; }
+    if (cfg.inbox && !cfg.password) { setStatus(s, "Enter the admin password for the inbox.", true); return; }
     setStatus(s, "Checking…");
-    Publish.checkBranch(cfg).then(function () {
-      notes.push("Connected to GitHub (" + cfg.owner + "/" + cfg.repo + ").");
+    (github() ? Publish.checkBranch(cfg).then(function () { notes.push("Connected to GitHub (" + cfg.owner + "/" + cfg.repo + ")."); }) : Promise.resolve()).then(function () {
       if (!cfg.inbox) return null;
-      if (!cfg.password) throw new Error("Enter the admin password for the inbox.");
       return inbox("/admin/ping").then(function () {
         notes.push("The inbox is working.");
+        if (!github()) { if (window.CLUB_INBOX !== cfg.inbox) notes.push("Connect GitHub too, so the site can find the inbox."); return null; }
         return Publish.writeConfig(cfg, cfg.inbox).then(function (changed) {
-          if (changed) notes.push("The Share a photo page now uses this inbox (live in a few minutes).");
+          if (changed) notes.push("The site now uses this inbox (live in a few minutes).");
         });
       });
     }).then(function () {
       if (!cfg.inbox) notes.push("Add the inbox address to approve members' photos.");
+      if (!github()) notes.push("Without GitHub, the Home page tab can't publish.");
       setStatus(s, notes.join(" "));
       loadQueue();
     }).catch(function (e) { setStatus(s, notes.concat(e.message).join(" "), true); });
@@ -655,7 +778,7 @@
   });
 
   /* ---------- start ---------- */
-  show(github() && inboxReady() ? "approve" : "settings");
+  show(inboxReady() ? "approve" : "settings");
 })();
 </script>
 </body>
