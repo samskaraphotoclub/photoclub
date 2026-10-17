@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Share a photo – The Conscious Frame</title>
+<meta name="description" content="Members of The Conscious Frame can send photos to the gallery here.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Share photo">
+<link rel="manifest" href="submit.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
+    <nav aria-label="Main"><a href="gallery.html">Gallery</a><a href="about.html">About</a></nav>
+  </div>
+</header>
+
+<main class="wrap tool">
+  <h1>Share a photo</h1>
+  <p>Send a photo to the club gallery. An admin checks each photo before it appears.</p>
+
+  <p class="card status error" id="not-ready" hidden>Photo sharing isn't switched on yet. Ask a club admin to finish setting it up.</p>
+
+  <form class="card" id="signin" hidden novalidate>
+    <h2>Enter your invite code</h2>
+    <p class="muted">It's the 12-character code the club sent you, like 7K3P-QX9M-2HDA.</p>
+    <label class="f" for="code">Invite code</label>
+    <input type="text" id="code" autocapitalize="characters" autocomplete="off" spellcheck="false" inputmode="text">
+    <button class="btn btn-dark wide" type="submit" id="signin-btn">Continue</button>
+    <p class="status" id="signin-status" aria-live="polite"></p>
+    <p class="note">Not a member yet? <a href="about.html#join">See how to join</a>.</p>
+  </form>
+
+  <div id="member" hidden>
+    <div class="card who">
+      <p>Signed in as <b id="member-name"></b></p>
+      <button class="linkish" type="button" id="signout">Sign out</button>
+    </div>
+
+    <form class="card" id="form" novalidate>
+      <label class="pick" id="pick">
+        <input type="file" id="file" accept="image/*">
+        Choose a photo
+        <span>From your library or camera. Large photos are fine.</span>
+      </label>
+      <div class="preview" id="preview" hidden>
+        <img id="pv" alt="">
+        <p id="pv-info"></p>
+        <button class="btn btn-light btn-small" type="button" id="change" style="margin-top:10px">Choose a different photo</button>
+      </div>
+
+      <label class="f" for="title">Title</label>
+      <input type="text" id="title" maxlength="80">
+      <label class="f" for="cat">Category</label>
+      <select id="cat">
+        <option>Landscape</option><option>Nature</option><option>Travel</option><option>Street</option>
+        <option>Architecture</option><option>Night</option><option>Abstract</option>
+      </select>
+      <label class="f" for="desc">Description <small>(optional)</small></label>
+      <textarea id="desc" maxlength="400" placeholder="Where you took it, what caught your eye"></textarea>
+
+      <details style="margin-top:16px">
+        <summary>Camera settings <small class="muted" id="exif-note"></small></summary>
+        <div class="two">
+          <div><label class="f" for="lens">Lens</label><input type="text" id="lens" placeholder="35 mm" maxlength="30"></div>
+          <div><label class="f" for="ap">Aperture</label><input type="text" id="ap" placeholder="f/8" maxlength="30"></div>
+          <div><label class="f" for="sh">Shutter</label><input type="text" id="sh" placeholder="1/250 s" maxlength="30"></div>
+          <div><label class="f" for="iso">ISO</label><input type="text" id="iso" inputmode="numeric" placeholder="100" maxlength="30"></div>
+        </div>
+      </details>
+
+      <button class="btn btn-dark wide" type="submit" id="send">Send for approval</button>
+      <p class="status" id="status" aria-live="polite"></p>
+      <p class="note" id="limit-note"></p>
+    </form>
+
+    <section class="card" aria-labelledby="mine-h">
+      <h2 id="mine-h">Your photos</h2>
+      <p class="muted" id="mine-empty">Photos you send will show here, with what the admins decided.</p>
+      <ul class="list" id="mine"></ul>
+    </section>
+  </div>
+</main>
+
+<script src="config.js"></script>
+<script src="photo-tools.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var T = PhotoTools, esc = T.esc;
+  var INBOX = String(window.CLUB_INBOX || "").replace(/\/+$/, "");
+  var KEY = "conscious-frame-member";
+  var code = "", prepared = null;
+
+  function saved() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+  function remember(c) { try { c ? localStorage.setItem(KEY, c) : localStorage.removeItem(KEY); } catch (e) {} }
+  function pretty(c) { return c.replace(/[^0-9A-Za-z]/g, "").toUpperCase().replace(/(.{4})(?=.)/g, "$1-"); }
+  function setStatus(el, msg, isError) { el.className = "status" + (isError ? " error" : ""); el.textContent = msg; }
+
+  function call(path, opts) {
+    opts = opts || {};
+    return fetch(INBOX + path, { method: opts.method || "GET", headers: { Authorization: "Bearer " + code }, body: opts.body })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (!r.ok) { var e = new Error(d.error || "The inbox returned an error (" + r.status + "). Try again."); e.status = r.status; throw e; }
+          return d;
+        });
+      }, function () { throw new Error("Couldn't reach the club's inbox. Check your internet connection and try again."); });
+  }
+
+  /* ---------- signing in with the invite code ---------- */
+  function showSignin(msg) {
+    $("member").hidden = true; $("signin").hidden = false;
+    if (msg) setStatus($("signin-status"), msg, true);
+  }
+  function signIn(c, fromLink) {
+    code = c.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+    setStatus($("signin-status"), "Checking…");
+    return call("/me").then(function (d) {
+      remember(code);
+      $("member-name").textContent = d.name;
+      $("limit-note").textContent = "You can send up to " + d.weeklyLimit + " photos a week.";
+      showMine(d.photos);
+      $("signin").hidden = true; $("member").hidden = false;
+      setStatus($("signin-status"), "");
+    }).catch(function (e) {
+      if (e.status === 401) { remember(""); code = ""; }
+      $("code").value = pretty(c);
+      showSignin(e.message);
+    });
+  }
+  $("signin").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var c = $("code").value.trim();
+    if (!c) { setStatus($("signin-status"), "Enter your invite code.", true); return; }
+    signIn(c);
+  });
+  $("signout").addEventListener("click", function () {
+    remember(""); code = ""; $("code").value = ""; setStatus($("signin-status"), ""); showSignin();
+  });
+
+  /* ---------- your photos ---------- */
+  function showMine(list) {
+    $("mine-empty").hidden = list.length > 0;
+    $("mine").innerHTML = list.map(function (x) {
+      var chip = x.status === "approved" ? '<span class="chip ok">In the gallery</span>'
+               : x.status === "declined" ? '<span class="chip no">Not accepted</span>'
+               : '<span class="chip">Waiting for approval</span>';
+      var extra = x.status === "approved" && x.galleryId ? ' <a href="gallery.html#p-' + esc(x.galleryId) + '">View it</a>'
+                : x.status === "declined" && x.note ? '<span class="meta">Note from the admins: ' + esc(x.note) + "</span>" : "";
+      return "<li>" + chip + "<b>" + esc(x.title) + "</b><span class=\"meta\">Sent " + T.ago(x.sent) + "</span>" +
+             (x.status === "approved" ? '<span class="meta">Approved ' + T.ago(x.decided) + "." + extra + "</span>" : extra) + "</li>";
+    }).join("");
+  }
+
+  /* ---------- choosing and resizing the photo ---------- */
+  $("file").addEventListener("change", function () {
+    var file = this.files[0];
+    if (!file) return;
+    setStatus($("status"), "Preparing the photo…");
+    prepared = null;
+    T.readExif(file).then(function (x) {
+      var s = T.settingsFromExif(x), n = 0;
+      ["lens", "ap", "sh", "iso"].forEach(function (k) { if (s[k] && !$(k).value) { $(k).value = s[k]; n++; } });
+      $("exif-note").textContent = n ? "(filled in from the photo)" : "";
+    });
+    T.prepare(file).then(function (out) {
+      prepared = out;
+      $("pv").src = URL.createObjectURL(out.full.blob);
+      $("pv-info").textContent = "Will be sent at " + out.full.w + " × " + out.full.h + " px, " + T.kb(out.full.blob.size) + " (was " + T.kb(file.size) + ").";
+      $("pick").hidden = true; $("preview").hidden = false;
+      if (!$("title").value) $("title").focus();
+      setStatus($("status"), "");
+    }).catch(function (e) { setStatus($("status"), e.message, true); });
+  });
+  $("change").addEventListener("click", function () { $("file").value = ""; $("file").click(); });
+
+  /* ---------- sending ---------- */
+  $("form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!prepared) { setStatus($("status"), "Choose a photo first.", true); return; }
+    if (!$("title").value.trim()) { setStatus($("status"), "Add a title.", true); $("title").focus(); return; }
+    var fd = new FormData();
+    ["title", "cat", "desc", "lens", "ap", "sh", "iso"].forEach(function (k) { fd.append(k, $(k).value.trim()); });
+    fd.append("w", prepared.full.w); fd.append("h", prepared.full.h);
+    fd.append("tw", prepared.thumb.w); fd.append("th", prepared.thumb.h);
+    fd.append("full", prepared.full.blob, "photo." + prepared.full.ext);
+    fd.append("thumb", prepared.thumb.blob, "thumb." + prepared.thumb.ext);
+    $("send").disabled = true;
+    setStatus($("status"), "Sending…");
+    call("/submit", { method: "POST", body: fd }).then(function () {
+      setStatus($("status"), "Sent. An admin will check it soon, and it will appear in the gallery once it's approved.");
+      $("form").reset(); $("exif-note").textContent = "";
+      $("preview").hidden = true; $("pick").hidden = false; prepared = null;
+      return call("/me").then(function (d) { showMine(d.photos); });
+    }).catch(function (e) {
+      setStatus($("status"), e.message, true);
+      if (e.status === 401) showSignin(e.message);
+    }).then(function () { $("send").disabled = false; });
+  });
+
+  /* ---------- start ---------- */
+  if (!/^https?:\/\//.test(INBOX)) { $("not-ready").hidden = false; return; }
+  var params = new URLSearchParams(location.search), fromLink = params.get("code");
+  if (fromLink) history.replaceState(null, "", location.pathname);   // don't leave the code in the address bar
+  var start = fromLink || saved();
+  if (start) signIn(start, !!fromLink); else showSignin();
+})();
+</script>
+</body>
+</html>

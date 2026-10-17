@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Club admin – The Conscious Frame</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Club admin">
+<link rel="manifest" href="admin.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
+    <nav aria-label="Main"><a href="gallery.html">Gallery</a></nav>
+  </div>
+</header>
+
+<main class="wrap tool">
+  <h1>Club admin</h1>
+  <div class="tabs" role="tablist" aria-label="Admin sections">
+    <button type="button" role="tab" id="tab-approve" aria-controls="panel-approve" aria-selected="true">To approve <span id="count"></span></button>
+    <button type="button" role="tab" id="tab-members" aria-controls="panel-members" aria-selected="false">Members</button>
+    <button type="button" role="tab" id="tab-votes" aria-controls="panel-votes" aria-selected="false">Votes</button>
+    <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false">Comments</button>
+    <button type="button" role="tab" id="tab-home" aria-controls="panel-home" aria-selected="false">Home page</button>
+    <button type="button" role="tab" id="tab-post" aria-controls="panel-post" aria-selected="false">Post a photo</button>
+    <button type="button" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false">Settings</button>
+  </div>
+
+  <!-- ===================== To approve ===================== -->
+  <section id="panel-approve" role="tabpanel" aria-labelledby="tab-approve">
+    <div class="card who">
+      <p id="queue-status" aria-live="polite">Loading…</p>
+      <button class="linkish" type="button" id="refresh">Refresh</button>
+    </div>
+    <div id="queue"></div>
+  </section>
+
+  <!-- ===================== Members ===================== -->
+  <section id="panel-members" role="tabpanel" aria-labelledby="tab-members" hidden>
+    <form class="card" id="add-member" novalidate>
+      <h2>Invite a member</h2>
+      <label class="f" for="m-name">Name <small>(shown with their photos in the gallery)</small></label>
+      <input type="text" id="m-name" maxlength="60" autocomplete="off">
+      <button class="btn btn-dark wide" type="submit">Create invite code</button>
+      <p class="status" id="m-status" aria-live="polite"></p>
+      <div id="invite" hidden>
+        <label class="f" for="invite-text">Message to send them</label>
+        <textarea class="invite-text" id="invite-text" readonly></textarea>
+        <div class="row-btns">
+          <button class="btn btn-dark btn-small" type="button" id="share-invite">Share</button>
+          <button class="btn btn-light btn-small" type="button" id="copy-invite">Copy</button>
+        </div>
+      </div>
+    </form>
+    <section class="card" aria-labelledby="m-h">
+      <h2 id="m-h">Members <span class="muted" id="m-count"></span></h2>
+      <p class="muted" id="m-empty" hidden>No members yet. Invite someone above.</p>
+      <ul class="list" id="m-list"></ul>
+    </section>
+  </section>
+
+  <!-- ===================== Votes ===================== -->
+  <section id="panel-votes" role="tabpanel" aria-labelledby="tab-votes" hidden>
+    <section class="card" aria-labelledby="v-prev-h">
+      <h2 id="v-prev-h">Last week</h2>
+      <p class="muted" id="v-prev-info">Loading…</p>
+      <ol class="list ranking" id="v-prev"></ol>
+      <button class="btn btn-dark wide" type="button" id="potw" disabled>Show the top 3 on the home page</button>
+      <p class="status" id="potw-status" aria-live="polite"></p>
+      <p class="note">Do this on Monday. The top photos replace Photos of the week on the home page.</p>
+    </section>
+    <section class="card" aria-labelledby="v-cur-h">
+      <h2 id="v-cur-h">This week so far</h2>
+      <p class="muted" id="v-cur-info"></p>
+      <ol class="list ranking" id="v-cur"></ol>
+      <p class="note">Only admins see these numbers. Members can't see vote counts.</p>
+    </section>
+  </section>
+
+  <!-- ===================== Comments ===================== -->
+  <section id="panel-comments" role="tabpanel" aria-labelledby="tab-comments" hidden>
+    <div class="card who">
+      <p id="c-status" aria-live="polite">Loading…</p>
+      <button class="linkish" type="button" id="c-refresh">Refresh</button>
+    </div>
+    <section class="card" aria-label="Latest comments"><ul class="list" id="c-list"></ul></section>
+  </section>
+
+  <!-- ===================== Home page ===================== -->
+  <section id="panel-home" role="tabpanel" aria-labelledby="tab-home" hidden>
+    <form class="card" id="home-form" novalidate>
+      <p class="muted" id="h-loading" style="margin-top:0">Loading what's on the home page now…</p>
+      <h2>Theme of the week</h2>
+      <label class="f" for="h-theme">Theme</label>
+      <input type="text" id="h-theme" maxlength="40" placeholder="For example: Shadows">
+      <label class="f" for="h-lede">What to photograph <small>(one or two sentences)</small></label>
+      <textarea id="h-lede" maxlength="220" placeholder="For example: Long shadows, silhouettes, light through blinds. Share one photo that fits by Sunday evening."></textarea>
+
+      <h2 style="margin-top:28px">Contests</h2>
+      <p class="muted">Up to three contests, shown side by side on the home page.</p>
+      <div id="h-contests"></div>
+      <button class="btn btn-light btn-small" type="button" id="h-add">Add a contest</button>
+
+      <button class="btn btn-dark wide" type="submit" id="h-publish">Publish home page</button>
+      <p class="status" id="h-status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <!-- ===================== Post a photo ===================== -->
+  <section id="panel-post" role="tabpanel" aria-labelledby="tab-post" hidden>
+    <form class="card" id="post" novalidate>
+      <p class="muted" style="margin-top:0">Publish a photo straight to the gallery, without the approval step.</p>
+      <label class="pick" id="pick">
+        <input type="file" id="file" accept="image/*">
+        Choose a photo
+        <span>From your library or camera. Large photos are fine.</span>
+      </label>
+      <div class="preview" id="preview" hidden>
+        <img id="pv" alt="">
+        <p id="pv-info"></p>
+        <button class="btn btn-light btn-small" type="button" id="change" style="margin-top:10px">Choose a different photo</button>
+      </div>
+      <label class="f" for="title">Title</label>
+      <input type="text" id="title" maxlength="80">
+      <label class="f" for="by">Photographer</label>
+      <input type="text" id="by" maxlength="60" autocomplete="name">
+      <label class="f" for="cat">Category</label>
+      <select id="cat">
+        <option>Landscape</option><option>Nature</option><option>Travel</option><option>Street</option>
+        <option>Architecture</option><option>Night</option><option>Abstract</option>
+      </select>
+      <label class="f" for="desc">Description <small>(optional)</small></label>
+      <textarea id="desc" maxlength="400"></textarea>
+      <details style="margin-top:16px">
+        <summary>Camera settings <small class="muted" id="exif-note"></small></summary>
+        <div class="two">
+          <div><label class="f" for="lens">Lens</label><input type="text" id="lens" placeholder="35 mm"></div>
+          <div><label class="f" for="ap">Aperture</label><input type="text" id="ap" placeholder="f/8"></div>
+          <div><label class="f" for="sh">Shutter</label><input type="text" id="sh" placeholder="1/250 s"></div>
+          <div><label class="f" for="iso">ISO</label><input type="text" id="iso" inputmode="numeric" placeholder="100"></div>
+        </div>
+      </details>
+      <button class="btn btn-dark wide" type="submit" id="publish">Publish photo</button>
+      <p class="status" id="post-status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <!-- ===================== Settings ===================== -->
+  <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+    <form class="card" id="settings" novalidate>
+      <h2>GitHub</h2>
+      <p class="muted">Where the site lives. Approved photos are published here.</p>
+      <label class="f" for="owner">GitHub username or organisation</label>
+      <input type="text" id="owner" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label class="f" for="repo">Repository name</label>
+      <input type="text" id="repo" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label class="f" for="branch">Branch</label>
+      <input type="text" id="branch" value="main" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label class="f" for="token">Access token <small>(fine-grained, this repository only, Contents: read and write)</small></label>
+      <input type="password" id="token" autocomplete="off" spellcheck="false">
+
+      <h2 style="margin-top:26px">Photo inbox</h2>
+      <p class="muted">Where members' photos wait for approval. See inbox/SETUP.md.</p>
+      <label class="f" for="inbox">Inbox address</label>
+      <input type="url" id="inbox" placeholder="https://conscious-frame-inbox.yourname.workers.dev" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label class="f" for="password">Admin password</label>
+      <input type="password" id="password" autocomplete="off" spellcheck="false">
+
+      <button class="btn btn-dark wide" type="submit">Save and check</button>
+      <p class="status" id="settings-status" aria-live="polite"></p>
+      <div class="row-btns"><button class="btn btn-light btn-small" type="button" id="forget">Remove token and password from this phone</button></div>
+      <p class="note">These are stored only in this browser on this device. Don't set this up on a shared phone or computer.</p>
+    </form>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script src="photo-tools.js"></script>
+<script src="publish.js"></script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var T = PhotoTools, esc = T.esc;
+  var KEY = "conscious-frame-admin";
+
+  /* ---------- settings, kept in this browser only ---------- */
+  function load() {
+    try {
+      var c = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (!c) { c = JSON.parse(localStorage.getItem("conscious-frame-upload") || "{}"); }   // from the earlier Add photo page
+      return c || {};
+    } catch (e) { return {}; }
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} }
+  var cfg = load();
+  if (!cfg.owner && /\.github\.io$/.test(location.hostname)) {
+    cfg.owner = location.hostname.split(".")[0];
+    var first = location.pathname.split("/").filter(Boolean)[0];
+    cfg.repo = first && !/\.html$/.test(first) ? first : location.hostname;
+  }
+  if (!cfg.inbox && window.CLUB_INBOX) cfg.inbox = window.CLUB_INBOX;
+  ["owner", "repo", "branch", "token", "inbox", "password"].forEach(function (k) { if (cfg[k]) $(k).value = cfg[k]; });
+  if (cfg.by) $("by").value = cfg.by;
+  var github = function () { return cfg.owner && cfg.repo && cfg.token; };
+  var inboxReady = function () { return /^https?:\/\//.test(cfg.inbox || "") && cfg.password; };
+  function setStatus(el, msg, isError) { el.className = "status" + (isError ? " error" : ""); el.textContent = msg; }
+  function pretty(c) { return c.replace(/(.{4})(?=.)/g, "$1-"); }
+
+  /* ---------- tabs ---------- */
+  var tabs = ["approve", "members", "votes", "comments", "home", "post", "settings"];
+  function show(name) {
+    tabs.forEach(function (t) {
+      $("tab-" + t).setAttribute("aria-selected", t === name);
+      $("panel-" + t).hidden = t !== name;
+    });
+    if (name === "approve") loadQueue();
+    if (name === "members") loadMembers();
+    if (name === "votes") loadVotes();
+    if (name === "comments") loadComments();
+    if (name === "home") loadHome();
+  }
+  tabs.forEach(function (t) { $("tab-" + t).addEventListener("click", function () { show(t); }); });
+
+  /* ---------- inbox calls ---------- */
+  function inbox(path, opts) {
+    opts = opts || {};
+    var headers = { Authorization: "Bearer " + cfg.password };
+    if (opts.json) headers["Content-Type"] = "application/json";
+    return fetch(cfg.inbox.replace(/\/+$/, "") + path, { method: opts.method || "GET", headers: headers, body: opts.json ? JSON.stringify(opts.json) : undefined })
+      .then(function (r) {
+        if (r.ok && opts.blob) return r.blob();
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (!r.ok) throw new Error(d.error || "The inbox returned an error (" + r.status + ").");
+          return d;
+        });
+      }, function () { throw new Error("Couldn't reach the inbox. Check the inbox address in Settings and your connection."); });
+  }
+
+  /* ---------- to approve ---------- */
+  var DECIDED = "conscious-frame-decided";   // hides photos decided in the last few minutes while the inbox catches up
+  function decided() { try { var d = JSON.parse(sessionStorage.getItem(DECIDED) || "{}"), now = Date.now(), out = {}; for (var k in d) if (now - d[k] < 300000) out[k] = d[k]; return out; } catch (e) { return {}; } }
+  function markDecided(sid) { var d = decided(); d[sid] = Date.now(); try { sessionStorage.setItem(DECIDED, JSON.stringify(d)); } catch (e) {} }
+  function setCount(n) { $("count").textContent = n ? "(" + n + ")" : ""; }
+
+  function loadQueue() {
+    if (!inboxReady()) { $("queue-status").textContent = "Add the inbox address and admin password in Settings to see members' photos."; $("queue").innerHTML = ""; return; }
+    $("queue-status").textContent = "Loading…";
+    inbox("/admin/pending").then(function (d) {
+      var gone = decided();
+      var list = d.photos.filter(function (p) { return !gone[p.sid]; });
+      setCount(list.length);
+      $("queue-status").textContent = list.length ? list.length + (list.length === 1 ? " photo is" : " photos are") + " waiting for approval." : "Nothing waiting. New photos from members will show here.";
+      $("queue").innerHTML = "";
+      list.forEach(function (p) { $("queue").appendChild(card(p)); });
+    }).catch(function (e) { $("queue-status").textContent = e.message; });
+  }
+  $("refresh").addEventListener("click", loadQueue);
+
+  function card(p) {
+    var el = document.createElement("article");
+    el.className = "card";
+    var cats = ["Landscape", "Nature", "Travel", "Street", "Architecture", "Night", "Abstract"];
+    var settings = [p.lens, p.ap, p.sh, p.iso ? "ISO " + p.iso : ""].filter(Boolean).join(", ");
+    el.innerHTML =
+      '<img class="sub-img" alt="' + esc(p.title) + '" width="' + p.tw + '" height="' + p.th + '">' +
+      '<p class="sub-by">From <b>' + esc(p.name) + "</b>, sent " + T.ago(p.sent) + "</p>" +
+      '<label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(p.title) + '"></label>' +
+      '<label class="f">Category<select class="e-cat">' + cats.map(function (c) { return "<option" + (c === p.cat ? " selected" : "") + ">" + c + "</option>"; }).join("") + "</select></label>" +
+      '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
+      (settings ? '<p class="sub-settings">' + esc(settings) + "</p>" : "") +
+      '<div class="row-btns"><button class="btn btn-dark approve" type="button">Approve and publish</button><button class="btn btn-light decline" type="button">Decline</button></div>' +
+      '<div class="decline-box" hidden><label class="f">Note to ' + esc(p.name.split(" ")[0]) + ' <small>(optional, they will see it)</small><textarea class="e-note" maxlength="300" placeholder="For example: a bit soft, try a faster shutter speed"></textarea></label>' +
+      '<div class="row-btns"><button class="btn btn-dark confirm-decline" type="button">Decline photo</button><button class="btn btn-light cancel-decline" type="button">Cancel</button></div></div>' +
+      '<p class="status" aria-live="polite"></p>';
+    var img = el.querySelector("img"), status = el.querySelector(".status");
+    inbox("/admin/photo/" + p.sid + "/thumb", { blob: true }).then(function (b) { img.src = URL.createObjectURL(b); }).catch(function () {});
+    var buttons = function (on) { el.querySelectorAll("button").forEach(function (b) { b.disabled = !on; }); };
+
+    el.querySelector(".decline").addEventListener("click", function () { el.querySelector(".decline-box").hidden = false; el.querySelector(".e-note").focus(); });
+    el.querySelector(".cancel-decline").addEventListener("click", function () { el.querySelector(".decline-box").hidden = true; });
+    el.querySelector(".confirm-decline").addEventListener("click", function () {
+      buttons(false); setStatus(status, "Declining…");
+      inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "declined", note: el.querySelector(".e-note").value.trim() } }).then(function () {
+        markDecided(p.sid); done(el, "Declined “" + p.title + "”. " + p.name.split(" ")[0] + " will see this on the Share a photo page.");
+      }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
+    });
+    el.querySelector(".approve").addEventListener("click", function () {
+      if (!github()) { setStatus(status, "Connect GitHub in Settings first.", true); return; }
+      var title = el.querySelector(".e-title").value.trim();
+      if (!title) { setStatus(status, "Add a title.", true); return; }
+      var photo = { title: title, by: p.name, cat: el.querySelector(".e-cat").value, desc: el.querySelector(".e-desc").value.trim(),
+        lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso, ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, sub: p.sid };
+      buttons(false); setStatus(status, "Getting the photo…");
+      Promise.all([inbox("/admin/photo/" + p.sid + "/full", { blob: true }), inbox("/admin/photo/" + p.sid + "/thumb", { blob: true })]).then(function (b) {
+        return Publish.publish(cfg, photo, b[0], b[1], function (m) { setStatus(status, m); });
+      }).then(function (id) {
+        markDecided(p.sid);
+        return inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", galleryId: id } }).then(function () { return id; });
+      }).then(function (id) {
+        done(el, "Published “" + title + "” by " + p.name + ". It will be live in about a minute.", "gallery.html#p-" + id);
+      }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
+    });
+    return el;
+  }
+  function done(el, msg, link) {
+    el.innerHTML = '<p class="status" style="margin:0">' + esc(msg) + (link ? ' <a href="' + link + '">View in the gallery</a>' : "") + "</p>";
+    var left = document.querySelectorAll("#queue .approve").length;
+    setCount(left);
+    $("queue-status").textContent = left ? left + (left === 1 ? " photo is" : " photos are") + " waiting for approval." : "All done. Nothing else is waiting.";
+  }
+
+  /* ---------- members ---------- */
+  var lastInvite = "";
+  function inviteText(name, code) {
+    var link = new URL("submit.html", location.href).href + "?code=" + pretty(code);
+    return "Hi " + name.split(" ")[0] + ", you're invited to share photos with The Conscious Frame.\n\n" +
+           "Open this link on your phone to start: " + link + "\n\n" +
+           "Your personal invite code is " + pretty(code) + ". Please keep it to yourself.";
+  }
+  function copy(text, statusEl) {
+    var ok = function () { setStatus(statusEl, "Copied. Paste it into a message or email."); };
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(ok, fallback);
+    fallback();
+    function fallback() {
+      var t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select();
+      try { document.execCommand("copy"); ok(); } catch (e) { setStatus(statusEl, "Couldn't copy. Select the message and copy it yourself.", true); }
+      t.remove();
+    }
+  }
+  function share(text, statusEl) {
+    if (navigator.share) return navigator.share({ text: text }).catch(function (e) { if (!e || e.name !== "AbortError") copy(text, statusEl); });
+    copy(text, statusEl);
+  }
+  function loadMembers() {
+    if (!inboxReady()) { $("m-list").innerHTML = ""; $("m-empty").hidden = false; $("m-empty").textContent = "Add the inbox address and admin password in Settings first."; return; }
+    inbox("/admin/members").then(function (d) {
+      $("m-count").textContent = d.members.length ? "(" + d.members.length + ")" : "";
+      $("m-empty").hidden = d.members.length > 0; $("m-empty").textContent = "No members yet. Invite someone above.";
+      $("m-list").innerHTML = "";
+      d.members.forEach(function (m) {
+        var li = document.createElement("li");
+        li.innerHTML = "<b>" + esc(m.name) + '</b><span class="meta">Code ' + pretty(m.code) + ", added " + new Date(m.created).toLocaleDateString() + "</span>" +
+          '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="send">Send invite again</button><button class="btn btn-light btn-small" type="button" data-a="remove">Remove</button></div><p class="status" aria-live="polite"></p>';
+        var st = li.querySelector(".status");
+        li.querySelector('[data-a="send"]').addEventListener("click", function () { share(inviteText(m.name, m.code), st); });
+        li.querySelector('[data-a="remove"]').addEventListener("click", function () {
+          var box = document.createElement("div");
+          box.innerHTML = '<p class="meta" style="margin:10px 0 0">Remove ' + esc(m.name) + '? Their invite code stops working straight away. Their photos already in the gallery stay.</p>' +
+            '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, remove</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>';
+          var row = li.querySelector(".row-btns");
+          row.hidden = true; li.insertBefore(box, st);
+          box.querySelector('[data-a="no"]').addEventListener("click", function () { box.remove(); row.hidden = false; });
+          box.querySelector('[data-a="yes"]').addEventListener("click", function () {
+            box.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+            inbox("/admin/members/" + m.code, { method: "DELETE" }).then(loadMembers).catch(function (e) { box.remove(); row.hidden = false; setStatus(st, e.message, true); });
+          });
+        });
+        $("m-list").appendChild(li);
+      });
+    }).catch(function (e) { $("m-empty").hidden = false; $("m-empty").textContent = e.message; });
+  }
+  $("add-member").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var name = $("m-name").value.trim();
+    if (!inboxReady()) { setStatus($("m-status"), "Add the inbox address and admin password in Settings first.", true); return; }
+    if (!name) { setStatus($("m-status"), "Enter the member's name.", true); return; }
+    setStatus($("m-status"), "Creating…");
+    inbox("/admin/members", { method: "POST", json: { name: name } }).then(function (m) {
+      lastInvite = inviteText(m.name, m.code);
+      $("invite-text").value = lastInvite; $("invite").hidden = false;
+      setStatus($("m-status"), "Invite code created for " + m.name + ". Send them this message:");
+      $("m-name").value = "";
+      loadMembers();
+    }).catch(function (e) { setStatus($("m-status"), e.message, true); });
+  });
+  $("share-invite").addEventListener("click", function () { share(lastInvite, $("m-status")); });
+  $("copy-invite").addEventListener("click", function () { copy(lastInvite, $("m-status")); });
+
+  /* ---------- votes ---------- */
+  var galleryInfo = null, lastWeek = null;
+  function loadGallery() {   // id -> title, photographer and thumbnail, from the current gallery
+    var viaSite = function () { return fetch("gallery.html", { cache: "no-store" }).then(function (r) { return r.text(); }); };
+    return (github() ? Publish.readSiteFile(cfg, "gallery.html").catch(viaSite) : viaSite()).then(function (html) {
+      var doc = new DOMParser().parseFromString(html, "text/html"), map = {};
+      doc.querySelectorAll(".tile").forEach(function (t) {
+        var img = t.querySelector("img"), cap = t.querySelector("figcaption"), b = cap && cap.querySelector("b");
+        var id = t.id.replace(/^t-/, ""), title = b ? b.textContent : id;
+        map[id] = { id: id, title: title, by: cap ? cap.textContent.slice(title.length) : "", src: img ? img.getAttribute("src") : "",
+                    w: img ? img.getAttribute("width") : 600, h: img ? img.getAttribute("height") : 400 };
+      });
+      galleryInfo = map;
+      return map;
+    });
+  }
+  function weekLabel(w) { return "week " + parseInt(String(w).split("-W")[1], 10); }
+  function showRanking(list, info, data, map, empty) {
+    info.textContent = data.ranking.length ? data.voters + (data.voters === 1 ? " member" : " members") + " voted in " + weekLabel(data.week) + "." : empty;
+    list.innerHTML = data.ranking.slice(0, 10).map(function (x, i) {
+      var g = map[x.photo];
+      return '<li class="rank">' + (g && g.src ? '<img src="' + esc(g.src) + '" alt="" width="72" height="48">' : "<span></span>") +
+        "<span><b>" + (i + 1) + ". " + esc(g ? g.title : x.photo) + '</b><span class="meta">' + (g ? esc(g.by) + ", " : "No longer in the gallery, ") +
+        x.votes + (x.votes === 1 ? " vote" : " votes") + "</span></span></li>";
+    }).join("");
+  }
+  function loadVotes() {
+    if (!inboxReady()) { $("v-prev-info").textContent = "Add the inbox address and admin password in Settings first."; return; }
+    $("v-prev-info").textContent = "Loading…"; setStatus($("potw-status"), "");
+    Promise.all([loadGallery(), inbox("/admin/votes")]).then(function (res) {
+      var map = res[0], cur = res[1];
+      showRanking($("v-cur"), $("v-cur-info"), cur, map, "No votes yet this week.");
+      return inbox("/admin/votes?week=" + cur.previous).then(function (prev) {
+        lastWeek = { data: prev, map: map };
+        showRanking($("v-prev"), $("v-prev-info"), prev, map, "Nobody voted last week.");
+        var top = prev.ranking.filter(function (x) { return map[x.photo]; }).slice(0, 3);
+        $("potw").disabled = !top.length;
+        $("potw").textContent = !top.length ? "No votes to show" : top.length === 1 ? "Show the top photo on the home page" : "Show the top " + top.length + " on the home page";
+      });
+    }).catch(function (e) { $("v-prev-info").textContent = e.message; });
+  }
+  $("potw").addEventListener("click", function () {
+    if (!github()) { setStatus($("potw-status"), "Connect GitHub in Settings first.", true); return; }
+    if (!lastWeek) return;
+    var map = lastWeek.map;
+    var items = lastWeek.data.ranking.filter(function (x) { return map[x.photo]; }).slice(0, 3).map(function (x) {
+      var g = map[x.photo];
+      return { id: g.id, title: g.title, by: g.by, src: g.src, w: g.w, h: g.h, votes: x.votes };
+    });
+    $("potw").disabled = true; setStatus($("potw-status"), "Publishing…");
+    Publish.publishHome(cfg, items, lastWeek.data.week).then(function () {
+      var s = $("potw-status"); s.className = "status";
+      s.innerHTML = 'Done. The home page will show them in about a minute. <a href="index.html">View the home page</a>';
+    }).catch(function (e) { setStatus($("potw-status"), e.message, true); })
+      .then(function () { $("potw").disabled = false; });
+  });
+
+  /* ---------- comments ---------- */
+  function loadComments() {
+    if (!inboxReady()) { $("c-status").textContent = "Add the inbox address and admin password in Settings first."; $("c-list").innerHTML = ""; return; }
+    $("c-status").textContent = "Loading…";
+    var gallery = galleryInfo ? Promise.resolve(galleryInfo) : loadGallery().catch(function () { return {}; });
+    Promise.all([inbox("/admin/comments"), gallery]).then(function (res) {
+      var list = res[0].comments, map = res[1];
+      $("c-status").textContent = list.length ? "The latest " + list.length + (list.length === 1 ? " comment" : " comments") + ", newest first." : "No comments yet.";
+      $("c-list").innerHTML = "";
+      list.forEach(function (c) {
+        var li = document.createElement("li"), g = map[c.photo];
+        li.innerHTML = "<b>" + esc(c.name) + '</b><span class="meta">' + T.ago(c.at) + ' on <a href="gallery.html#p-' + esc(c.photo) + '">' + esc(g ? g.title : c.photo) + "</a></span>" +
+          '<p class="said">' + esc(c.text) + '</p><div class="row-btns"><button class="btn btn-light btn-small" type="button">Delete</button></div><p class="status" aria-live="polite"></p>';
+        var row = li.querySelector(".row-btns"), st = li.querySelector(".status");
+        row.querySelector("button").addEventListener("click", function () {
+          row.innerHTML = '<span class="meta" style="flex-basis:100%">Delete this comment? Nobody will see it any more.</span>' +
+            '<button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, delete</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button>';
+          row.querySelector('[data-a="no"]').addEventListener("click", loadComments);
+          row.querySelector('[data-a="yes"]').addEventListener("click", function () {
+            inbox("/admin/comment/delete", { method: "POST", json: { photo: c.photo, cid: c.cid } }).then(loadComments)
+              .catch(function (e) { setStatus(st, e.message, true); });
+          });
+        });
+        $("c-list").appendChild(li);
+      });
+    }).catch(function (e) { $("c-status").textContent = e.message; });
+  }
+  $("c-refresh").addEventListener("click", loadComments);
+
+  /* ---------- home page: theme of the week and contests ---------- */
+  var STATUSES = ["Open for entries", "Voting now", "Judging", "Winners announced", "Coming soon"];
+  var LIVE = ["Open for entries", "Voting now", "Judging"];   // shown with a red dot
+  var homeGallery = {};
+  function photoOptions(selected) {
+    return Object.keys(homeGallery).map(function (id) {
+      return '<option value="' + esc(id) + '"' + (id === selected ? " selected" : "") + ">" + esc(homeGallery[id].title) + "</option>";
+    }).join("");
+  }
+  function contestFields(c) {
+    c = c || { status: "Open for entries", title: "", desc: "", photo: Object.keys(homeGallery)[0] || "" };
+    var statuses = STATUSES.indexOf(c.status) < 0 ? STATUSES.concat(c.status) : STATUSES;
+    var f = document.createElement("fieldset");
+    f.className = "contest-edit";
+    f.innerHTML = "<legend></legend>" +
+      '<label class="f">Status<select class="c-status">' + statuses.map(function (s) { return "<option" + (s === c.status ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("") + "</select></label>" +
+      '<label class="f">Title<input type="text" class="c-title" maxlength="60" value="' + esc(c.title) + '"></label>' +
+      '<label class="f">Description <small>(what it\'s about, and the dates)</small><textarea class="c-desc" maxlength="200">' + esc(c.desc) + "</textarea></label>" +
+      '<label class="f">Photo <small>(from the gallery)</small><select class="c-photo">' + photoOptions(c.photo) + "</select></label>" +
+      '<button class="linkish c-remove" type="button">Remove this contest</button>';
+    f.querySelector(".c-remove").addEventListener("click", function () { f.remove(); numberContests(); });
+    return f;
+  }
+  function numberContests() {
+    var all = $("h-contests").querySelectorAll(".contest-edit");
+    all.forEach(function (f, i) { f.querySelector("legend").textContent = "Contest " + (i + 1); });
+    $("h-add").hidden = all.length >= 3;
+  }
+  function loadHome() {
+    setStatus($("h-status"), "");
+    $("h-loading").hidden = false;
+    var viaSite = function () { return fetch("index.html", { cache: "no-store" }).then(function (r) { return r.text(); }); };
+    var page = github() ? Publish.readSiteFile(cfg, "index.html").catch(viaSite) : viaSite();
+    Promise.all([page, loadGallery().catch(function () { return {}; })]).then(function (res) {
+      homeGallery = res[1];
+      var doc = new DOMParser().parseFromString(res[0], "text/html");
+      var theme = doc.querySelector(".theme"), lede = doc.querySelector(".lede");
+      $("h-theme").value = theme ? theme.textContent.trim() : "";
+      $("h-lede").value = lede ? lede.textContent.trim() : "";
+      $("h-contests").innerHTML = "";
+      doc.querySelectorAll(".contest").forEach(function (el) {
+        var img = el.querySelector("img"), m = img && (img.getAttribute("src") || "").match(/photos\/(.+?)-sm\./);
+        $("h-contests").appendChild(contestFields({
+          status: (el.querySelector(".tag") || {}).textContent || "Open for entries",
+          title: (el.querySelector("h3") || {}).textContent || "",
+          desc: (el.querySelector("p") || {}).textContent || "",
+          photo: m ? m[1] : ""
+        }));
+      });
+      numberContests();
+      $("h-loading").hidden = true;
+    }).catch(function (e) { $("h-loading").textContent = e.message; });
+  }
+  $("h-add").addEventListener("click", function () {
+    $("h-contests").appendChild(contestFields());
+    numberContests();
+    $("h-contests").lastElementChild.querySelector(".c-title").focus();
+  });
+  $("home-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var st = $("h-status");
+    if (!github()) { setStatus(st, "Connect GitHub in Settings first.", true); return; }
+    var theme = $("h-theme").value.trim(), lede = $("h-lede").value.trim();
+    if (!theme) { setStatus(st, "Add the theme of the week.", true); $("h-theme").focus(); return; }
+    var contests = [], missing = null;
+    $("h-contests").querySelectorAll(".contest-edit").forEach(function (f) {
+      var c = { status: f.querySelector(".c-status").value, title: f.querySelector(".c-title").value.trim(),
+                desc: f.querySelector(".c-desc").value.trim(), photo: f.querySelector(".c-photo").value };
+      if (!c.title && !missing) missing = f.querySelector(".c-title");
+      contests.push(c);
+    });
+    if (missing) { setStatus(st, "Give each contest a title, or remove it.", true); missing.focus(); return; }
+    var themeHtml = '    <p class="kicker">This week\'s theme</p>\n    <h1 class="theme">' + esc(theme) + "</h1>\n" +
+      (lede ? '    <p class="lede">' + esc(lede) + "</p>\n" : "");
+    var contestHtml = contests.map(function (c) {
+      var g = homeGallery[c.photo];
+      var img = g ? '<a href="gallery.html#p-' + esc(c.photo) + '"><img src="' + esc(g.src) + '" alt="" width="' + g.w + '" height="' + g.h + '" loading="lazy"></a>' : "";
+      return '    <div class="contest">' + img + '<span class="tag' + (LIVE.indexOf(c.status) >= 0 ? " live" : "") + '">' + esc(c.status) + "</span><h3>" +
+        esc(c.title) + "</h3>" + (c.desc ? "<p>" + esc(c.desc) + "</p>" : "") + "</div>\n";
+    }).join("") || '    <p class="muted">No contests at the moment.</p>\n';
+    $("h-publish").disabled = true; setStatus(st, "Publishing…");
+    Publish.publishSections(cfg, { THEME: themeHtml, CONTESTS: contestHtml }, "Home page: theme “" + theme + "”").then(function () {
+      st.className = "status";
+      st.innerHTML = 'Published. The home page will update in about a minute. <a href="index.html">View the home page</a>';
+    }).catch(function (e) { setStatus(st, e.message, true); })
+      .then(function () { $("h-publish").disabled = false; });
+  });
+
+  /* ---------- post a photo directly ---------- */
+  var prepared = null;
+  $("file").addEventListener("change", function () {
+    var file = this.files[0];
+    if (!file) return;
+    setStatus($("post-status"), "Preparing the photo…"); prepared = null;
+    T.readExif(file).then(function (x) {
+      var s = T.settingsFromExif(x), n = 0;
+      ["lens", "ap", "sh", "iso"].forEach(function (k) { if (s[k] && !$(k).value) { $(k).value = s[k]; n++; } });
+      $("exif-note").textContent = n ? "(filled in from the photo)" : "";
+    });
+    T.prepare(file).then(function (out) {
+      prepared = out;
+      $("pv").src = URL.createObjectURL(out.full.blob);
+      $("pv-info").textContent = "Will be published at " + out.full.w + " × " + out.full.h + " px, " + T.kb(out.full.blob.size) + " (was " + T.kb(file.size) + ").";
+      $("pick").hidden = true; $("preview").hidden = false;
+      setStatus($("post-status"), "");
+    }).catch(function (e) { setStatus($("post-status"), e.message, true); });
+  });
+  $("change").addEventListener("click", function () { $("file").value = ""; $("file").click(); });
+  $("post").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!github()) { setStatus($("post-status"), "Connect GitHub in Settings first.", true); return; }
+    if (!prepared) { setStatus($("post-status"), "Choose a photo first.", true); return; }
+    if (!$("title").value.trim() || !$("by").value.trim()) { setStatus($("post-status"), "Add a title and the photographer's name.", true); return; }
+    cfg.by = $("by").value.trim(); save();
+    var p = { title: $("title").value.trim(), by: cfg.by, cat: $("cat").value, desc: $("desc").value.trim(),
+      lens: $("lens").value.trim(), ap: $("ap").value.trim(), sh: $("sh").value.trim(), iso: $("iso").value.trim(),
+      ext: prepared.full.ext, w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h };
+    $("publish").disabled = true;
+    Publish.publish(cfg, p, prepared.full.blob, prepared.thumb.blob, function (m) { setStatus($("post-status"), m); }).then(function (id) {
+      var s = $("post-status"); s.className = "status";
+      s.innerHTML = "Published. It will be live in about a minute: <a href=\"gallery.html#p-" + id + "\">view it in the gallery</a>.";
+      $("post").reset(); $("by").value = cfg.by; $("exif-note").textContent = "";
+      $("preview").hidden = true; $("pick").hidden = false; prepared = null;
+    }).catch(function (e) { setStatus($("post-status"), e.message, true); })
+      .then(function () { $("publish").disabled = false; });
+  });
+
+  /* ---------- settings ---------- */
+  $("settings").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    cfg.owner = $("owner").value.trim(); cfg.repo = $("repo").value.trim(); cfg.branch = $("branch").value.trim() || "main";
+    cfg.token = $("token").value.trim(); cfg.password = $("password").value;
+    var url = $("inbox").value.trim().replace(/\/+$/, "");
+    if (url && !/^https?:\/\//.test(url)) url = "https://" + url;
+    cfg.inbox = url; $("inbox").value = url;
+    save();
+    var s = $("settings-status"), notes = [];
+    if (!github()) { setStatus(s, "Fill in the GitHub username, repository and token.", true); return; }
+    setStatus(s, "Checking…");
+    Publish.checkBranch(cfg).then(function () {
+      notes.push("Connected to GitHub (" + cfg.owner + "/" + cfg.repo + ").");
+      if (!cfg.inbox) return null;
+      if (!cfg.password) throw new Error("Enter the admin password for the inbox.");
+      return inbox("/admin/ping").then(function () {
+        notes.push("The inbox is working.");
+        return Publish.writeConfig(cfg, cfg.inbox).then(function (changed) {
+          if (changed) notes.push("The Share a photo page now uses this inbox (live in a few minutes).");
+        });
+      });
+    }).then(function () {
+      if (!cfg.inbox) notes.push("Add the inbox address to approve members' photos.");
+      setStatus(s, notes.join(" "));
+      loadQueue();
+    }).catch(function (e) { setStatus(s, notes.concat(e.message).join(" "), true); });
+  });
+  $("forget").addEventListener("click", function () {
+    cfg.token = ""; cfg.password = ""; $("token").value = ""; $("password").value = ""; save();
+    setStatus($("settings-status"), "Token and password removed from this phone.");
+  });
+
+  /* ---------- start ---------- */
+  show(github() && inboxReady() ? "approve" : "settings");
+})();
+</script>
+</body>
+</html>
