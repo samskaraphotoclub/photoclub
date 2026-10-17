@@ -75,7 +75,7 @@ The token and password are stored only in that phone's browser. Don't set the ad
 - **Theme of the week and contests:** admin page > **Home page**. Change the text, pick a photo for each contest (members see it; visitors don't), and tap **Publish home page**.
 - **Other text:** each page is its own file (`index.html`, `about.html`, `gallery.html`, `submit.html`). On GitHub, open the file, click the pencil icon, change the words between the `>` and `<` marks, and click **Commit changes**. Leave the `<!-- ... -->` marker lines in `index.html` alone; the admin page uses them.
 - **Club name:** search and replace "The Conscious Frame" in all `.html` and `.webmanifest` files.
-- **Contact email:** search and replace `hello@example.com`.
+- **Footer link and copyright:** the last lines of `index.html`, `about.html` and `gallery.html` (the link to samskara-germany.de and "© 2026 Samskara Germany e.V. All rights reserved."). The About page's joining button links there too.
 - **Logo:** replace `logo.webp` (header), `logo-badge.webp` (footer), `favicon.ico` (browser tab) and the three PNGs in `icons/` (home screen).
 - **Colours:** the top of `style.css`.
 - **Time zone** (when voting weeks start): `TIMEZONE` in the inbox settings. It's set to Europe/Berlin.
