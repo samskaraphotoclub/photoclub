@@ -34,13 +34,16 @@
       var d = r[0], months = r[1].months, now = r[1].month;
       $("a-name").textContent = d.name; $("a-who").hidden = false;
       var html = months.map(function (w) {
-        var picks = (w.top || []).filter(function (x) { return d.byId[x.id]; });
+        var best = (w.best || []).filter(function (x) { return d.byId[x.id]; }), picks = best.length ? best : (w.top || []).filter(function (x) { return d.byId[x.id]; });
+        var entries = d.photos.filter(function (p) { return p.theme === w.month; }).length;
         var later = w.month > now, current = w.month === now;
-        if (!w.theme && !picks.length) return "";
+        if (!w.theme && !picks.length && !entries) return "";
         var head = '<p class="kicker">' + (current ? "This month · " : later ? "Next month · " : "") + monthName(w.month) + "</p>";
         var theme = w.theme ? '<h2 class="past-theme"' + ml(w.theme.title) + ">" + esc(w.theme.title) + "</h2>" + (w.theme.lede ? '<p class="lede"' + ml(w.theme.lede) + ">" + esc(w.theme.lede) + "</p>" : "")
                             : '<h2 class="past-theme muted">No theme recorded</h2>';
-        var body = picks.length ? '<div class="just winners">' + picks.map(function (x, i) {
+        var label = picks.length ? '<p class="kicker" style="margin-top:14px">' + (best.length ? "Most-voted entries" : "Most votes that month") + "</p>" : "";
+        var count = entries ? '<p class="entries-line" style="margin-top:8px"><a href="gallery.html?theme=' + esc(w.month) + '">' + (entries === 1 ? "1 entry" : "All " + entries + " entries") + "</a></p>" : "";
+        var body = picks.length ? label + '<div class="just winners">' + picks.map(function (x, i) {
             var p = d.byId[x.id];
             return '<figure class="print" style="--ar:' + (p.tw / p.th || 1.5).toFixed(3) + '"><a href="gallery.html#p-' + esc(p.id) + '"><img src="' + esc(Club.photoUrl(d, p, "thumb")) + '" alt="' + esc(p.title) +
               '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a><figcaption><b' + ml(p.title) + ">" + (i + 1) + ". " + esc(p.title) + "</b> <span" + ml(p.by) + ">" + esc(p.by) + "</span>" +
@@ -48,7 +51,7 @@
           }).join("") + "</div>"
           : current ? '<p class="muted">The month\'s most-voted photos appear here once it\'s over. <a href="gallery.html#this-week">Vote for this week\'s photos</a></p>'
           : later ? "" : '<p class="muted">No votes that month.</p>';
-        return '<article class="week">' + head + theme + body + "</article>";
+        return '<article class="week">' + head + theme + count + body + "</article>";
       }).join("");
       $("weeks").innerHTML = html;
       $("weeks").hidden = !html;

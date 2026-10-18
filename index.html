@@ -18,7 +18,7 @@
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
-    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="archive.html">Archive</a><a href="about.html">About</a></nav>
+    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="events.html">Events</a><a href="archive.html">Archive</a><a href="about.html">About</a></nav>
     <button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
     <a class="btn btn-dark btn-small join" href="submit.html">Share a photo</a>
   </div>
@@ -34,8 +34,9 @@
     <!-- THEME:END -->
     <div class="actions">
       <a class="btn btn-dark" href="gallery.html">Browse the gallery</a>
-      <a class="btn btn-light" href="submit.html">Share your photo</a>
+      <a class="btn btn-light" href="submit.html" id="share-btn">Share your photo</a>
     </div>
+    <p class="entries-line" id="entries-line" hidden></p>
     <p class="about">The Conscious Frame is the photography club of Samskara Germany e.V. We believe a photograph is a perspective, a window into the world as someone else experiences it. Photographers of every background and skill level are welcome. <a href="about.html#about-us">About us</a></p>
   </div>
   <div class="members-card" id="hero-card">
@@ -50,6 +51,11 @@
 <section class="wrap section" id="exhibit-section" hidden>
   <div class="head"><h2>From the exhibition</h2><a href="exhibition.html">See the exhibition</a><p>Photos by our members that anyone can see, shown with their permission. A different selection every visit.</p></div>
   <div class="just strip" id="exhibit"></div>
+</section>
+
+<section class="wrap section" id="coming-section" hidden>
+  <div class="head"><h2>Coming up</h2><a href="events.html">All events</a></div>
+  <ul class="coming" id="coming"></ul>
 </section>
 
 <section class="wrap section" id="join-slot" hidden></section>
@@ -99,6 +105,8 @@
     <ul>
       <li><a href="exhibition.html">Exhibition</a></li>
       <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="events.html">Events</a></li>
+      <li><a href="photographers.html">Photographers</a></li>
       <li><a href="archive.html">Theme archive</a></li>
       <li><a href="submit.html">Share a photo</a></li>
       <li><a href="about.html">About the club</a></li>
@@ -129,6 +137,7 @@
 </script>
 <script src="config.js"></script>
 <script src="club.js"></script>
+<script src="events.js"></script>
 <script src="home.js"></script>
 <script src="theme.js"></script>
 </body>

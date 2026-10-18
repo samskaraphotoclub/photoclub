@@ -17,6 +17,18 @@
   function byLine(p) { return "<b" + ml(p.title) + ">" + esc(p.title) + "</b> by <span" + ml(p.by) + ">" + esc(p.by) + "</span>"; }
 
   var member = !!Club.code();
+
+  // the next three events (visitors see the public ones)
+  Club.call("/events").then(function (r) {
+    var next = r.upcoming.slice(0, 3);
+    if (!next.length || !window.ClubEvents) return;
+    $("coming").innerHTML = next.map(function (e) {
+      var p = ClubEvents.parts(e.date);
+      return '<li><a href="events.html#e-' + esc(e.id) + '"><span class="when"><b>' + p.day + "</b><span>" + p.mon + '</span></span><span class="what"><b' + ml(e.title) + ">" + esc(e.title) + "</b><span>" +
+        esc(e.kind + " · " + ClubEvents.when(e)) + (e.going && e.going.length ? " · " + e.going.length + " coming" : "") + "</span></span></a></li>";
+    }).join("");
+    $("coming-section").hidden = false;
+  }).catch(function () { /* no events yet, or the inbox hasn't been updated */ });
   var shown = Club.exhibition().catch(function () { return { photos: [], series: [] }; });
   var gallery = member ? Club.gallery().catch(function () { return null; }) : Promise.resolve(null);
 
@@ -47,6 +59,14 @@
   }
 
   function members(d) {
+    // the monthly theme: how many entries so far, and Share a photo opens with the entry box ticked
+    if (d.entry) {
+      var n = d.photos.filter(function (p) { return p.theme === d.entry.month; }).length;
+      $("entries-line").innerHTML = (n ? '<a href="gallery.html?theme=' + esc(d.entry.month) + '">' + n + (n === 1 ? " entry" : " entries") + " so far</a> · " : "No entries yet. ") +
+        '<a href="submit.html?entry=1">' + (n ? "Add yours" : "Be the first") + "</a>";
+      $("entries-line").hidden = false;
+      $("share-btn").href = "submit.html?entry=1";
+    }
     function link(p, inner, label) {
       return '<a href="gallery.html#p-' + esc(p.id) + '"' + (label ? ' aria-label="' + esc(label) + '"' : "") + ">" + inner + "</a>";
     }

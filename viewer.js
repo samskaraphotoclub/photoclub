@@ -6,22 +6,23 @@ var Viewer = (function () {
   var esc = Club.esc, ml = Club.ml;
 
   /* A tile with its viewer. thumb, full: the image addresses.
-     o.cls: extra classes; o.series: the series' name; o.extra: HTML under the details. */
+     o.cls: extra classes; o.series: the series' name; o.extra: HTML under the details; o.byHref: link for the photographer's name. */
   function tile(p, thumb, full, o) {
     o = o || {};
     var id = esc(p.id), title = esc(p.title), ar = (p.tw > 0 && p.th > 0 ? p.tw / p.th : 1.5).toFixed(3);
+    var by = o.byHref ? '<a class="by-link" href="' + esc(o.byHref) + '"' + ml(p.by) + ">" + esc(p.by) + "</a>" : "<span" + ml(p.by) + ">" + esc(p.by) + "</span>";
     var rows = [["Lens", p.lens], ["Aperture", p.ap], ["Shutter", p.sh], ["ISO", p.iso]].filter(function (r) { return r[1]; })
       .map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("");
     return '<figure class="tile' + (o.cls ? " " + o.cls : "") + '" id="t-' + id + '" style="--ar:' + ar + '">' +
       '<a href="#p-' + id + '"><img src="' + esc(thumb) + '" alt="' + title + '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a>' +
-      "<figcaption><b" + ml(p.title) + ">" + title + "</b><span" + ml(p.by) + ">" + esc(p.by) + "</span></figcaption>" +
+      "<figcaption><b" + ml(p.title) + ">" + title + "</b>" + by + "</figcaption>" +
       '<div class="viewer" id="p-' + id + '" role="dialog" aria-label="' + title + '">' +
         '<a class="shade" href="#t-' + id + '" aria-label="Close" tabindex="-1"></a>' +
         '<div class="box">' +
           '<a class="close" href="#t-' + id + '" aria-label="Close">×</a>' +
           '<div class="pic"><img src="' + esc(full) + '" alt="' + title + '" width="' + (p.w | 0) + '" height="' + (p.h | 0) + '" loading="lazy"></div>' +
-          '<div class="info"><h2' + ml(p.title) + ">" + title + '</h2><p class="by"><span' + ml(p.by) + ">" + esc(p.by) + "</span>, " + esc(p.cat) + "</p>" +
-            (o.series ? '<p class="in-series">Part of the series <b' + ml(o.series) + ">" + esc(o.series) + "</b></p>" : "") +
+          '<div class="info"><h2' + ml(p.title) + ">" + title + '</h2><p class="by">' + by + ", " + esc(p.cat) + "</p>" +
+            (o.series ? '<p class="in-series">Part of the series <b' + ml(o.series) + ">" + esc(o.series) + "</b></p>" : "") + (o.lines || "") +
             (p.desc ? '<p class="desc"' + ml(p.desc) + ">" + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "") + (o.extra || "") + "</div>" +
         "</div>" +
       "</div></figure>";

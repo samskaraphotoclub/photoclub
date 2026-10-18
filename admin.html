@@ -17,7 +17,7 @@
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
-    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="archive.html">Archive</a><a href="about.html">About</a></nav>
+    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="events.html">Events</a><a href="archive.html">Archive</a><a href="about.html">About</a></nav>
     <button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
   </div>
 </header>
@@ -31,6 +31,7 @@
     <button type="button" role="tab" id="tab-votes" aria-controls="panel-votes" aria-selected="false">Votes</button>
     <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false">Comments <span id="r-count"></span></button>
     <button type="button" role="tab" id="tab-home" aria-controls="panel-home" aria-selected="false">Home page</button>
+    <button type="button" role="tab" id="tab-events" aria-controls="panel-events" aria-selected="false">Events</button>
     <button type="button" role="tab" id="tab-post" aria-controls="panel-post" aria-selected="false">Post a photo</button>
     <button type="button" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false">Settings</button>
   </div>
@@ -94,6 +95,7 @@
       <button class="btn btn-dark wide" type="button" id="potw" disabled>Show the top 3 on the home page</button>
       <p class="status" id="potw-status" aria-live="polite"></p>
       <p class="note">Do this on Monday. The top photos replace Photos of the week on the home page, which only members see.</p>
+      <div class="row-btns"><a class="btn btn-light btn-small" id="wa-top" href="#" target="_blank" rel="noopener" hidden>Share last week's top three on WhatsApp</a></div>
     </section>
     <section class="card" aria-labelledby="v-cur-h">
       <h2 id="v-cur-h">This week so far</h2>
@@ -124,6 +126,11 @@
       <h2>Theme of the month</h2>
       <label class="f" for="h-month">For</label>
       <select id="h-month"><option value="this">This month</option><option value="next">Next month</option></select>
+      <div class="plan-pick" id="plan-pick">
+        <button class="btn btn-light btn-small" type="button" id="plan-use" hidden></button>
+        <label class="visually-hidden" for="plan-any">Pick a theme from the plan</label>
+        <select id="plan-any" style="width:auto;min-height:40px"></select>
+      </div>
       <label class="f" for="h-theme">Theme</label>
       <input type="text" id="h-theme" maxlength="40" placeholder="For example: Shadows">
       <label class="f" for="h-lede">What to photograph <small>(one or two sentences)</small></label>
@@ -137,6 +144,7 @@
       <button class="btn btn-dark wide" type="submit" id="h-publish">Publish home page</button>
       <p class="status" id="h-status" aria-live="polite"></p>
       <p class="note">The theme is also saved in the members' theme archive, with the month's most-voted photos.</p>
+      <div class="row-btns"><a class="btn btn-light btn-small" id="wa-theme" href="#" target="_blank" rel="noopener">Share the theme on WhatsApp</a></div>
     </form>
     <form class="card" id="series-form" novalidate>
       <h2>Series</h2>
@@ -146,6 +154,36 @@
       <button class="btn btn-dark wide" type="submit" id="s-save">Save series</button>
       <p class="status" id="s-status" aria-live="polite"></p>
     </form>
+  </section>
+
+  <!-- ===================== Events ===================== -->
+  <section id="panel-events" role="tabpanel" aria-labelledby="tab-events" hidden>
+    <form class="card" id="ev-form" novalidate>
+      <h2 id="ev-h">New event</h2>
+      <label class="f" for="ev-title">Name</label>
+      <input type="text" id="ev-title" maxlength="80" placeholder="For example: Photo walk along the Rhine">
+      <label class="f" for="ev-kind">Kind</label>
+      <select id="ev-kind"><option>Photo walk</option><option>Workshop</option><option>Exhibition</option><option>Meet-up</option><option>Other</option></select>
+      <div class="two">
+        <div><label class="f" for="ev-date">Date</label><input type="date" id="ev-date"></div>
+        <div><label class="f" for="ev-max">Places <small>(limit, optional)</small></label><input type="number" id="ev-max" min="0" max="500" inputmode="numeric"></div>
+        <div><label class="f" for="ev-start">Starts <small>(optional)</small></label><input type="time" id="ev-start"></div>
+        <div><label class="f" for="ev-end">Ends <small>(optional)</small></label><input type="time" id="ev-end"></div>
+      </div>
+      <label class="f" for="ev-place">Where</label>
+      <input type="text" id="ev-place" maxlength="160" placeholder="Meeting point and town">
+      <label class="f" for="ev-desc">Details <small>(optional)</small></label>
+      <textarea id="ev-desc" maxlength="800" placeholder="What to bring, who it's for, how long it takes"></textarea>
+      <label class="tick consent"><input type="checkbox" id="ev-public"> <span>Visitors can see it too <small class="muted">Unticked, only members see it. Visitors never see who's coming.</small></span></label>
+      <div class="row-btns"><button class="btn btn-dark" type="submit" id="ev-save">Save event</button><button class="btn btn-light" type="button" id="ev-cancel" hidden>Cancel editing</button></div>
+      <p class="status" id="ev-msg" aria-live="polite"></p>
+    </form>
+    <section class="card" aria-labelledby="ev-list-h">
+      <h2 id="ev-list-h">Coming up</h2>
+      <p class="muted" id="ev-empty">Loading…</p>
+      <ul class="list" id="ev-list"></ul>
+      <details id="ev-past-box" hidden style="margin-top:12px"><summary>Past events</summary><ul class="list" id="ev-past"></ul></details>
+    </section>
   </section>
 
   <!-- ===================== Post a photo ===================== -->
@@ -176,6 +214,10 @@
       <label class="f" for="series">Series <small>(optional)</small></label>
       <select id="series"><option value="">None</option></select>
       <label class="tick consent"><input type="checkbox" id="pub"> <span>Also show in the public exhibition <small class="muted">Only if the photographer has agreed that anyone may see it.</small></span></label>
+      <div class="two">
+        <div><label class="f" for="ptheme">Monthly theme</label><select id="ptheme"><option value="">Not an entry</option></select></div>
+        <div><label class="f" for="pfb">Comments</label><select id="pfb"><option value="">Feedback welcome</option><option value="share">Just sharing</option></select></div>
+      </div>
       <details style="margin-top:16px">
         <summary>Camera settings <small class="muted" id="exif-note"></small></summary>
         <div class="two">
@@ -216,6 +258,13 @@
       <div class="row-btns"><button class="btn btn-light btn-small" type="button" id="forget">Remove token and password from this phone</button></div>
       <p class="note">These are stored only in this browser on this device. Don't set this up on a shared phone or computer.</p>
     </form>
+    <section class="card" aria-labelledby="st-h">
+      <h2 id="st-h">Storage</h2>
+      <p class="muted">How much of Cloudflare's free 1 GB the club's photos use.</p>
+      <div class="meter" id="st-meter" role="img" aria-label="Storage used"><span style="width:0"></span></div>
+      <p id="st-info" style="margin:0">Open this tab to check.</p>
+      <div class="row-btns"><button class="btn btn-light btn-small" type="button" id="st-check">Check again</button></div>
+    </section>
     <section class="card" aria-labelledby="b-h">
       <h2 id="b-h">Backup</h2>
       <p class="muted">Download everything in the club as one .zip file: the gallery's photos with their titles and details, members and their invite codes, comments and votes. Keep it somewhere private, because it contains the invite codes.</p>
@@ -246,6 +295,8 @@
     <ul>
       <li><a href="exhibition.html">Exhibition</a></li>
       <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="events.html">Events</a></li>
+      <li><a href="photographers.html">Photographers</a></li>
       <li><a href="archive.html">Theme archive</a></li>
       <li><a href="submit.html">Share a photo</a></li>
       <li><a href="about.html">About the club</a></li>
@@ -260,6 +311,8 @@
 <script src="photo-tools.js"></script>
 <script src="publish.js"></script>
 <script src="backup.js"></script>
+<script src="club.js"></script>
+<script src="events.js"></script>
 <script>
 (function () {
   "use strict";
@@ -301,6 +354,19 @@
     }).join("");
   }
   function seriesName(list, id) { var s = (list || []).filter(function (x) { return x.id === id; })[0]; return s ? s.name : ""; }
+  // monthly theme entries and the kind of comments wanted
+  var MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function monthName(m) { return MONTH_NAMES[+m.slice(5, 7) - 1] + " " + m.slice(0, 4); }
+  function themeOptions(selected, none) {
+    var list = ((galleryData && galleryData.themes) || []).slice();
+    if (selected && !list.some(function (t) { return t.month === selected; })) list.unshift({ month: selected, title: "theme not recorded" });
+    return '<option value="">' + (none || "Not a theme entry") + "</option>" + list.map(function (t) {
+      return '<option value="' + esc(t.month) + '"' + (t.month === selected ? " selected" : "") + ">" + esc(monthName(t.month) + ": " + t.title) + "</option>";
+    }).join("");
+  }
+  function fbOptions(v) { return '<option value=""' + (v === "share" ? "" : " selected") + '>Feedback welcome</option><option value="share"' + (v === "share" ? " selected" : "") + ">Just sharing</option>"; }
+  function whatsapp(text) { return "https://wa.me/?text=" + encodeURIComponent(text); }
+  function siteUrl(path) { return new URL(path, location.href).href.split("#")[0]; }
   // the exhibition tick box: only photos whose photographer agreed may go in
   function pubBox(name, agreed, on) {
     var first = String(name || "").split(" ")[0];
@@ -309,7 +375,7 @@
   }
 
   /* ---------- tabs ---------- */
-  var tabs = ["approve", "gallery", "members", "votes", "comments", "home", "post", "settings"];
+  var tabs = ["approve", "gallery", "members", "votes", "comments", "home", "events", "post", "settings"];
   function show(name) {
     tabs.forEach(function (t) {
       $("tab-" + t).setAttribute("aria-selected", t === name);
@@ -321,7 +387,9 @@
     if (name === "votes") loadVotes();
     if (name === "comments") loadComments();
     if (name === "home") loadHome();
-    if (name === "post") getSeries().then(function (list) { var v = $("series").value; $("series").innerHTML = seriesOptions(list, v); });
+    if (name === "post") getSeries().then(function (list) { var v = $("series").value; $("series").innerHTML = seriesOptions(list, v); $("ptheme").innerHTML = themeOptions($("ptheme").value, "Not an entry"); });
+    if (name === "events") loadEvents();
+    if (name === "settings") loadStorage();
   }
   tabs.forEach(function (t) { $("tab-" + t).addEventListener("click", function () { show(t); }); });
 
@@ -374,6 +442,8 @@
       '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
       (series.length ? '<label class="f">Series<select class="e-series">' + seriesOptions(series, p.series || "") + "</select></label>" : "") +
       pubBox(p.name, p.pubOk, false) +
+      '<div class="two"><div><label class="f">Monthly theme' + (p.theme ? " <small>(" + esc(p.name.split(" ")[0]) + " entered it)</small>" : "") + '<select class="e-theme">' + themeOptions(p.theme || "") + "</select></label></div>" +
+      '<div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
       (settings ? '<p class="sub-settings">' + esc(settings) + "</p>" : "") +
       '<div class="row-btns"><button class="btn btn-dark approve" type="button">Approve</button><button class="btn btn-light decline" type="button">Decline</button></div>' +
       '<div class="decline-box" hidden><label class="f">Note to ' + esc(p.name.split(" ")[0]) + ' <small>(optional, they will see it)</small><textarea class="e-note" maxlength="300" placeholder="For example: a bit soft, try a faster shutter speed"></textarea></label>' +
@@ -397,7 +467,7 @@
       buttons(false); setStatus(status, "Approving…");
       var pub = el.querySelector(".e-pub").checked, ser = el.querySelector(".e-series");
       inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cat: el.querySelector(".e-cat").value, desc: el.querySelector(".e-desc").value.trim(),
-        series: ser ? ser.value : undefined, pub: pub, pubOk: pub || undefined } }).then(function (r) {
+        series: ser ? ser.value : undefined, pub: pub, pubOk: pub || undefined, theme: el.querySelector(".e-theme").value, fb: el.querySelector(".e-fb").value } }).then(function (r) {
         markDecided(p.sid); galleryInfo = null;
         done(el, "“" + title + "” by " + p.name + " is now in the gallery" + (pub ? " and the public exhibition." : "."), r.id ? "gallery.html#p-" + r.id : "");
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
@@ -432,6 +502,11 @@
       $("g-list").innerHTML = "";
       d.photos.forEach(function (p) { $("g-list").appendChild(galleryRow(d, p)); });
       $("g-card").hidden = !d.photos.length;
+      // a warning here when the storage is getting full
+      (storageNow ? Promise.resolve(storageNow) : inbox("/admin/storage").then(function (r) { storageNow = r; return r; })).then(function (r) {
+        var pct = Math.round(r.usedKB / r.limitKB * 100);
+        if (pct >= 80) $("g-status").textContent += " Storage is " + pct + "% full: see Settings > Storage.";
+      }).catch(function () {});
       checkOldGallery(d);
     }).catch(function (e) { $("g-status").textContent = e.message; });
   }
@@ -443,7 +518,8 @@
     function view() {
       li.innerHTML = '<img src="' + esc(thumbUrl(d, p)) + '" alt="" width="72" height="48" loading="lazy">' +
         '<span><b' + ml(p.title) + '><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc(p.cat) + (p.added ? ", added " + esc(day(p.added)) : "") +
-        (p.series && seriesName(d.series, p.series) ? ", " + esc(seriesName(d.series, p.series)) : "") + "</span>" + (p.pub ? '<span class="chip ok">In the exhibition</span>' : "") + "</span>" +
+        (p.series && seriesName(d.series, p.series) ? ", " + esc(seriesName(d.series, p.series)) : "") + (p.theme ? ", theme entry " + esc(monthName(p.theme)) : "") + (p.fb === "share" ? ", just sharing" : "") +
+        "</span>" + (p.pub ? '<span class="chip ok">In the exhibition</span>' : "") + "</span>" +
         '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div>' +
         '<p class="status" aria-live="polite"></p>';
       var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
@@ -470,6 +546,7 @@
         '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
         '<label class="f">Series<select class="e-series">' + seriesOptions(d.series || [], p.series || "") + "</select></label>" +
         pubBox(p.by, p.pubOk, p.pub) +
+        '<div class="two"><div><label class="f">Monthly theme<select class="e-theme">' + themeOptions(p.theme || "") + '</select></label></div><div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
         '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
         '<p class="status" aria-live="polite"></p></form>';
       var form = li.querySelector("form");
@@ -480,7 +557,8 @@
         setStatus(st, "Saving…");
         var pub = form.querySelector(".e-pub").checked;
         inbox("/admin/gallery/" + encodeURIComponent(p.id), { method: "POST", json: { title: form.querySelector(".e-title").value, by: form.querySelector(".e-by").value,
-          cat: form.querySelector(".e-cat").value, desc: form.querySelector(".e-desc").value, series: form.querySelector(".e-series").value, pub: pub, pubOk: pub || undefined } }).then(function (r) {
+          cat: form.querySelector(".e-cat").value, desc: form.querySelector(".e-desc").value, series: form.querySelector(".e-series").value, pub: pub, pubOk: pub || undefined,
+          theme: form.querySelector(".e-theme").value, fb: form.querySelector(".e-fb").value } }).then(function (r) {
           p = r.photo; galleryInfo = null; view(); setStatus(li.querySelector(".status"), "Saved.");
         }).catch(function (e) { setStatus(st, e.message, true); });
       });
@@ -586,9 +664,15 @@
       d.members.forEach(function (m) {
         var li = document.createElement("li");
         li.innerHTML = "<b>" + esc(m.name) + '</b><span class="meta">Code ' + pretty(m.code) + ", added " + new Date(m.created).toLocaleDateString() + "</span>" +
-          '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="send">Send invite again</button><button class="btn btn-light btn-small" type="button" data-a="renew">New code</button><button class="btn btn-light btn-small" type="button" data-a="remove">Remove</button></div><p class="status" aria-live="polite"></p>';
+          (m.bio ? '<span class="meta"' + ml(m.bio) + ">About them: “" + esc(m.bio) + "”</span>" : "") +
+          '<div class="row-btns">' + (m.bio ? '<button class="btn btn-light btn-small" type="button" data-a="bio">Remove their line</button>' : "") + '<button class="btn btn-light btn-small" type="button" data-a="send">Send invite again</button><button class="btn btn-light btn-small" type="button" data-a="renew">New code</button><button class="btn btn-light btn-small" type="button" data-a="remove">Remove</button></div><p class="status" aria-live="polite"></p>';
         var st = li.querySelector(".status");
         li.querySelector('[data-a="send"]').addEventListener("click", function () { share(inviteText(m.name, m.code), st); });
+        var bioBtn = li.querySelector('[data-a="bio"]');
+        if (bioBtn) bioBtn.addEventListener("click", function () {
+          bioBtn.disabled = true;
+          inbox("/admin/members/" + m.code + "/bio", { method: "POST", json: { bio: "" } }).then(loadMembers).catch(function (e) { bioBtn.disabled = false; setStatus(st, e.message, true); });
+        });
         li.querySelector('[data-a="renew"]').addEventListener("click", function () {
           var box = document.createElement("div");
           box.innerHTML = '<p class="meta" style="margin:10px 0 0">Give ' + esc(m.name) + ' a new invite code? Their current code stops working straight away, on every phone. Their photos, comments and votes stay theirs.</p>' +
@@ -673,6 +757,9 @@
         lastWeek = { data: prev, map: map };
         showRanking($("v-prev"), $("v-prev-info"), prev, map, "Nobody voted last week.");
         var top = prev.ranking.filter(function (x) { return map[x.photo]; }).slice(0, 3);
+        $("wa-top").hidden = !top.length;
+        $("wa-top").href = whatsapp("Last week's favourites in The Conscious Frame:\n" + top.map(function (x, i) { return (i + 1) + ". " + map[x.photo].title + " by " + map[x.photo].by; }).join("\n") +
+          "\n\nSee them on the club's home page: " + siteUrl("index.html"));
         $("potw").disabled = !top.length;
         $("potw").textContent = !top.length ? "No votes to show" : top.length === 1 ? "Show the top photo on the home page" : "Show the top " + top.length + " on the home page";
       });
@@ -802,9 +889,57 @@
       $("h-month").options[1].textContent = "Next month (" + name(now.getMonth() + 1) + ")";
       $("h-month").value = now.getDate() > last - 7 ? "next" : "this";   // in a month's last week, usually next month's theme
       showSeriesEditor((galleryData && galleryData.series) || []);
+      showPlan(); themeShare();
       $("h-loading").hidden = true;
     }).catch(function (e) { $("h-loading").textContent = e.message; });
   }
+  var PLAN = [
+    {"month": "2026-11", "title": "Arrival", "prompt": "Suitcases, first flats, the first view from a new window. What arriving looks like, then or now."},
+    {"month": "2026-12", "title": "Light in the dark", "prompt": "Sunset at four, Advent windows, market stalls, candles, a lit kitchen. The light in the darkest month."},
+    {"month": "2027-01", "title": "Paperwork", "prompt": "Anmeldung, Termine, stamps, the folder every immigrant owns. Make bureaucracy beautiful, or at least funny."},
+    {"month": "2027-02", "title": "Taste of home", "prompt": "The dish you cook here that tastes like there. Spices from the Asia shop, a shared table, steam rising."},
+    {"month": "2027-03", "title": "Hands", "prompt": "Hands at work, at rest, holding on. The hands that carry a life from one country to another."},
+    {"month": "2027-04", "title": "Between languages", "prompt": "Signs, labels, notes on the fridge, misunderstandings. Where German and our own languages meet."},
+    {"month": "2027-05", "title": "Putting down roots", "prompt": "Chillies on the balcony, curry leaves on the windowsill, allotments, blossom. What grows when you stay."},
+    {"month": "2027-06", "title": "Blue hour", "prompt": "The sky at 10 pm in June, city lights coming on. A month for tripods, steady hands and patience."},
+    {"month": "2027-07", "title": "Water", "prompt": "Lakes, rivers, the Baltic, rain on the window. Water here, and the water you remember."},
+    {"month": "2027-08", "title": "Celebration", "prompt": "Street festivals, birthdays, an Onam sadya on a German table. How we celebrate, among ourselves and with others."},
+    {"month": "2027-09", "title": "Work", "prompt": "Wards, labs, kitchens, laptops, delivery bikes. The work we came for, or found here."},
+    {"month": "2027-10", "title": "Harvest", "prompt": "Pumpkins, apples, markets, autumn colour, a full table. Erntedank meets Onam."},
+    {"month": "2027-11", "title": "Neighbours", "prompt": "The person next door, the baker, the bus driver. A portrait of someone in your daily life, with their permission."},
+    {"month": "2027-12", "title": "Home", "prompt": "Things from home in a German flat: a lamp, a photo, a spice box. What makes four walls a home."},
+    {"month": "2028-01", "title": "Black and white", "prompt": "Winter without colour: shape, contrast, fog, faces. Shoot or edit in black and white."},
+    {"month": "2028-02", "title": "Masks", "prompt": "Carnival costumes, and the faces we wear at work and take off at home."},
+    {"month": "2028-03", "title": "Women who inspire", "prompt": "For International Women's Day on 8 March: women in our community, at work, at home, in public life."},
+    {"month": "2028-04", "title": "Old and new", "prompt": "Half-timbered houses beside glass towers, old habits in a new life. Both in one frame."},
+    {"month": "2028-05", "title": "Together", "prompt": "Friends, potlucks, cricket in the park. The community that becomes family abroad."},
+    {"month": "2028-06", "title": "Shadows", "prompt": "Long summer light, hard shadows, silhouettes, patterns on walls."},
+    {"month": "2028-07", "title": "Street life", "prompt": "Everyday moments in your city: markets, trams, corners. Candid and respectful."},
+    {"month": "2028-08", "title": "Postcard home", "prompt": "The one photo you'd send your family to show them your life here."},
+    {"month": "2028-09", "title": "Growing up here", "prompt": "Children between two cultures: school bags, playgrounds, two languages at dinner. With parents' permission."},
+    {"month": "2028-10", "title": "Then and now", "prompt": "Go back to a place you photographed when you arrived, or recreate an old photo from home. What changed?"}
+  ];
+  function planMonth() {   // the month the theme is being set for
+    var now = new Date(), m = now.getMonth() + ($("h-month").value === "next" ? 1 : 0), d = new Date(now.getFullYear(), m, 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+  function planLede(p) { var s = p.prompt + " Share one photo that fits by the end of the month."; return s.length <= 220 ? s : p.prompt; }
+  function usePlan(p) { $("h-theme").value = p.title; $("h-lede").value = planLede(p); themeShare(); setStatus($("h-status"), "Filled in from the plan. Check it, then tap Publish home page."); }
+  function showPlan() {
+    var month = planMonth(), p = PLAN.filter(function (x) { return x.month === month; })[0];
+    $("plan-use").hidden = !p;
+    if (p) { $("plan-use").textContent = "Use the plan for " + MONTH_NAMES[+month.slice(5) - 1] + ": " + p.title; $("plan-use").onclick = function () { usePlan(p); }; }
+    $("plan-any").innerHTML = '<option value="">' + (p ? "Or another theme from the plan…" : "Pick a theme from the plan…") + "</option>" +
+      PLAN.map(function (x, i) { return '<option value="' + i + '">' + esc(monthName(x.month) + ": " + x.title) + "</option>"; }).join("");
+  }
+  $("h-month").addEventListener("change", function () { showPlan(); themeShare(); });
+  $("plan-any").addEventListener("change", function () { if (this.value !== "") usePlan(PLAN[+this.value]); this.value = ""; });
+  function themeShare() {   // the WhatsApp message for the theme in the form
+    var t = $("h-theme").value.trim(), l = $("h-lede").value.trim();
+    $("wa-theme").href = whatsapp(($("h-month").value === "next" ? "Next month's" : "This month's") + " theme in The Conscious Frame: " + t + (l ? "\n" + l : "") +
+      "\n\nShare your photo for it: " + siteUrl("submit.html?entry=1"));
+  }
+  $("h-theme").addEventListener("input", themeShare); $("h-lede").addEventListener("input", themeShare);
   $("h-add").addEventListener("click", function () {
     $("h-contests").appendChild(contestFields());
     numberContests();
@@ -839,7 +974,7 @@
         function (e) { return " It couldn't be saved in the theme archive: " + e.message; }) : Promise.resolve(""));
     }).then(function (note) {
       st.className = "status";
-      st.innerHTML = "Published. The home page will update in a minute or two." + esc(note) + ' <a href="' + fresh("index.html") + '">View the home page</a>';
+      st.innerHTML = "Published. The home page will update in a minute or two." + esc(note) + ' <a href="' + fresh("index.html") + '">View the home page</a> · <a href="' + esc($("wa-theme").href) + '" target="_blank" rel="noopener">Share it on WhatsApp</a>';
     }).catch(function (e) { setStatus(st, e.message, true); })
       .then(function () { $("h-publish").disabled = false; });
   });
@@ -922,7 +1057,7 @@
     var f = new FormData();
     var fields = { title: $("title").value.trim(), by: cfg.by, cat: $("cat").value, desc: $("desc").value.trim(),
       lens: $("lens").value.trim(), ap: $("ap").value.trim(), sh: $("sh").value.trim(), iso: $("iso").value.trim(),
-      w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h, series: $("series").value };
+      w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h, series: $("series").value, theme: $("ptheme").value, fb: $("pfb").value };
     if ($("pub").checked) fields.pub = "1";
     Object.keys(fields).forEach(function (k) { f.append(k, fields[k]); });
     f.append("full", prepared.full.blob, "photo." + prepared.full.ext);
@@ -1028,6 +1163,87 @@
       setStatus(st, e.message + (/daily limit/.test(e.message) ? " Choose the backup file again tomorrow to finish: what's already restored stays." : ""), true);
     }).then(function () { btn.disabled = false; });
   });
+
+  /* ---------- events ---------- */
+  var editingEvent = null, eventsCache = {};
+  function loadEvents() {
+    if (!inboxReady()) { $("ev-empty").textContent = "Add the inbox address and admin password in Settings first."; return; }
+    $("ev-empty").textContent = "Loading…";
+    inbox("/events?all=1").then(function (d) {
+      eventsCache = {};
+      d.upcoming.concat(d.past).forEach(function (e) { eventsCache[e.id] = e; });
+      $("ev-empty").textContent = d.upcoming.length ? d.upcoming.length + (d.upcoming.length === 1 ? " event" : " events") + " coming up." : "Nothing planned. Add an event above.";
+      $("ev-list").innerHTML = ""; $("ev-past").innerHTML = "";
+      d.upcoming.forEach(function (e) { $("ev-list").appendChild(eventRow(e, false)); });
+      d.past.forEach(function (e) { $("ev-past").appendChild(eventRow(e, true)); });
+      $("ev-past-box").hidden = !d.past.length;
+    }).catch(function (e) { $("ev-empty").textContent = e.status === 404 || /Not found/.test(e.message) ? "Update the inbox program in Cloudflare to use events." : e.message; });
+  }
+  function eventRow(e, past) {
+    var li = document.createElement("li"), n = (e.going || []).length;
+    li.innerHTML = "<b" + ml(e.title) + ">" + esc(e.title) + '</b><span class="meta">' + esc(e.kind + " · " + ClubEvents.when(e) + (e.place ? " · " + e.place : "")) + "</span>" +
+      '<span class="meta">' + (n ? n + " coming: " + e.going.map(esc).join(", ") : "Nobody signed up yet") + (e.max ? " · " + Math.max(0, e.max - n) + " of " + e.max + " places left" : "") + "</span>" +
+      '<span class="chip' + (e.public ? " ok" : "") + '">' + (e.public ? "Visitors see it" : "Members only") + "</span>" +
+      '<div class="row-btns">' + (past ? "" : '<button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><a class="btn btn-light btn-small" target="_blank" rel="noopener" href="' + esc(ClubEvents.whatsapp(ClubEvents.shareText(e))) + '">Share on WhatsApp</a>') +
+      '<button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div><p class="status" aria-live="polite"></p>';
+    var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
+    var ed = li.querySelector('[data-a="edit"]'); if (ed) ed.addEventListener("click", function () { editEvent(e); });
+    li.querySelector('[data-a="delete"]').addEventListener("click", function () {
+      row.innerHTML = '<span class="meta" style="flex-basis:100%">Delete “' + esc(e.title) + "”" + (n ? " and its " + n + (n === 1 ? " sign-up" : " sign-ups") : "") + '?</span><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, delete</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button>';
+      row.querySelector('[data-a="no"]').addEventListener("click", loadEvents);
+      row.querySelector('[data-a="yes"]').addEventListener("click", function () {
+        inbox("/admin/events/" + encodeURIComponent(e.id), { method: "DELETE" }).then(loadEvents).catch(function (x) { setStatus(st, x.message, true); });
+      });
+    });
+    return li;
+  }
+  function editEvent(e) {
+    editingEvent = e ? e.id : null;
+    $("ev-h").textContent = e ? "Edit event" : "New event";
+    $("ev-title").value = e ? e.title : ""; $("ev-kind").value = e ? e.kind : "Photo walk"; $("ev-date").value = e ? e.date : "";
+    $("ev-start").value = e && e.start || ""; $("ev-end").value = e && e.end || ""; $("ev-max").value = e && e.max || "";
+    $("ev-place").value = e && e.place || ""; $("ev-desc").value = e && e.desc || ""; $("ev-public").checked = !!(e && e.public);
+    $("ev-cancel").hidden = !e; setStatus($("ev-msg"), "");
+    if (e) $("ev-form").scrollIntoView({ behavior: "smooth" });
+  }
+  $("ev-cancel").addEventListener("click", function () { editEvent(null); });
+  $("ev-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var st = $("ev-msg");
+    if (!inboxReady()) { setStatus(st, "Add the inbox address and admin password in Settings first.", true); return; }
+    if (!$("ev-title").value.trim()) { setStatus(st, "Give the event a name.", true); $("ev-title").focus(); return; }
+    if (!$("ev-date").value) { setStatus(st, "Choose the date.", true); $("ev-date").focus(); return; }
+    $("ev-save").disabled = true; setStatus(st, "Saving…");
+    inbox("/admin/events", { method: "POST", json: { id: editingEvent || undefined, title: $("ev-title").value, kind: $("ev-kind").value, date: $("ev-date").value,
+      start: $("ev-start").value, end: $("ev-end").value, max: $("ev-max").value, place: $("ev-place").value, desc: $("ev-desc").value, public: $("ev-public").checked } }).then(function (r) {
+      var e = r.event;
+      editEvent(null);
+      st.className = "status";
+      st.innerHTML = "Saved “" + esc(e.title) + "”. " + (e.public ? "Everyone" : "Members") + ' see it on the <a href="events.html#e-' + esc(e.id) + '">Events page</a>. <a target="_blank" rel="noopener" href="' + esc(ClubEvents.whatsapp(ClubEvents.shareText(e))) + '">Share it on WhatsApp</a>';
+      loadEvents();
+    }).catch(function (x) { setStatus(st, x.message, true); }).then(function () { $("ev-save").disabled = false; });
+  });
+
+  /* ---------- storage ---------- */
+  var storageNow = null;
+  function mb(kb) { return kb >= 1024 * 1024 ? (kb / 1048576).toFixed(2) + " GB" : kb >= 1024 ? (kb >= 10240 ? Math.round(kb / 1024) : (kb / 1024).toFixed(1)) + " MB" : Math.round(kb) + " KB"; }
+  function loadStorage(round) {
+    if (!inboxReady()) { $("st-info").textContent = "Add the inbox address and admin password above first."; return; }
+    round = round || 0;
+    if (!round) $("st-info").textContent = "Checking…";
+    inbox("/admin/storage").then(function (r) {
+      storageNow = r;
+      var pct = Math.min(100, Math.round(r.usedKB / r.limitKB * 100));
+      $("st-meter").className = "meter" + (pct >= 95 ? " full" : pct >= 80 ? " warn" : "");
+      $("st-meter").firstElementChild.style.width = Math.max(pct, 1) + "%";
+      $("st-meter").setAttribute("aria-label", pct + "% of the storage used");
+      $("st-info").textContent = (r.measuring ? "Measuring older photos, " + r.measuring + " to go. So far: " : "") + mb(r.usedKB) + " of 1 GB used (" + pct + "%): " + r.photos + (r.photos === 1 ? " photo" : " photos") +
+        (r.pending ? " and " + r.pending + " waiting for approval" : "") + ". Room for about " + r.roomFor + " more at the current average of " + mb(r.avgKB) + " a photo." +
+        (pct >= 95 ? " Nearly full: delete photos you don't need, or ask for help moving to Cloudflare R2." : pct >= 80 ? " Getting full: plan ahead (delete photos you don't need, or move to Cloudflare R2)." : "");
+      if (r.measuring && round < 60) loadStorage(round + 1);
+    }).catch(function (e) { $("st-info").textContent = /Not found/.test(e.message) ? "Update the inbox program in Cloudflare to see this." : e.message; });
+  }
+  $("st-check").addEventListener("click", function () { loadStorage(); });
 
   /* ---------- settings ---------- */
   $("settings").addEventListener("submit", function (ev) {

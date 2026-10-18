@@ -34,6 +34,11 @@ const DEFAULT_SERIES = [{ id: "life-in-germany", name: "Life in Germany", open: 
 const ARCHIVE = "archive";             // each month's theme and most-voted photos, for the theme archive
 const REPORTS = "reports";             // comments members have reported to the admins
 const REPORTS_PER_DAY = 10;            // per member
+const PEOPLE = "people";               // members' lines about themselves, by name, for their photographer pages
+const EVENTS = "events";               // photo walks, workshops, exhibitions; sign-ups are kept in rsvp:EVENT
+const EVENT_KINDS = ["Photo walk", "Workshop", "Exhibition", "Meet-up", "Other"];
+const SIZES = "sizes";                 // sizes of photos added before sizes were kept, for the storage meter
+const STORAGE_KB = 1024 * 1024;        // Cloudflare's free plan: 1 GB
 
 export default {
   async fetch(request, env) {
@@ -64,6 +69,9 @@ async function route(request, env) {
 
   if (parts[0] === "" && method === "GET") return json({ ok: true, service: "photo inbox" });
   if (parts[0] === "me" && method === "GET") return me(request, env);
+  if (parts[0] === "me" && method === "POST" && parts[1] === "profile") return saveProfile(request, env);
+  if (parts[0] === "events" && method === "GET" && !parts[1]) return listEvents(url, request, env);
+  if (parts[0] === "events" && method === "POST" && parts[1] && parts[2] === "rsvp") return rsvp(request, env, parts[1]);
   if (parts[0] === "submit" && method === "POST") return submit(request, env);
   if (parts[0] === "gallery" && method === "GET") return gallery(request, env);
   if (parts[0] === "exhibition" && method === "GET") return exhibition(env);
@@ -98,6 +106,10 @@ async function route(request, env) {
     if (what === "members" && method === "POST" && !a) return addMember(request, env);
     if (what === "members" && method === "DELETE" && a) return removeMember(env, a);
     if (what === "members" && method === "POST" && a && b === "new-code") return newCode(env, a);
+    if (what === "members" && method === "POST" && a && b === "bio") return adminBio(request, env, a);
+    if (what === "events" && method === "POST" && !a) return saveEvent(request, env);
+    if (what === "events" && method === "DELETE" && a) return deleteEvent(env, a);
+    if (what === "storage" && method === "GET") return storage(env);
     if (what === "export" && method === "GET") return exportPart(url, env);
     if (what === "restore" && a === "records" && method === "POST") return restoreRecords(request, env);
     if (what === "restore" && a === "photo" && method === "POST") return restorePhoto(request, env);
@@ -124,7 +136,54 @@ async function me(request, env) {
   const m = await member(request, env);
   const own = (await env.INBOX.get("own:" + m.code, "json")) || [];
   const series = (await seriesList(env)).filter((s) => s.open).map((s) => ({ id: s.id, name: s.name }));
-  return json({ name: m.name, photos: own, weeklyLimit: weeklyLimit(env), series });
+  return json({ name: m.name, photos: own, weeklyLimit: weeklyLimit(env), series, theme: await entryTheme(env, Date.now()), bio: m.bio || "" });
+}
+
+// A member's line about themselves, shown to members on their photographer page
+async function saveProfile(request, env) {
+  const m = await member(request, env);
+  const body = await request.json().catch(() => ({}));
+  const bio = clean(body.bio, 200, "line about you");
+  await setBio(env, m.code, bio);
+  return json({ ok: true, bio });
+}
+async function adminBio(request, env, raw) {
+  const body = await request.json().catch(() => ({}));
+  const bio = clean(body.bio, 200, "line");
+  if (!(await setBio(env, normalize(raw), bio))) throw fail(404, "That member isn't in the club any more. Refresh the list.");
+  return json({ ok: true, bio });
+}
+async function setBio(env, code, bio) {
+  const rec = await env.INBOX.get("member:" + code, "json");
+  if (!rec) return false;
+  if (bio) rec.bio = bio; else delete rec.bio;
+  await env.INBOX.put("member:" + code, JSON.stringify(rec), { metadata: { name: rec.name, created: rec.created } });
+  await setPerson(env, rec.name, bio, rec.created);
+  return true;
+}
+async function setPerson(env, name, bio, since) {
+  const people = (await env.INBOX.get(PEOPLE, "json")) || {};
+  if (bio) people[name] = { bio, since };
+  else if (people[name]) delete people[name];
+  else return;
+  await env.INBOX.put(PEOPLE, JSON.stringify(people));
+}
+
+// The theme members can enter now: the newest one published, from last month to next month (as on the home page)
+async function entryTheme(env, now) {
+  const months = (await env.INBOX.get(ARCHIVE, "json")) || [];
+  if (months.some((x) => x.week)) return null;               // archive not converted to months yet
+  const cur = monthId(now, env);
+  for (const month of [nextMonth(cur), cur, previousMonth(cur)]) {
+    const m = months.find((x) => x.month === month && x.theme);
+    if (m) return { month, title: m.theme.title };
+  }
+  return null;
+}
+function checkMonth(v) {
+  v = String(v == null ? "" : v).trim();
+  if (v && !/^\d{4}-(0[1-9]|1[0-2])$/.test(v)) throw fail(400, "Unknown month.");
+  return v;
 }
 
 async function readForm(request) {
@@ -167,6 +226,13 @@ async function submit(request, env) {
   const series = await checkSeries(env, form.get("series"), true);
   if (series) p.series = series;
   if (form.get("pubOk") === "1") p.pubOk = true;     // the member agrees the photo may go in the public exhibition
+  if (form.get("fb") === "share") p.fb = "share";    // "Just sharing": no critique wanted
+  if (form.get("entry") === "1") {                    // an entry for the monthly theme
+    const t = await entryTheme(env, Date.now());
+    if (!t) throw fail(400, "There's no monthly theme to enter at the moment. Untick the theme box and send it again.");
+    p.theme = t.month;
+  }
+  p.kb = Math.round((files.full.byteLength + files.thumb.byteLength) / 1024);
   const fullBytes = files.full, thumbBytes = files.thumb, ext = p.ext;
   const full = { type: files.type }, thumb = { type: files.type };
 
@@ -239,11 +305,15 @@ async function viewer(request, env) {
 async function gallery(request, env) {
   const who = await viewer(request, env);
   const now = Date.now();
-  const [list, potw, token, top, series] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastWeeksTop(env, now), env.INBOX.get(SERIES)]);
+  const [list, potw, token, top, series, archived, people] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastWeeksTop(env, now),
+    env.INBOX.get(SERIES), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE)]);
+  const themes = (archived || []).filter((m) => m.month && m.theme).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
+  const cur = monthId(now, env), entry = [nextMonth(cur), cur, previousMonth(cur)].map((mo) => themes.find((t) => t.month === mo)).filter(Boolean)[0] || null;
   const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), weekStart: weekStart(now, env), week: weekId(now, env),
-                 perWeek: votesPerWeek(env), token, top };
+                 perWeek: votesPerWeek(env), token, top, themes, entry };
   // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick
-  const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + ',"series":' + (series || JSON.stringify(DEFAULT_SERIES)) + "}";
+  const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + ',"series":' + (series || JSON.stringify(DEFAULT_SERIES)) +
+    ',"people":' + (people || "{}") + "}";
   return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
@@ -337,13 +407,15 @@ async function countFinishedMonths(env, months, now, always) {
   const prev = previousMonth(done);
   let changed = !!always;
   if (always || !months.some((m) => m.month === prev && m.counted)) {
-    const tally = {};
+    const tally = {}, perPhoto = {};
     for (const k of await listAll(env, "v:")) {
-      const month = vote(k);
+      const month = vote(k), votes = (k.metadata && k.metadata.votes) || [];
+      for (const id of votes) perPhoto[id] = (perPhoto[id] || 0) + 1;     // every photo's votes, for the theme entries
       if (!month || month >= done || (!always && month !== prev)) continue;
       const t = tally[month] || (tally[month] = {});
-      for (const id of (k.metadata && k.metadata.votes) || []) t[id] = (t[id] || 0) + 1;
+      for (const id of votes) t[id] = (t[id] || 0) + 1;
     }
+    const gallery = (await env.INBOX.get(GALLERY, "json")) || [];
     const counted = always ? Object.keys(tally).concat(prev in tally ? [] : [prev]) : [prev];
     for (const month of counted) {
       let m = months.find((x) => x.month === month);
@@ -351,6 +423,10 @@ async function countFinishedMonths(env, months, now, always) {
       if (m.counted) continue;
       const top = Object.entries(tally[month] || {}).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 3);
       if (top.length) m.top = top;
+      // the theme's most-voted entries
+      const best = gallery.filter((p) => p.theme === month && perPhoto[p.id]).map((p) => ({ id: p.id, votes: perPhoto[p.id] }))
+        .sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 3);
+      if (best.length) m.best = best;
       m.counted = true;
     }
     changed = true;
@@ -423,9 +499,10 @@ async function addToGallery(env, p, files) {
   const now = Date.now();
   const entry = { id, title: p.title, by: p.by, cat: p.cat, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
                   ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: p.added == null ? clubDate(now, env) : p.added, at: now, v: now.toString(36),
-                  series: p.series, pubOk: !!p.pubOk, pub: !!(p.pub && p.pubOk) };
+                  series: p.series, pubOk: !!p.pubOk, pub: !!(p.pub && p.pubOk), theme: p.theme, fb: p.fb === "share" ? "share" : "",
+                  kb: Math.round((files.full.byteLength + files.thumb.byteLength) / 1024) };
   if (p.sub) entry.sub = p.sub;
-  for (const k of ["desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub"]) if (!entry[k]) delete entry[k];
+  for (const k of ["desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "fb"]) if (!entry[k]) delete entry[k];
   await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
   await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
   list.unshift(entry);
@@ -589,7 +666,8 @@ async function decide(request, env, sid) {
                 cat: category(body.cat == null ? meta.cat : body.cat),
                 desc: clean(body.desc == null ? meta.desc : body.desc, 400, "description"),
                 series: body.series == null ? meta.series : await checkSeries(env, body.series),
-                pubOk: !!(meta.pubOk || body.pubOk === true), pub: body.pub === true };
+                pubOk: !!(meta.pubOk || body.pubOk === true), pub: body.pub === true,
+                theme: body.theme == null ? meta.theme : checkMonth(body.theme), fb: body.fb == null ? meta.fb : body.fb === "share" ? "share" : "" };
     if (p.pub && !p.pubOk) throw fail(409, "Only photos the photographer has agreed to can go in the public exhibition. Ask " + meta.name + " first.");
     const [full, thumb] = await Promise.all(["full", "thumb"].map((s) => env.INBOX.getWithMetadata("img:" + sid + ":" + s, "arrayBuffer")));
     if (!full.value || !thumb.value) throw fail(409, "This photo's files are missing from the inbox. Decline it and ask the member to send it again.");
@@ -620,6 +698,8 @@ async function post(request, env) {
   if (form.get("sub")) p.sub = String(form.get("sub")).replace(/[^a-z0-9-]/gi, "").slice(0, 40);
   p.series = await checkSeries(env, form.get("series"));
   if (form.get("pub") === "1") p.pub = p.pubOk = true;      // the admin has the photographer's permission
+  p.theme = checkMonth(form.get("theme"));
+  if (form.get("fb") === "share") p.fb = "share";
   const entry = await addToGallery(env, p, files);
   return json({ ok: true, id: entry.id, photo: entry });
 }
@@ -635,6 +715,8 @@ async function editPhoto(request, env, rawId) {
   if (body.cat != null) x.cat = category(body.cat);
   if (body.desc != null) { x.desc = clean(body.desc, 400, "description"); if (!x.desc) delete x.desc; }
   if (body.series != null) { x.series = await checkSeries(env, body.series); if (!x.series) delete x.series; }
+  if (body.theme != null) { x.theme = checkMonth(body.theme); if (!x.theme) delete x.theme; }
+  if (body.fb != null) { if (body.fb === "share") x.fb = "share"; else delete x.fb; }
   if (body.pubOk === true) x.pubOk = true;          // the admin has asked the photographer
   if (body.pub === true) {
     if (!x.pubOk) throw fail(409, "Only photos the photographer has agreed to can go in the public exhibition. Ask " + x.by + " first.");
@@ -677,8 +759,9 @@ async function setPotw(request, env) {
 }
 
 async function listMembers(env) {
-  const keys = await listAll(env, "member:");
+  const [keys, people] = await Promise.all([listAll(env, "member:"), env.INBOX.get(PEOPLE, "json")]);
   const members = keys.map((k) => ({ code: k.name.slice(7), ...(k.metadata || {}) }));
+  for (const m of members) if (people && people[m.name]) m.bio = people[m.name].bio;
   members.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   return json({ members });
 }
@@ -702,7 +785,9 @@ async function newCode(env, raw) {
   if (!m) throw fail(404, "That member isn't in the club any more. Refresh the list.");
   const code = randomString(12), now = Date.now(), week = weekId(now, env);
   const prev = (m.prev || []).concat(old).slice(-10);
-  await env.INBOX.put("member:" + code, JSON.stringify({ name: m.name, created: m.created, renewed: now, prev }), { metadata: { name: m.name, created: m.created } });
+  const rec = { name: m.name, created: m.created, renewed: now, prev };
+  if (m.bio) rec.bio = m.bio;
+  await env.INBOX.put("member:" + code, JSON.stringify(rec), { metadata: { name: m.name, created: m.created } });
   const [own, votes] = await Promise.all([env.INBOX.get("own:" + old), env.INBOX.getWithMetadata("v:" + week + ":" + old)]);
   if (own) await env.INBOX.put("own:" + code, own);
   if (votes.value) await env.INBOX.put("v:" + week + ":" + code, votes.value, { metadata: votes.metadata, expirationTtl: 120 * 86400 });
@@ -713,7 +798,7 @@ async function newCode(env, raw) {
 
 // For the admin page's backup: one part of the club's records at a time, 250 entries per call
 // (a Worker may only make 1,000 storage calls per request).
-const EXPORTABLE = ["member:", "c:", "owner:", "own:", "v:", "moved:"];
+const EXPORTABLE = ["member:", "c:", "owner:", "own:", "v:", "moved:", "rsvp:"];
 async function exportPart(url, env) {
   const prefix = url.searchParams.get("prefix") || "";
   if (!EXPORTABLE.includes(prefix)) throw fail(400, "Unknown part of the backup.");
@@ -724,7 +809,7 @@ async function exportPart(url, env) {
     : await Promise.all(page.keys.map(async (k) => {
         const raw = await env.INBOX.get(k.name);
         let value = raw;                                   // owner: and moved: hold a plain invite code
-        if (prefix === "member:" || prefix === "c:" || prefix === "own:") try { value = JSON.parse(raw); } catch { /* keep the text */ }
+        if (prefix === "member:" || prefix === "c:" || prefix === "own:" || prefix === "rsvp:") try { value = JSON.parse(raw); } catch { /* keep the text */ }
         return { key: k.name, value };
       }));
   return json({ prefix, entries, cursor: page.list_complete ? null : page.cursor });
@@ -780,6 +865,28 @@ async function restoreRecords(request, env) {
       const votes = v.map((x) => photoId(x)).slice(0, 10);
       await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 120 * 86400 });
       added++;
+    } else if (key === PEOPLE) {
+      if (!v || typeof v !== "object" || Array.isArray(v)) throw fail(400, "The backup's photographer lines can't be read.");
+      const people = (await env.INBOX.get(PEOPLE, "json")) || {};
+      let n = 0;
+      for (const [name, x] of Object.entries(v).slice(0, 2000)) if (!people[name] && x && typeof x.bio === "string") { people[clean(name, 60, "name", true)] = { bio: clean(x.bio, 200, "line"), since: +x.since || 0 }; n++; }
+      if (!n) { skipped++; continue; }
+      await env.INBOX.put(PEOPLE, JSON.stringify(people));
+      merged++;
+    } else if (key === EVENTS) {
+      if (!Array.isArray(v)) throw fail(400, "The backup's events can't be read.");
+      const events = (await env.INBOX.get(EVENTS, "json")) || [], have = new Set(events.map((e) => e.id));
+      let n = 0;
+      for (const e of v.slice(0, 500)) { if (!e || typeof e.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,79}$/.test(e.id) || have.has(e.id)) continue; events.push(eventFields(e, e.id)); n++; }
+      if (!n) { skipped++; continue; }
+      events.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+      await env.INBOX.put(EVENTS, JSON.stringify(events.slice(-500)));
+      merged++;
+    } else if (prefix === "rsvp:") {
+      if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(rest) || !Array.isArray(v)) throw fail(400, "The backup has a sign-up list that can't be read.");
+      if (await env.INBOX.get(key)) { skipped++; continue; }
+      await env.INBOX.put(key, JSON.stringify(v.slice(0, 500).filter((x) => x && typeof x.name === "string").map((x) => ({ code: String(x.code || "").slice(0, 32), name: x.name.slice(0, 60), at: +x.at || 0 }))));
+      added++;
     } else if (key === SERIES) {
       if (await env.INBOX.get(SERIES)) { skipped++; continue; }
       if (!Array.isArray(v)) throw fail(400, "The backup's series can't be read.");
@@ -799,6 +906,7 @@ async function restoreRecords(request, env) {
         if (!have.has(month)) { have.set(month, m); months.push(m); }
         if (!m.theme && b.theme && b.theme.title) { m.theme = { title: clean(b.theme.title, 80, "theme", true) }; if (b.theme.lede) m.theme.lede = clean(b.theme.lede, 300, "theme's description"); changed++; }
         if (b.month && !(m.top && m.top.length) && b.top && b.top.length) { m.top = items(b.top); m.counted = true; changed++; }
+        if (b.month && !(m.best && m.best.length) && b.best && b.best.length) { m.best = items(b.best); changed++; }
       }
       if (!changed) { skipped++; continue; }
       months.sort((a, b) => b.month.localeCompare(a.month));
@@ -830,6 +938,10 @@ async function restorePhoto(request, env) {
   if (/^[a-z0-9][a-z0-9-]{0,49}$/.test(series)) entry.series = series;
   const yes = (k) => form.get(k) === "true" || form.get(k) === "1";
   if (yes("pubOk")) { entry.pubOk = true; if (yes("pub")) entry.pub = true; }
+  const theme = String(form.get("theme") || "");
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(theme)) entry.theme = theme;
+  if (form.get("fb") === "share") entry.fb = "share";
+  entry.kb = Math.round((files.full.byteLength + files.thumb.byteLength) / 1024);
   for (const k of ["desc", "lens", "ap", "sh", "iso"]) if (!entry[k]) delete entry[k];
   await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
   await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
@@ -843,8 +955,110 @@ async function restorePhoto(request, env) {
 }
 
 async function removeMember(env, code) {
+  const rec = await env.INBOX.get("member:" + normalize(code), "json");
+  if (rec && rec.bio) await setPerson(env, rec.name, "", rec.created);
   await env.INBOX.delete("member:" + normalize(code));
   return json({ ok: true });
+}
+
+/* ------------------------------------------------------------------ events */
+// Visitors see the events marked public; members see all of them, who's coming, and can sign up.
+async function listEvents(url, request, env) {
+  let who = null;
+  if (bearer(request)) try { who = await viewer(request, env); } catch (e) { if (e.status !== 401) throw e; }
+  const today = clubDate(Date.now(), env);
+  const all = ((await env.INBOX.get(EVENTS, "json")) || []).filter((e) => who || e.public);
+  const ends = (e) => e.date;
+  const upcoming = all.filter((e) => ends(e) >= today).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+  const past = all.filter((e) => ends(e) < today).sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start)).slice(0, who && who.admin && url.searchParams.get("all") ? 500 : 12);
+  if (who) {
+    const lists = await Promise.all(upcoming.concat(past).map((e) => env.INBOX.get("rsvp:" + e.id, "json")));
+    upcoming.concat(past).forEach((e, i) => {
+      const going = lists[i] || [];
+      e.going = going.map((x) => x.name);
+      if (who.codes) e.mine = going.some((x) => who.codes.includes(x.code));
+    });
+  }
+  return json({ today, upcoming, past, member: !!(who && !who.admin), admin: !!(who && who.admin) });
+}
+function eventFields(b, id) {
+  const time = (v) => { v = String(v || "").trim(); if (v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw fail(400, "Times look like 18:30."); return v; };
+  const date = String(b.date || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date + "T12:00:00Z"))) throw fail(400, "Choose the date.");
+  const kind = EVENT_KINDS.includes(b.kind) ? b.kind : "Other";
+  const max = Math.max(0, Math.min(500, parseInt(b.max, 10) || 0));
+  const e = { id, title: clean(b.title, 80, "event's name", true), kind, date, start: time(b.start), end: time(b.end), place: clean(b.place, 160, "place"),
+              desc: String(b.desc == null ? "" : b.desc).replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim(), public: b.public === true, max };
+  if (e.desc.length > 800) throw fail(400, "The description is too long (800 characters at most).");
+  for (const k of ["start", "end", "place", "desc", "max"]) if (!e[k]) delete e[k];
+  return e;
+}
+async function saveEvent(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const events = (await env.INBOX.get(EVENTS, "json")) || [];
+  const old = body.id ? events.find((e) => e.id === body.id) : null;
+  if (body.id && !old) throw fail(404, "That event has been deleted. Refresh the list.");
+  let id = old ? old.id : null;
+  if (!id) {
+    const base = (String(body.date || "").replace(/[^0-9-]/g, "") + "-" + slugify(body.title || "event")).slice(0, 70), taken = new Set(events.map((e) => e.id));
+    id = base;
+    for (let n = 2; taken.has(id); n++) id = base + "-" + n;
+  }
+  const e = eventFields(body, id);
+  if (old) Object.assign(old, e, { public: e.public }); else events.push(e);
+  for (const k of ["start", "end", "place", "desc", "max"]) if (old && !e[k]) delete old[k];
+  events.sort((a, b) => (a.date + (a.start || "")).localeCompare(b.date + (b.start || "")));
+  await env.INBOX.put(EVENTS, JSON.stringify(events.slice(-500)));
+  return json({ ok: true, event: old || e });
+}
+async function deleteEvent(env, id) {
+  const events = (await env.INBOX.get(EVENTS, "json")) || [];
+  const rest = events.filter((e) => e.id !== id);
+  if (rest.length !== events.length) await env.INBOX.put(EVENTS, JSON.stringify(rest));
+  await env.INBOX.delete("rsvp:" + String(id).slice(0, 80));
+  return json({ ok: true });
+}
+// "I'm coming": tapping again takes it back. Events with a limit stop taking sign-ups when full.
+async function rsvp(request, env, id) {
+  const m = await member(request, env);
+  const e = ((await env.INBOX.get(EVENTS, "json")) || []).find((x) => x.id === id);
+  if (!e) throw fail(404, "That event has been cancelled.");
+  if (e.date < clubDate(Date.now(), env)) throw fail(400, "This event is over.");
+  const key = "rsvp:" + e.id, going = (await env.INBOX.get(key, "json")) || [];
+  const i = going.findIndex((x) => m.codes.includes(x.code));
+  if (i >= 0) going.splice(i, 1);
+  else {
+    if (e.max && going.length >= e.max) throw fail(409, "Sorry, this event is full.");
+    going.push({ code: m.code, name: m.name, at: Date.now() });
+  }
+  await env.INBOX.put(key, JSON.stringify(going));
+  return json({ ok: true, mine: i < 0, going: going.map((x) => x.name) });
+}
+
+/* ------------------------------------------------------------------ the storage meter */
+// How much of Cloudflare's free 1 GB the photos use. Photos added before sizes were kept are measured
+// a few at a time (each check measures up to 30), so the admin page asks again until it's done.
+async function storage(env) {
+  const [list, kept, subs] = await Promise.all([env.INBOX.get(GALLERY, "json"), env.INBOX.get(SIZES, "json"), listAll(env, "sub:")]);
+  const photos = list || [], sizes = kept || {};
+  const unmeasured = photos.filter((p) => !p.kb && !sizes[p.id]), now = unmeasured.slice(0, 30);
+  for (const p of now) {
+    const [f, t] = await Promise.all(["full", "thumb"].map((s) => env.INBOX.get("pimg:" + p.id + ":" + s, "arrayBuffer")));
+    sizes[p.id] = Math.max(1, Math.round(((f ? f.byteLength : 0) + (t ? t.byteLength : 0)) / 1024));
+  }
+  if (now.length) {
+    const ids = new Set(photos.map((p) => p.id));
+    for (const id of Object.keys(sizes)) if (!ids.has(id)) delete sizes[id];
+    await env.INBOX.put(SIZES, JSON.stringify(sizes));
+  }
+  const photosKB = photos.reduce((n, p) => n + (p.kb || sizes[p.id] || 0), 0);
+  const measured = photos.filter((p) => p.kb || sizes[p.id]).length;
+  const avgKB = measured ? Math.round(photosKB / measured) : 700;
+  const waiting = await Promise.all(subs.map((k) => env.INBOX.get(k.name, "json")));
+  const pendingKB = waiting.reduce((n, x) => n + ((x && x.kb) || avgKB), 0);
+  const usedKB = photosKB + Math.round((photos.length - measured) * avgKB) + pendingKB;
+  return json({ usedKB, limitKB: STORAGE_KB, photos: photos.length, photosKB, pending: subs.length, pendingKB, avgKB, measuring: photos.length - measured,
+                roomFor: Math.max(0, Math.floor((STORAGE_KB - usedKB) / avgKB)) });
 }
 
 /* ------------------------------------------------------------------ helpers */

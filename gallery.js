@@ -6,6 +6,11 @@
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var esc = Club.esc, data = null;
+  // gallery.html?by=NAME: one photographer's page; gallery.html?theme=2026-10: the entries for a monthly theme
+  var params = new URLSearchParams(location.search), byName = params.get("by") || "", themeMonth = /^\d{4}-\d{2}$/.test(params.get("theme") || "") ? params.get("theme") : "";
+  var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function monthName(m) { return MONTHS[+m.slice(5, 7) - 1] + " " + m.slice(0, 4); }
+  function themeTitle(d, month) { var t = (d.themes || []).filter(function (x) { return x.month === month; })[0]; return t ? t.title : ""; }
   var SMILEYS = [["😊", "smiling face"], ["😀", "grinning face"], ["😍", "heart eyes"], ["🤩", "star-struck"], ["🥰", "smiling face with hearts"], ["😮", "wow"],
     ["🤔", "thinking face"], ["😂", "laughing"], ["😉", "winking face"], ["🙂", "slight smile"], ["👍", "thumbs up"], ["👏", "clapping"],
     ["🙌", "raised hands"], ["❤️", "red heart"], ["🔥", "fire"], ["✨", "sparkles"], ["🌟", "glowing star"], ["💯", "hundred points"],
@@ -44,13 +49,15 @@
     $("gate").hidden = true; $("g-status").hidden = false; $("g-status").textContent = "Loading the photos…";
     Club.gallery().then(function (d) {
       data = d;
-      seriesChips(d);
-      $("grid").innerHTML = d.photos.map(tile).join("");
-      $("g-status").hidden = d.photos.length > 0;
-      $("g-status").textContent = "No photos yet. Share the first one on the Share a photo page.";
+      var list = byName ? d.photos.filter(function (p) { return p.by === byName; }) : themeMonth ? d.photos.filter(function (p) { return p.theme === themeMonth; }) : d.photos;
+      heading(d, list);
+      seriesChips(d, list);
+      $("grid").innerHTML = list.map(tile).join("");
+      $("g-status").hidden = list.length > 0;
+      $("g-status").textContent = byName ? "No photos from " + byName + " in the gallery yet." : themeMonth ? "No entries for this theme yet." : "No photos yet. Share the first one on the Share a photo page.";
       $("g-name").textContent = d.name;
       $("g-who").hidden = false; $("g-photos").hidden = false;
-      var fresh = d.photos.filter(function (p) { return Club.thisWeek(d, p); }).length;
+      var fresh = list.filter(function (p) { return Club.thisWeek(d, p); }).length;
       $("l-week").hidden = !fresh;
       if (location.hash === "#this-week" && fresh) $("c-week").checked = true;
       var s = location.hash.match(/^#series-([a-z0-9-]+)$/), chip = s && $("c-s-" + s[1]);
@@ -64,27 +71,51 @@
     });
   }
 
+  // the page's heading: the gallery, a photographer's page, or a theme's entries
+  function heading(d, list) {
+    if (byName) {
+      var person = (d.people || {})[byName], mine = byName === d.name;
+      $("g-title").textContent = byName; $("g-title").setAttribute("lang", Club.ml(byName) ? "ml" : "en");
+      document.title = byName + " – The Conscious Frame";
+      $("g-intro").textContent = person && person.bio ? person.bio : mine ? "Add a line about yourself on the Share a photo page; members see it here." : "";
+      $("g-intro").setAttribute("lang", person && Club.ml(person.bio) ? "ml" : "en");
+      $("g-intro").hidden = !$("g-intro").textContent;
+      $("g-meta").innerHTML = list.length + (list.length === 1 ? " photo" : " photos") + ' · <a href="photographers.html">All photographers</a>' + (mine ? ' · <a href="submit.html#about-you">Edit your line</a>' : "");
+      $("g-meta").hidden = false;
+    } else if (themeMonth) {
+      var title = themeTitle(d, themeMonth);
+      $("g-title").textContent = title ? "Entries: " + title : "Theme entries";
+      document.title = $("g-title").textContent + " – The Conscious Frame";
+      $("g-intro").textContent = "Photos members shared for the monthly theme of " + monthName(themeMonth) + ", newest first.";
+      $("g-meta").innerHTML = list.length + (list.length === 1 ? " entry" : " entries") + ' · <a href="archive.html">Theme archive</a> · <a href="gallery.html">The whole gallery</a>';
+      $("g-meta").hidden = false;
+    }
+  }
+
   function tile(p) {
     var cat = String(p.cat || "").toLowerCase().replace(/[^a-z]/g, "");
-    var series = p.series ? Club.seriesName(data.series, p.series) : "";
+    var series = p.series ? Club.seriesName(data.series, p.series) : "", theme = p.theme ? themeTitle(data, p.theme) : "";
+    var lines = (theme ? '<p class="in-series">Entry for the monthly theme <a href="gallery.html?theme=' + esc(p.theme) + '"><b' + Club.ml(theme) + ">" + esc(theme) + "</b></a></p>" : "") +
+      (p.fb === "share" ? '<p class="fb-note">Just sharing: no critique needed. Say what you enjoy about it.</p>' : '<p class="fb-note">Feedback welcome: start with what works, then your suggestion.</p>');
     return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
-      cls: cat + (Club.thisWeek(data, p) ? " this-week" : "") + (series ? " s-" + p.series : ""),
-      series: series,
+      cls: cat + (Club.thisWeek(data, p) ? " this-week" : "") + (series ? " s-" + p.series : "") + (p.theme ? " e-" + p.theme : "") + (p.fb === "share" ? "" : " fb-on"),
+      series: series, lines: lines, byHref: "gallery.html?by=" + encodeURIComponent(p.by),
       extra: p.pub ? '<p class="note">Also in the club\'s public <a href="exhibition.html#p-' + esc(p.id) + '">exhibition</a>, where anyone can see it.</p>' : ""
     });
   }
 
-  // A filter chip for each series that has photos, right after "All" (filtering is plain CSS, like the categories)
-  function seriesChips(d) {
-    document.querySelectorAll(".chips .series-chip").forEach(function (el) { el.remove(); });
+  // Filter chips for the current monthly theme's entries and each series with photos, right after "All",
+  // and "Feedback welcome" before "This week" (filtering is plain CSS, like the categories)
+  function seriesChips(d, list) {
+    document.querySelectorAll(".chips .extra-chip").forEach(function (el) { el.remove(); });
     var style = $("series-filters") || document.head.appendChild(Object.assign(document.createElement("style"), { id: "series-filters" }));
     var rules = [], html = "";
-    (d.series || []).forEach(function (s) {
-      if (!d.photos.some(function (p) { return p.series === s.id; })) return;
-      html += '<input type="radio" name="cat" class="series-chip" id="c-s-' + esc(s.id) + '"><label class="series-chip" for="c-s-' + esc(s.id) + '"' + ml(s.name) + ">" + esc(s.name) + "</label>";
-      rules.push(".gallery:has(#c-s-" + s.id + ":checked) .tile:not(.s-" + s.id + ") { display: none; }");
-    });
+    var chip = function (id, label, cls) { rules.push(".gallery:has(#" + id + ":checked) .tile:not(." + cls + ") { display: none; }");
+      return '<input type="radio" name="cat" class="extra-chip" id="' + id + '"><label class="extra-chip" for="' + id + '"' + ml(label) + ">" + esc(label) + "</label>"; };
+    if (d.entry && !themeMonth && list.some(function (p) { return p.theme === d.entry.month; })) html += chip("c-e", "Theme: " + d.entry.title, "e-" + d.entry.month);
+    (d.series || []).forEach(function (s) { if (list.some(function (p) { return p.series === s.id; })) html += chip("c-s-" + s.id, s.name, "s-" + s.id); });
     $("c-all").nextElementSibling.insertAdjacentHTML("afterend", html);
+    if (list.some(function (p) { return p.fb !== "share"; }) && list.some(function (p) { return p.fb === "share"; })) $("c-week").insertAdjacentHTML("beforebegin", chip("c-fb", "Feedback welcome", "fb-on"));
     style.textContent = rules.join("\n");
   }
 
@@ -132,7 +163,7 @@
       : '<p class="muted">No comments yet.' + (member ? " Start with what you like about the photo." : "") + "</p>";
     if (member) {
       html += '<form class="comment-form" novalidate><label class="f" for="cf-' + id + '">Your comment <small>(as ' + esc(d.member) + ")</small></label>" +
-        '<textarea id="cf-' + id + '" maxlength="1000" placeholder="Start with what you like about the photo, then your suggestion. English or Malayalam."></textarea>' +
+        '<textarea id="cf-' + id + '" maxlength="1000" placeholder="' + (data && data.byId[id] && data.byId[id].fb === "share" ? "Just sharing: say what you enjoy about it. English or Malayalam." : "Start with what you like about the photo, then your suggestion. English or Malayalam.") + '"></textarea>' +
         '<div class="emoji-pick" id="ep-' + id + '" role="group" aria-label="Smileys" hidden>' + SMILEYS.map(function (s) {
           return '<button type="button" data-e="' + s[0] + '" aria-label="' + s[1] + '" title="' + s[1] + '">' + s[0] + "</button>";
         }).join("") + "</div>" +

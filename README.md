@@ -14,6 +14,13 @@ The website of the Photography Club of Samskara Germany e.V. (https://samskara-g
 - **Malayalam:** titles, descriptions, comments, names and the monthly theme can be in Malayalam, English or both. The site marks Malayalam text so phones use their own Malayalam font (no download), with more room between lines. Members type it with their phone's Malayalam keyboard; the About page explains how.
 - **Votes:** each member has 3 votes a week for photos added that week (weeks run Monday to Sunday, Berlin time). Votes are secret. For members, the home page shows last week's three most-voted photos as a fan of prints, picked automatically each Monday; until a week with votes has ended, it shows the newest photos.
 - **Monthly themes:** one theme a month on the home page; members share a photo that fits before the month ends. Votes stay weekly, so the home page changes every week.
+- **Photographer pages** (members only): `gallery.html?by=NAME` shows one member's photos, with the line they wrote about themselves on the Share a photo page. `photographers.html` lists everyone who has shared photos. Admins can remove a line in the Members tab.
+- **Theme entries:** members tick "This is my entry for the monthly theme" when sharing. The gallery has a filter for the current theme, `gallery.html?theme=2026-10` lists a month's entries, and the archive shows each month's entries and the most-voted ones.
+- **Feedback welcome or Just sharing:** chosen for each photo when sharing (admins can change it). The viewer shows it, and the gallery has a Feedback welcome filter.
+- **Events** (`events.html`): photo walks, workshops, exhibitions, meet-ups. Admins add them in the admin page's Events tab, members only or for visitors too, with an optional limit of places. Members tap I'm coming; anyone can add an event to their calendar (.ics file or Google Calendar) or share it on WhatsApp. The next three events are on the home page.
+- **The theme plan:** the admin page's Home page tab has the 24 planned themes (November 2026 to October 2028): one tap fills in the month's theme. The plan is a copy of the "Monthly themes and series" doc; change `PLAN` in `admin.html` to change it.
+- **WhatsApp:** the admin page has Share on WhatsApp buttons for the theme, last week's top three and each event. They open WhatsApp with the message ready; you choose the group.
+- **Storage meter:** admin page > Settings > Storage shows how much of the free 1 GB is used and how many more photos fit. The Gallery tab warns at 80%.
 - **Theme archive** (`archive.html`, members only): every monthly theme, saved when an admin publishes the home page, with the photos that got the most votes that month (the votes of the weeks that start in the month, added up once its last week is over).
 - **Photos keep their shape:** nothing is cropped anywhere. Photos sit in rows of equal height, each as wide as its shape needs, so portraits stay portrait and panoramas stay wide.
 - **Dark mode:** the moon/sun button in the header switches between light and dark. The site starts the way the phone is set, and each phone remembers its choice.
@@ -110,6 +117,8 @@ index.html             Home: theme of the month, polls, photos from the exhibiti
 gallery.html           The members-only gallery: sign-in, category and series filters, photo viewer
 exhibition.html        The public exhibition
 archive.html           The theme archive, for members
+photographers.html     The photographers, for members
+events.html            Events: photo walks, workshops, exhibitions, meet-ups
 impressum.html         Impressum (legal notice)
 datenschutz.html       Privacy policy (Datenschutzerklärung)
 about.html             How the club works, feedback rules, joining, FAQ
@@ -122,6 +131,8 @@ viewer.js              Photo tiles and the photo viewer, used by the gallery and
 gallery.js             The gallery page: photos, filters, comments (with Report) and votes
 exhibition.js          The exhibition page
 archive.js             The theme archive page
+photographers.js       The photographers page
+events.js              The events page, calendar files and links, used by the home and admin pages too
 home.js                The home page's photos
 theme.js               The light/dark switch
 photo-tools.js         Resizing and camera settings, used by submit.html and admin.html

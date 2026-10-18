@@ -18,7 +18,7 @@
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
-    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="archive.html">Archive</a><a href="about.html">About</a></nav>
+    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="events.html">Events</a><a href="archive.html">Archive</a><a href="about.html">About</a></nav>
     <button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
   </div>
 </header>
@@ -45,6 +45,14 @@
       <button class="linkish" type="button" id="signout">Sign out</button>
     </div>
 
+    <form class="card" id="about-you" novalidate>
+      <h2>About you</h2>
+      <label class="f" for="bio">A line about yourself <small>(optional; members see it on your <a id="my-page" href="photographers.html">photographer page</a>)</small></label>
+      <textarea id="bio" maxlength="200" placeholder="For example: Nurse in Cologne since 2019. I photograph streets, trains and people waiting."></textarea>
+      <div class="row-btns"><button class="btn btn-light btn-small" type="submit" id="bio-save">Save</button></div>
+      <p class="status" id="bio-status" aria-live="polite"></p>
+    </form>
+
     <form class="card" id="form" novalidate>
       <label class="pick" id="pick">
         <input type="file" id="file" accept="image/*">
@@ -66,6 +74,12 @@
       </select>
       <label class="f" for="desc">Description <small>(optional)</small></label>
       <textarea id="desc" maxlength="400" placeholder="Where you took it, what caught your eye"></textarea>
+      <label class="tick consent" id="entry-box" hidden><input type="checkbox" id="entry"> <span>This is my entry for the monthly theme: <b id="entry-title"></b></span></label>
+      <fieldset class="choice">
+        <legend>Comments you'd like</legend>
+        <label><input type="radio" name="fb" value="" checked> <span>Feedback welcome <small>Members start with what works, then suggest what could be better.</small></span></label>
+        <label><input type="radio" name="fb" value="share"> <span>Just sharing <small>No critique, please; kind words are welcome.</small></span></label>
+      </fieldset>
       <div id="series-box" hidden>
         <label class="f" for="series">Series <small>(optional: the club's long-term projects)</small></label>
         <select id="series"><option value="">None</option></select>
@@ -103,6 +117,8 @@
     <ul>
       <li><a href="exhibition.html">Exhibition</a></li>
       <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="events.html">Events</a></li>
+      <li><a href="photographers.html">Photographers</a></li>
       <li><a href="archive.html">Theme archive</a></li>
       <li><a href="submit.html">Share a photo</a></li>
       <li><a href="about.html">About the club</a></li>
@@ -122,7 +138,7 @@
   var T = PhotoTools, esc = T.esc;
   var INBOX = String(window.CLUB_INBOX || "").replace(/\/+$/, "");
   var KEY = "conscious-frame-member";
-  var code = "", prepared = null, wantSeries = "";
+  var code = "", prepared = null, wantSeries = "", wantEntry = false, theme = null;
 
   function saved() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
   function remember(c) { try { c ? localStorage.setItem(KEY, c) : localStorage.removeItem(KEY); } catch (e) {} }
@@ -152,12 +168,18 @@
       remember(code);
       $("member-name").textContent = d.name;
       $("limit-note").textContent = "You can send up to " + d.weeklyLimit + " photos a week.";
+      $("bio").value = d.bio || "";
+      $("my-page").href = "gallery.html?by=" + encodeURIComponent(d.name);
+      theme = d.theme;
+      $("entry-box").hidden = !theme;
+      if (theme) { $("entry-title").textContent = theme.title; if (wantEntry) $("entry").checked = true; }
       var series = d.series || [];
       $("series").innerHTML = '<option value="">None</option>' + series.map(function (s) { return '<option value="' + esc(s.id) + '">' + esc(s.name) + "</option>"; }).join("");
       $("series-box").hidden = !series.length;
       if (wantSeries && series.some(function (s) { return s.id === wantSeries; })) $("series").value = wantSeries;
       showMine(d.photos);
       $("signin").hidden = true; $("member").hidden = false;
+      if (location.hash === "#about-you") { $("about-you").scrollIntoView(); $("bio").focus(); }
       setStatus($("signin-status"), "");
     }).catch(function (e) {
       if (e.status === 401) { remember(""); code = ""; }
@@ -173,6 +195,19 @@
   });
   $("signout").addEventListener("click", function () {
     remember(""); code = ""; $("code").value = ""; setStatus($("signin-status"), ""); showSignin();
+  });
+
+  /* ---------- your line about yourself ---------- */
+  $("about-you").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var st = $("bio-status");
+    $("bio-save").disabled = true; setStatus(st, "Saving…");
+    fetch(INBOX + "/me/profile", { method: "POST", headers: { Authorization: "Bearer " + code, "Content-Type": "application/json" }, body: JSON.stringify({ bio: $("bio").value }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || "Couldn't save it (" + r.status + "). Try again."); return d; }); },
+            function () { throw new Error("Couldn't reach the club's inbox. Check your internet connection and try again."); })
+      .then(function (d) { setStatus(st, d.bio ? "Saved. Members see it on your photographer page." : "Removed."); })
+      .catch(function (e) { setStatus(st, e.message, true); })
+      .then(function () { $("bio-save").disabled = false; });
   });
 
   /* ---------- your photos ---------- */
@@ -219,6 +254,8 @@
     var fd = new FormData();
     ["title", "cat", "desc", "lens", "ap", "sh", "iso", "series"].forEach(function (k) { fd.append(k, $(k).value.trim()); });
     if ($("pubOk").checked) fd.append("pubOk", "1");
+    if (theme && $("entry").checked) fd.append("entry", "1");
+    if ($("form").querySelector('input[name="fb"]:checked').value === "share") fd.append("fb", "share");
     fd.append("w", prepared.full.w); fd.append("h", prepared.full.h);
     fd.append("tw", prepared.thumb.w); fd.append("th", prepared.thumb.h);
     fd.append("full", prepared.full.blob, "photo." + prepared.full.ext);
@@ -227,8 +264,8 @@
     setStatus($("status"), "Sending…");
     call("/submit", { method: "POST", body: fd }).then(function () {
       setStatus($("status"), "Sent. An admin will check it soon, and it will appear in the gallery once it's approved.");
-      var keep = $("series").value;
-      $("form").reset(); $("exif-note").textContent = ""; $("series").value = keep;
+      var keep = $("series").value, keepEntry = $("entry").checked;
+      $("form").reset(); $("exif-note").textContent = ""; $("series").value = keep; $("entry").checked = keepEntry;
       $("preview").hidden = true; $("pick").hidden = false; prepared = null;
       return call("/me").then(function (d) { showMine(d.photos); });
     }).catch(function (e) {
@@ -241,6 +278,7 @@
   if (!/^https?:\/\//.test(INBOX)) { $("not-ready").hidden = false; return; }
   var params = new URLSearchParams(location.search), fromLink = params.get("code");
   wantSeries = params.get("series") || "";
+  wantEntry = params.get("entry") === "1";
   if (fromLink) history.replaceState(null, "", location.pathname);   // don't leave the code in the address bar
   var start = fromLink || saved();
   if (start) signIn(start, !!fromLink); else showSignin();
