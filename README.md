@@ -4,16 +4,17 @@ The website of the Photography Club of Samskara Germany e.V. (https://samskara-g
 
 ## How it fits together
 
-- **The website** is hosted free on GitHub Pages. It holds the pages, the weekly theme and the polls, but no photos. Visitors see the theme, polls, club information, the exhibition, and an invitation to sign in.
+- **The website** is hosted free on GitHub Pages. It holds the pages, the monthly theme and the polls, but no photos. Visitors see the theme, polls, club information, the exhibition, and an invitation to sign in.
 - **The photo inbox** is a small free program on Cloudflare (`inbox/worker.js`). It keeps members' photos private until an admin decides, then keeps the approved photos in the gallery. It only hands photos to people signed in with an invite code (or the admin password), through links that stop working within a day. Photos in the exhibition are the exception: anyone can see those.
 - **The exhibition** (`exhibition.html`) is public. Admins choose its photos, but only photos whose photographer agreed: members tick a box when they share a photo, or an admin ticks it after asking them. On every visit, the home page shows visitors one exhibition photo at random (gently tilted, like a print), and everyone a few more below.
 - **Series** are long-term projects members add photos to, starting with **Life in Germany**. Members choose a series when they share a photo. Each series has a section on the members' home page and a filter in the gallery and the exhibition. Admins add, rename or close series on the admin page's **Home page** tab.
 - **Members** sign in once on each phone with their invite code. They browse the gallery, comment, vote, and send photos on the Share a photo page (`submit.html`). Photos are resized on the phone first.
 - **Admins** use the admin page (`admin.html`) to approve or decline photos, edit or delete photos in the gallery, invite or remove members, choose Photos of the week, edit the home page and post photos directly. Approved photos appear in the gallery straight away.
 - **Comments:** members comment under each photo, with their name shown, and can add smileys. Members can delete their own comments; admins can delete any. Members can **Report** someone else's comment: the admin page's **Comments** tab then shows it at the top, with who reported it and why, to delete or keep. The person who wrote it never sees who reported it.
-- **Malayalam:** titles, descriptions, comments, names and the weekly theme can be in Malayalam, English or both. The site marks Malayalam text so phones use their own Malayalam font (no download), with more room between lines. Members type it with their phone's Malayalam keyboard; the About page explains how.
+- **Malayalam:** titles, descriptions, comments, names and the monthly theme can be in Malayalam, English or both. The site marks Malayalam text so phones use their own Malayalam font (no download), with more room between lines. Members type it with their phone's Malayalam keyboard; the About page explains how.
 - **Votes:** each member has 3 votes a week for photos added that week (weeks run Monday to Sunday, Berlin time). Votes are secret. For members, the home page shows last week's three most-voted photos as a fan of prints, picked automatically each Monday; until a week with votes has ended, it shows the newest photos.
-- **Theme archive** (`archive.html`, members only): every weekly theme, saved when an admin publishes the home page, with that week's most-voted photos.
+- **Monthly themes:** one theme a month on the home page; members share a photo that fits before the month ends. Votes stay weekly, so the home page changes every week.
+- **Theme archive** (`archive.html`, members only): every monthly theme, saved when an admin publishes the home page, with the photos that got the most votes that month (the votes of the weeks that start in the month, added up once its last week is over).
 - **Photos keep their shape:** nothing is cropped anywhere. Photos sit in rows of equal height, each as wide as its shape needs, so portraits stay portrait and panoramas stay wide.
 - **Dark mode:** the moon/sun button in the header switches between light and dark. The site starts the way the phone is set, and each phone remembers its choice.
 - **Impressum and privacy policy** (`impressum.html`, `datenschutz.html`), linked at the bottom of every page. The highlighted parts of the Impressum (address, board, register entry) must be filled in with the association's details; have the board check both pages, as they were written without legal advice.
@@ -65,7 +66,7 @@ The token and password are stored only in that phone's browser. Don't set the ad
 
 **Removing a member:** admin page > **Members** > **Remove**. Their code stops working straight away, including in the gallery. Their photos and comments stay; delete them in the **Gallery** and **Comments** tabs if needed.
 
-**Photos of the week:** the home page shows last week's top three by itself. The admin page's **Votes** tab shows how this week's voting is going (only admins see the numbers), and **Show the top 3 on the home page** saves them as Photos of the week in the theme archive.
+**Photos of the week:** the home page shows last week's top three by itself. The admin page's **Votes** tab shows how this week's voting is going (only admins see the numbers), and **Show the top 3 on the home page** sets them as Photos of the week. You rarely need it: the home page shows last week's top three anyway.
 
 **The exhibition:** admin page > **Gallery** > **Edit** on a photo > tick **In the public exhibition** > **Save**. The box says whether the photographer agreed when sharing it; if not, ask them first. Untick it to take the photo out: it goes off the Exhibition page straight away. When approving a photo, the same box is on its card.
 
@@ -83,7 +84,7 @@ The token and password are stored only in that phone's browser. Don't set the ad
 
 ## Edit the rest
 
-- **Theme of the week and polls:** admin page > **Home page**. Choose whether the theme is for this week or next, change the text, pick a photo for each poll (members see it; visitors don't), and tap **Publish home page**. The theme also goes into the theme archive.
+- **Theme of the month and polls:** admin page > **Home page**. Choose whether the theme is for this month or next, change the text, pick a photo for each poll (members see it; visitors don't), and tap **Publish home page**. The theme also goes into the theme archive.
 - **Series:** admin page > **Home page** > **Series**. Add a series, change its name or description, or untick **Open for new photos** to close it (its photos stay), then **Save series**.
 - **Impressum and privacy policy:** `impressum.html` and `datenschutz.html`. Replace the highlighted parts (`<span class="fill">…</span>`) with the real details.
 - **Other text:** each page is its own file (`index.html`, `about.html`, `gallery.html`, `submit.html`). On GitHub, open the file, click the pencil icon, change the words between the `>` and `<` marks, and click **Commit changes**. Leave the `<!-- ... -->` marker lines in `index.html` alone; the admin page uses them.
@@ -105,7 +106,7 @@ iPhones and iPads save photos as JPEG. Android and desktop browsers save WebP, w
 ## Files
 
 ```
-index.html             Home: theme of the week, polls, photos from the exhibition; for members also last week's top three, series and the newest photos
+index.html             Home: theme of the month, polls, photos from the exhibition; for members also last week's top three, series and the newest photos
 gallery.html           The members-only gallery: sign-in, category and series filters, photo viewer
 exhibition.html        The public exhibition
 archive.html           The theme archive, for members

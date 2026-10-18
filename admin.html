@@ -121,13 +121,13 @@
   <section id="panel-home" role="tabpanel" aria-labelledby="tab-home" hidden>
     <form class="card" id="home-form" novalidate>
       <p class="muted" id="h-loading" style="margin-top:0">Loading what's on the home page now…</p>
-      <h2>Theme of the week</h2>
-      <label class="f" for="h-week">For</label>
-      <select id="h-week"><option value="this">This week</option><option value="next">Next week</option></select>
+      <h2>Theme of the month</h2>
+      <label class="f" for="h-month">For</label>
+      <select id="h-month"><option value="this">This month</option><option value="next">Next month</option></select>
       <label class="f" for="h-theme">Theme</label>
       <input type="text" id="h-theme" maxlength="40" placeholder="For example: Shadows">
       <label class="f" for="h-lede">What to photograph <small>(one or two sentences)</small></label>
-      <textarea id="h-lede" maxlength="220" placeholder="For example: Long shadows, silhouettes, light through blinds. Share one photo that fits by Sunday evening."></textarea>
+      <textarea id="h-lede" maxlength="220" placeholder="For example: Long shadows, silhouettes, light through blinds. Share one photo that fits by the end of the month."></textarea>
 
       <h2 style="margin-top:28px">Polls</h2>
       <p class="muted">Up to three polls, shown side by side on the home page.</p>
@@ -136,7 +136,7 @@
 
       <button class="btn btn-dark wide" type="submit" id="h-publish">Publish home page</button>
       <p class="status" id="h-status" aria-live="polite"></p>
-      <p class="note">The theme is also saved in the members' theme archive, with the week's most-voted photos.</p>
+      <p class="note">The theme is also saved in the members' theme archive, with the month's most-voted photos.</p>
     </form>
     <form class="card" id="series-form" novalidate>
       <h2>Series</h2>
@@ -745,7 +745,7 @@
     });
   }
 
-  /* ---------- home page: theme of the week, polls and series ---------- */
+  /* ---------- home page: theme of the month, polls and series ---------- */
   var STATUSES = ["Open for entries", "Voting now", "Counting votes", "Results are in", "Coming soon"];
   var LIVE = ["Open for entries", "Voting now", "Counting votes"];   // shown with a red dot
   var RENAMED = { "Judging": "Counting votes", "Winners announced": "Results are in" };   // from when polls were contests
@@ -797,7 +797,10 @@
         }));
       });
       numberContests();
-      $("h-week").value = new Date().getDay() === 0 ? "next" : "this";   // on Sundays, usually next week's theme
+      var now = new Date(), last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), name = function (m) { return new Date(now.getFullYear(), m, 1).toLocaleDateString("en-GB", { month: "long" }); };
+      $("h-month").options[0].textContent = "This month (" + name(now.getMonth()) + ")";
+      $("h-month").options[1].textContent = "Next month (" + name(now.getMonth() + 1) + ")";
+      $("h-month").value = now.getDate() > last - 7 ? "next" : "this";   // in a month's last week, usually next month's theme
       showSeriesEditor((galleryData && galleryData.series) || []);
       $("h-loading").hidden = true;
     }).catch(function (e) { $("h-loading").textContent = e.message; });
@@ -812,7 +815,7 @@
     var st = $("h-status");
     if (!github()) { setStatus(st, "Connect GitHub in Settings first.", true); return; }
     var theme = $("h-theme").value.trim(), lede = $("h-lede").value.trim();
-    if (!theme) { setStatus(st, "Add the theme of the week.", true); $("h-theme").focus(); return; }
+    if (!theme) { setStatus(st, "Add the theme of the month.", true); $("h-theme").focus(); return; }
     var contests = [], missing = null;
     $("h-contests").querySelectorAll(".contest-edit").forEach(function (f) {
       var c = { status: f.querySelector(".c-status").value, title: f.querySelector(".c-title").value.trim(),
@@ -821,7 +824,7 @@
       contests.push(c);
     });
     if (missing) { setStatus(st, "Give each poll a title, or remove it.", true); missing.focus(); return; }
-    var themeHtml = '    <p class="kicker">This week\'s theme</p>\n    <h1 class="theme"' + ml(theme) + '>' + esc(theme) + "</h1>\n" +
+    var themeHtml = '    <p class="kicker">This month\'s theme</p>\n    <h1 class="theme"' + ml(theme) + '>' + esc(theme) + "</h1>\n" +
       (lede ? '    <p class="lede"' + ml(lede) + '>' + esc(lede) + "</p>\n" : "");
     var contestHtml = contests.map(function (c) {
       // only the photo's name goes on the page; members' browsers fetch the photo itself from the inbox
@@ -829,7 +832,7 @@
         esc(c.title) + "</h3>" + (c.desc ? "<p" + ml(c.desc) + ">" + esc(c.desc) + "</p>" : "") + "</div>\n";
     }).join("") || '    <p class="muted">No polls at the moment.</p>\n';
     $("h-publish").disabled = true; setStatus(st, "Publishing…");
-    var which = $("h-week").value;
+    var which = $("h-month").value;
     Publish.publishSections(cfg, { THEME: themeHtml, CONTESTS: contestHtml }, "Home page: theme “" + theme + "”").then(function () {
       // and into the theme archive
       return (inboxReady() ? inbox("/admin/theme", { method: "POST", json: { which: which, title: theme, lede: lede } }).then(function () { return " It's in the theme archive too."; },

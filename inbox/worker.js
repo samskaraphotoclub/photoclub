@@ -31,7 +31,7 @@ const LINK_HOURS = 12;                 // photo links work for 12 to 24 hours, t
 const SERIES = "series";               // long-term series, like Life in Germany
 const DEFAULT_SERIES = [{ id: "life-in-germany", name: "Life in Germany", open: true,
   desc: "The club's long-term series: everyday life in Germany as we live it. Streets, kitchens, festivals, train platforms, winter mornings." }];
-const ARCHIVE = "archive";             // each week's theme and most-voted photos, for the theme archive
+const ARCHIVE = "archive";             // each month's theme and most-voted photos, for the theme archive
 const REPORTS = "reports";             // comments members have reported to the admins
 const REPORTS_PER_DAY = 10;            // per member
 
@@ -258,7 +258,6 @@ async function lastWeeksTop(env, now) {
   for (const k of await listAll(env, "v:" + week + ":")) for (const id of (k.metadata && k.metadata.votes) || []) tally[id] = (tally[id] || 0) + 1;
   const items = Object.entries(tally).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 10);
   await env.INBOX.put(key, JSON.stringify({ items }), { expirationTtl: 30 * 86400 });
-  if (items.length) await updateArchive(env, week, { top: items.slice(0, 3) });
   return { week, items };
 }
 
@@ -309,50 +308,70 @@ async function saveSeries(request, env) {
 }
 
 /* ------------------------------------------------------------------ the theme archive */
-// Every week's theme (saved when an admin publishes the home page) and its most-voted photos.
+// Every month's theme (saved when an admin publishes the home page) and the photos with the most votes that month.
+// Votes stay weekly: a month's favourites add up the votes of the weeks that start in it, counted once its last week is over.
 async function archive(request, env) {
   await viewer(request, env);
   const now = Date.now();
-  const weeks = (await env.INBOX.get(ARCHIVE, "json")) || (await startArchive(env, now));
-  return json({ weeks, week: weekId(now, env) });
+  const months = await countFinishedMonths(env, await archiveMonths(env, now), now);
+  return json({ months, month: monthId(now, env) });
 }
-// The first time: last weeks' winners from the votes the inbox still keeps (up to 120 days) and Photos of the week.
-async function startArchive(env, now) {
-  const current = weekId(now, env), tally = {};
-  for (const k of await listAll(env, "v:")) {
-    const week = k.name.split(":")[1];
-    if (!/^\d{4}-W\d{2}$/.test(week) || week >= current) continue;
-    const t = tally[week] || (tally[week] = {});
-    for (const id of (k.metadata && k.metadata.votes) || []) t[id] = (t[id] || 0) + 1;
+async function archiveMonths(env, now) {
+  const kept = await env.INBOX.get(ARCHIVE, "json");
+  if (kept && !kept.some((x) => x.week)) return kept;
+  // the first time, or an archive from when themes were weekly: start it from the votes still kept (up to 120 days)
+  const months = [];
+  for (const w of kept || []) {
+    if (!w.theme || !/^\d{4}-W\d{2}$/.test(w.week)) continue;
+    const month = mondayOf(w.week).slice(0, 7), m = months.find((x) => x.month === month);
+    if (m) { if (w.week > m.from) Object.assign(m, { theme: w.theme, from: w.week }); }
+    else months.push({ month, theme: w.theme, from: w.week });
   }
-  const weeks = Object.keys(tally).map((week) => ({ week, top: Object.entries(tally[week]).map(([id, votes]) => ({ id, votes }))
-    .sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 3) })).filter((w) => w.top.length);
-  const potw = await env.INBOX.get(POTW, "json");
-  if (potw && potw.week) {
-    const w = weeks.find((x) => x.week === potw.week);
-    if (w) w.potw = potw.items; else weeks.push({ week: potw.week, potw: potw.items });
+  for (const m of months) delete m.from;
+  return countFinishedMonths(env, months, now, true);
+}
+// Adds the most-voted photos to months whose weeks are all over. Writes only when something changed.
+async function countFinishedMonths(env, months, now, always) {
+  const done = weekStart(now, env).slice(0, 7);          // months before the one this week started in are finished
+  const vote = (k) => { const week = k.name.split(":")[1]; return /^\d{4}-W\d{2}$/.test(week) ? mondayOf(week).slice(0, 7) : ""; };
+  const prev = previousMonth(done);
+  let changed = !!always;
+  if (always || !months.some((m) => m.month === prev && m.counted)) {
+    const tally = {};
+    for (const k of await listAll(env, "v:")) {
+      const month = vote(k);
+      if (!month || month >= done || (!always && month !== prev)) continue;
+      const t = tally[month] || (tally[month] = {});
+      for (const id of (k.metadata && k.metadata.votes) || []) t[id] = (t[id] || 0) + 1;
+    }
+    const counted = always ? Object.keys(tally).concat(prev in tally ? [] : [prev]) : [prev];
+    for (const month of counted) {
+      let m = months.find((x) => x.month === month);
+      if (!m) { m = { month }; months.push(m); }
+      if (m.counted) continue;
+      const top = Object.entries(tally[month] || {}).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 3);
+      if (top.length) m.top = top;
+      m.counted = true;
+    }
+    changed = true;
   }
-  weeks.sort((a, b) => b.week.localeCompare(a.week));
-  await env.INBOX.put(ARCHIVE, JSON.stringify(weeks));
-  return weeks;
+  const out = months.filter((m) => m.theme || (m.top && m.top.length) || m.month === prev).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 240);
+  if (changed) await env.INBOX.put(ARCHIVE, JSON.stringify(out));
+  return out;
 }
-async function updateArchive(env, week, fields) {
-  const weeks = (await env.INBOX.get(ARCHIVE, "json")) || (await startArchive(env, Date.now()));
-  let w = weeks.find((x) => x.week === week);
-  if (!w) { w = { week }; weeks.push(w); }
-  Object.assign(w, fields);
-  weeks.sort((a, b) => b.week.localeCompare(a.week));
-  await env.INBOX.put(ARCHIVE, JSON.stringify(weeks.slice(0, 520)));   // ten years
-  return w;
-}
-// The admin page saves the theme here when it publishes the home page: for this week or next week.
+// The admin page saves the theme here when it publishes the home page: for this month or next month.
 async function saveTheme(request, env) {
   const body = await request.json().catch(() => ({}));
-  const now = Date.now(), week = weekId(body.which === "next" ? now + 7 * 864e5 : now, env);
+  const now = Date.now(), month = body.which === "next" ? nextMonth(monthId(now, env)) : monthId(now, env);
   const theme = { title: clean(body.title, 80, "theme", true), lede: clean(body.lede, 300, "theme's description") };
   if (!theme.lede) delete theme.lede;
-  await updateArchive(env, week, { theme });
-  return json({ ok: true, week });
+  const months = await archiveMonths(env, now);
+  let m = months.find((x) => x.month === month);
+  if (!m) { m = { month }; months.push(m); }
+  m.theme = theme;
+  months.sort((a, b) => b.month.localeCompare(a.month));
+  await env.INBOX.put(ARCHIVE, JSON.stringify(months.slice(0, 240)));   // twenty years
+  return json({ ok: true, month });
 }
 
 // A photo or thumbnail. Pages can't send the invite code with an <img>, so the address carries
@@ -654,7 +673,6 @@ async function setPotw(request, env) {
   if (!items.length) throw fail(400, "None of those photos are in the gallery.");
   const potw = { week, items, at: Date.now() };
   await env.INBOX.put(POTW, JSON.stringify(potw));
-  await updateArchive(env, week, { potw: items });
   return json({ ok: true, potw });
 }
 
@@ -771,20 +789,20 @@ async function restoreRecords(request, env) {
       added++;
     } else if (key === ARCHIVE) {
       if (!Array.isArray(v)) throw fail(400, "The backup's theme archive can't be read.");
-      const weeks = (await env.INBOX.get(ARCHIVE, "json")) || [], have = new Map(weeks.map((w) => [w.week, w]));
+      const months = await archiveMonths(env, Date.now()), have = new Map(months.map((m) => [m.month, m]));
       const items = (a) => Array.isArray(a) ? a.slice(0, 3).map((x) => ({ id: photoId(x.id), votes: +x.votes || 0 })) : undefined;
       let changed = 0;
       for (const b of v.slice(0, 520)) {
-        if (!b || !/^\d{4}-W\d{2}$/.test(b.week)) continue;
-        const w = have.get(b.week) || { week: b.week };
-        if (!have.has(b.week)) { have.set(b.week, w); weeks.push(w); }
-        if (!w.theme && b.theme && b.theme.title) { w.theme = { title: clean(b.theme.title, 80, "theme", true) }; if (b.theme.lede) w.theme.lede = clean(b.theme.lede, 300, "theme's description"); changed++; }
-        if (!w.top && b.top) { w.top = items(b.top); changed++; }
-        if (!w.potw && b.potw) { w.potw = items(b.potw); changed++; }
+        const month = b && /^\d{4}-\d{2}$/.test(b.month) ? b.month : b && /^\d{4}-W\d{2}$/.test(b.week) ? mondayOf(b.week).slice(0, 7) : "";
+        if (!month) continue;
+        const m = have.get(month) || { month };
+        if (!have.has(month)) { have.set(month, m); months.push(m); }
+        if (!m.theme && b.theme && b.theme.title) { m.theme = { title: clean(b.theme.title, 80, "theme", true) }; if (b.theme.lede) m.theme.lede = clean(b.theme.lede, 300, "theme's description"); changed++; }
+        if (b.month && !(m.top && m.top.length) && b.top && b.top.length) { m.top = items(b.top); m.counted = true; changed++; }
       }
       if (!changed) { skipped++; continue; }
-      weeks.sort((a, b) => b.week.localeCompare(a.week));
-      await env.INBOX.put(ARCHIVE, JSON.stringify(weeks.slice(0, 520)));
+      months.sort((a, b) => b.month.localeCompare(a.month));
+      await env.INBOX.put(ARCHIVE, JSON.stringify(months.slice(0, 240)));
       merged++;
     } else if (key === POTW) {
       if (await env.INBOX.get(POTW)) { skipped++; continue; }
@@ -871,6 +889,16 @@ function weekId(ms, env) {
   const jan4 = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
   const week = 1 + Math.round(((t - jan4) / 864e5 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
   return t.getUTCFullYear() + "-W" + String(week).padStart(2, "0");
+}
+// the month in the club's time zone, e.g. 2026-10; the month after or before one
+function monthId(ms, env) { return clubDate(ms, env).slice(0, 7); }
+function nextMonth(m) { const [y, n] = m.split("-").map(Number); return n === 12 ? (y + 1) + "-01" : y + "-" + String(n + 1).padStart(2, "0"); }
+function previousMonth(m) { const [y, n] = m.split("-").map(Number); return n === 1 ? (y - 1) + "-12" : y + "-" + String(n - 1).padStart(2, "0"); }
+// the Monday of an ISO week, e.g. 2026-W42 -> 2026-10-12
+function mondayOf(week) {
+  const [y, w] = week.split("-W").map(Number), jan4 = new Date(Date.UTC(y, 0, 4));
+  jan4.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + (w - 1) * 7);
+  return jan4.toISOString().slice(0, 10);
 }
 // the Monday of this week in the club's time zone, YYYY-MM-DD
 function weekStart(ms, env) {

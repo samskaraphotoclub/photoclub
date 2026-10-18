@@ -71,7 +71,7 @@ var Backup = (function () {
       return nextPart();
     }).then(function () {
       onStatus("Getting the theme archive…");
-      return inbox("/archive").then(function (a) { archive = a.weeks || []; }, function () { archive = []; });   // older inboxes have no archive
+      return inbox("/archive").then(function (a) { archive = a.months || a.weeks || []; }, function () { archive = []; });   // older inboxes have no archive
     }).then(function () {
       var n = 0;
       function nextPhoto() {

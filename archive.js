@@ -1,5 +1,5 @@
-/* The Conscious Frame – the theme archive, for members: every week's theme and the photos
-   members voted for most. Needs config.js and club.js. */
+/* The Conscious Frame – the theme archive, for members: every month's theme and the photos
+   members voted for most that month. Needs config.js and club.js. */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
@@ -19,16 +19,10 @@
   });
   $("sign-out").addEventListener("click", function () { Club.signOut(); $("weeks").innerHTML = ""; showGate(); });
 
-  // 2026-W42 -> "12–18 October 2026"
-  function dates(week) {
-    var m = String(week).match(/^(\d{4})-W(\d{2})$/);
-    if (!m) return week;
-    var jan4 = new Date(Date.UTC(+m[1], 0, 4)), mon = new Date(jan4);
-    mon.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + (+m[2] - 1) * 7);
-    var sun = new Date(mon); sun.setUTCDate(mon.getUTCDate() + 6);
-    var a = mon.getUTCDate(), b = sun.getUTCDate() + " " + MONTHS[sun.getUTCMonth()] + " " + sun.getUTCFullYear();
-    if (mon.getUTCFullYear() !== sun.getUTCFullYear()) return a + " " + MONTHS[mon.getUTCMonth()] + " " + mon.getUTCFullYear() + " – " + b;
-    return mon.getUTCMonth() === sun.getUTCMonth() ? a + "–" + b : a + " " + MONTHS[mon.getUTCMonth()] + " – " + b;
+  // 2026-10 -> "October 2026"
+  function monthName(m) {
+    var x = String(m).match(/^(\d{4})-(\d{2})$/);
+    return x ? MONTHS[+x[2] - 1] + " " + x[1] : m;
   }
 
   function start() {
@@ -36,13 +30,14 @@
     if (!Club.code()) { showGate(); return; }
     $("gate").hidden = true; $("a-status").hidden = false; setStatus($("a-status"), "Loading the archive…");
     Promise.all([Club.gallery(), Club.call("/archive")]).then(function (r) {
-      var d = r[0], weeks = r[1].weeks || [], now = r[1].week;
+      if (!r[1].months) { setStatus($("a-status"), "The theme archive opens soon."); return; }   // the inbox hasn't been updated yet
+      var d = r[0], months = r[1].months, now = r[1].month;
       $("a-name").textContent = d.name; $("a-who").hidden = false;
-      var html = weeks.map(function (w) {
-        var picks = ((w.potw && w.potw.length ? w.potw : w.top) || []).filter(function (x) { return d.byId[x.id]; });
-        var later = w.week > now, current = w.week === now;
+      var html = months.map(function (w) {
+        var picks = (w.top || []).filter(function (x) { return d.byId[x.id]; });
+        var later = w.month > now, current = w.month === now;
         if (!w.theme && !picks.length) return "";
-        var head = '<p class="kicker">' + (current ? "This week" : later ? "Next week" : "Week " + parseInt(w.week.split("-W")[1], 10)) + " · " + dates(w.week) + "</p>";
+        var head = '<p class="kicker">' + (current ? "This month · " : later ? "Next month · " : "") + monthName(w.month) + "</p>";
         var theme = w.theme ? '<h2 class="past-theme"' + ml(w.theme.title) + ">" + esc(w.theme.title) + "</h2>" + (w.theme.lede ? '<p class="lede"' + ml(w.theme.lede) + ">" + esc(w.theme.lede) + "</p>" : "")
                             : '<h2 class="past-theme muted">No theme recorded</h2>';
         var body = picks.length ? '<div class="just winners">' + picks.map(function (x, i) {
@@ -51,15 +46,15 @@
               '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a><figcaption><b' + ml(p.title) + ">" + (i + 1) + ". " + esc(p.title) + "</b> <span" + ml(p.by) + ">" + esc(p.by) + "</span>" +
               (x.votes ? ", " + x.votes + (x.votes === 1 ? " vote" : " votes") : "") + "</figcaption></figure>";
           }).join("") + "</div>"
-          : current ? '<p class="muted">Voting is open until Sunday. <a href="gallery.html#this-week">Vote for this week\'s photos</a></p>'
-          : later ? "" : '<p class="muted">No votes that week.</p>';
+          : current ? '<p class="muted">The month\'s most-voted photos appear here once it\'s over. <a href="gallery.html#this-week">Vote for this week\'s photos</a></p>'
+          : later ? "" : '<p class="muted">No votes that month.</p>';
         return '<article class="week">' + head + theme + body + "</article>";
       }).join("");
       $("weeks").innerHTML = html;
       $("weeks").hidden = !html;
       Club.layout();
       if (html) $("a-status").hidden = true;
-      else setStatus($("a-status"), "The archive starts with the next theme of the week. Each week's theme and its most-voted photos will be kept here.");
+      else setStatus($("a-status"), "The archive starts with the next theme of the month. Each month's theme and its most-voted photos will be kept here.");
     }).catch(function (e) {
       if (e.status === 401) showGate(e.message);
       else { $("a-status").hidden = false; setStatus($("a-status"), e.status === 404 ? "The theme archive opens soon." : e.message, e.status !== 404); }
