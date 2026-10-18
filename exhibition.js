@@ -13,7 +13,7 @@
   Club.exhibition().then(function (d) {
     data = d;
     if (!d.photos.length) { $("x-status").textContent = "The exhibition opens soon. Its first photos are being chosen."; return; }
-    var series = (d.series || []).filter(function (s) { return d.photos.some(function (p) { return p.series === s.id; }); });
+    var series = (d.series || []).filter(function (s) { return d.photos.some(function (p) { return Club.seriesOf(p).indexOf(s.id) >= 0; }); });
     // filters for the series, only when there's something to filter
     if (series.length) {
       var rules = [];
@@ -25,9 +25,9 @@
       $("x-chips").hidden = false;
     }
     $("grid").innerHTML = d.photos.map(function (p) {
-      var s = p.series ? Club.seriesName(d.series, p.series) : "";
+      var ids = Club.seriesOf(p), names = ids.map(function (id) { return Club.seriesName(d.series, id); }).filter(Boolean);
       return Viewer.tile(p, Club.publicUrl(p, "thumb"), Club.publicUrl(p, "full"), {
-        cls: s ? "s-" + p.series : "", series: s,
+        cls: ids.map(function (id) { return "s-" + id; }).join(" "), series: names,
         extra: '<p class="note">© <span' + ml(p.by) + ">" + esc(p.by) + "</span>. Shown with the photographer's permission. Please don't use this photo without asking them.</p>"
       });
     }).join("");

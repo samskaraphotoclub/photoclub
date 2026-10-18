@@ -67,11 +67,8 @@
 
       <label class="f" for="title">Title</label>
       <input type="text" id="title" maxlength="80">
-      <label class="f" for="cat">Category</label>
-      <select id="cat">
-        <option>Landscape</option><option>Nature</option><option>Travel</option><option>Street</option>
-        <option>Architecture</option><option>Night</option><option>Abstract</option>
-      </select>
+      <p class="f" id="cat-l">Category <small>(one or more)</small></p>
+      <div class="pills" id="cat" role="group" aria-labelledby="cat-l"><label><input type="checkbox" value="Landscape"><span>Landscape</span></label><label><input type="checkbox" value="Nature"><span>Nature</span></label><label><input type="checkbox" value="Travel"><span>Travel</span></label><label><input type="checkbox" value="Street"><span>Street</span></label><label><input type="checkbox" value="Architecture"><span>Architecture</span></label><label><input type="checkbox" value="Night"><span>Night</span></label><label><input type="checkbox" value="Abstract"><span>Abstract</span></label></div>
       <label class="f" for="desc">Description <small>(optional)</small></label>
       <textarea id="desc" maxlength="400" placeholder="Where you took it, what caught your eye"></textarea>
       <label class="tick consent" id="entry-box" hidden><input type="checkbox" id="entry"> <span>This is my entry for the monthly theme: <b id="entry-title"></b></span></label>
@@ -81,8 +78,8 @@
         <label><input type="radio" name="fb" value="share"> <span>Just sharing <small>No critique, please; kind words are welcome.</small></span></label>
       </fieldset>
       <div id="series-box" hidden>
-        <label class="f" for="series">Series <small>(optional: the club's long-term projects)</small></label>
-        <select id="series"><option value="">None</option></select>
+        <p class="f" id="series-l">Series <small>(optional: the club's long-term projects; tick any that fit)</small></p>
+        <div class="pills" id="series" role="group" aria-labelledby="series-l"></div>
       </div>
       <label class="tick consent"><input type="checkbox" id="pubOk"> <span>The club may also show this photo in its public <a href="exhibition.html">exhibition</a>, where anyone can see it. <small class="muted">Anyone who can be recognised in it has agreed.</small></span></label>
 
@@ -144,6 +141,7 @@
   function remember(c) { try { c ? localStorage.setItem(KEY, c) : localStorage.removeItem(KEY); } catch (e) {} }
   function pretty(c) { return c.replace(/[^0-9A-Za-z]/g, "").toUpperCase().replace(/(.{4})(?=.)/g, "$1-"); }
   function setStatus(el, msg, isError) { el.className = "status" + (isError ? " error" : ""); el.textContent = msg; }
+  function ticked(id) { return [].map.call($(id).querySelectorAll("input:checked"), function (i) { return i.value; }); }
 
   function call(path, opts) {
     opts = opts || {};
@@ -174,9 +172,8 @@
       $("entry-box").hidden = !theme;
       if (theme) { $("entry-title").textContent = theme.title; if (wantEntry) $("entry").checked = true; }
       var series = d.series || [];
-      $("series").innerHTML = '<option value="">None</option>' + series.map(function (s) { return '<option value="' + esc(s.id) + '">' + esc(s.name) + "</option>"; }).join("");
+      $("series").innerHTML = series.map(function (s) { return '<label><input type="checkbox" value="' + esc(s.id) + '"' + (s.id === wantSeries ? " checked" : "") + "><span>" + esc(s.name) + "</span></label>"; }).join("");
       $("series-box").hidden = !series.length;
-      if (wantSeries && series.some(function (s) { return s.id === wantSeries; })) $("series").value = wantSeries;
       showMine(d.photos);
       $("signin").hidden = true; $("member").hidden = false;
       if (location.hash === "#about-you") { $("about-you").scrollIntoView(); $("bio").focus(); }
@@ -252,7 +249,11 @@
     if (!prepared) { setStatus($("status"), "Choose a photo first.", true); return; }
     if (!$("title").value.trim()) { setStatus($("status"), "Add a title.", true); $("title").focus(); return; }
     var fd = new FormData();
-    ["title", "cat", "desc", "lens", "ap", "sh", "iso", "series"].forEach(function (k) { fd.append(k, $(k).value.trim()); });
+    var cats = ticked("cat");
+    if (!cats.length) { setStatus($("status"), "Choose a category.", true); $("cat").querySelector("input").focus(); return; }
+    ["title", "desc", "lens", "ap", "sh", "iso"].forEach(function (k) { fd.append(k, $(k).value.trim()); });
+    cats.forEach(function (c) { fd.append("cat", c); });
+    ticked("series").forEach(function (s) { fd.append("series", s); });
     if ($("pubOk").checked) fd.append("pubOk", "1");
     if (theme && $("entry").checked) fd.append("entry", "1");
     if ($("form").querySelector('input[name="fb"]:checked').value === "share") fd.append("fb", "share");
@@ -264,8 +265,9 @@
     setStatus($("status"), "Sending…");
     call("/submit", { method: "POST", body: fd }).then(function () {
       setStatus($("status"), "Sent. An admin will check it soon, and it will appear in the gallery once it's approved.");
-      var keep = $("series").value, keepEntry = $("entry").checked;
-      $("form").reset(); $("exif-note").textContent = ""; $("series").value = keep; $("entry").checked = keepEntry;
+      var keep = ticked("series"), keepEntry = $("entry").checked;
+      $("form").reset(); $("exif-note").textContent = ""; $("entry").checked = keepEntry;
+      $("series").querySelectorAll("input").forEach(function (i) { i.checked = keep.indexOf(i.value) >= 0; });
       $("preview").hidden = true; $("pick").hidden = false; prepared = null;
       return call("/me").then(function (d) { showMine(d.photos); });
     }).catch(function (e) {

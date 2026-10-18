@@ -42,7 +42,7 @@ var Backup = (function () {
   function csv(photos) {
     var q = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     return "\ufeff" + ["name,title,photographer,category,added,description"].concat(photos.map(function (p) {
-      return [p.id, p.title, p.by, p.cat, p.added, p.desc].map(q).join(",");
+      return [p.id, p.title, p.by, (p.cats && p.cats.length ? p.cats : [p.cat]).join("; "), p.added, p.desc].map(q).join(",");
     })).join("\r\n") + "\r\n";
   }
 
@@ -183,7 +183,10 @@ var Backup = (function () {
         var full = b.photoFile(p.id + "." + p.ext), thumb = b.photoFile(p.id + "-sm." + p.ext);
         if (!full || !thumb) return Promise.reject(new Error("The backup is missing the files for “" + p.title + "”."));
         var type = p.ext === "webp" ? "image/webp" : "image/jpeg", f = new FormData();
-        ["id", "title", "by", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th", "series", "pubOk", "pub", "theme", "fb"].forEach(function (k) { f.append(k, p[k] == null ? "" : p[k]); });
+        ["id", "title", "by", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th", "series", "pubOk", "pub", "theme", "fb"].forEach(function (k) {
+          if (Array.isArray(p[k])) p[k].forEach(function (x) { f.append(k, x); }); else if (k !== "cat") f.append(k, p[k] == null ? "" : p[k]);
+        });
+        (p.cats && p.cats.length ? p.cats : [p.cat]).forEach(function (c) { f.append("cat", c); });
         f.append("full", new Blob([full], { type: type }), "photo." + p.ext);
         f.append("thumb", new Blob([thumb], { type: type }), "thumb." + p.ext);
         return inbox("/admin/restore/photo", { form: f }).then(function (r) { if (!r.already) done.photos++; photos[p.id] = true; }).then(nextPhoto);

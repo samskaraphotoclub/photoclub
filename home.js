@@ -102,7 +102,7 @@
 
     // the long-term series, like Life in Germany
     $("series-list").innerHTML = (d.series || []).map(function (s) {
-      var photos = d.photos.filter(function (p) { return p.series === s.id; });
+      var photos = d.photos.filter(function (p) { return Club.seriesOf(p).indexOf(s.id) >= 0; });
       if (!photos.length && !s.open) return "";
       return '<section class="wrap section"><div class="head"><h2' + ml(s.name) + ">" + esc(s.name) + "</h2>" +
         (photos.length ? '<a href="gallery.html#series-' + esc(s.id) + '">See all ' + photos.length + (photos.length === 1 ? " photo" : " photos") + "</a>" : "") + "</div>" +

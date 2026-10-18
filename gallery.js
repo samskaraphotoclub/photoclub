@@ -93,12 +93,12 @@
   }
 
   function tile(p) {
-    var cat = String(p.cat || "").toLowerCase().replace(/[^a-z]/g, "");
-    var series = p.series ? Club.seriesName(data.series, p.series) : "", theme = p.theme ? themeTitle(data, p.theme) : "";
+    var cats = Club.cats(p).map(Club.catClass).join(" "), ids = Club.seriesOf(p);
+    var series = ids.map(function (id) { return Club.seriesName(data.series, id); }).filter(Boolean), theme = p.theme ? themeTitle(data, p.theme) : "";
     var lines = (theme ? '<p class="in-series">Entry for the monthly theme <a href="gallery.html?theme=' + esc(p.theme) + '"><b' + Club.ml(theme) + ">" + esc(theme) + "</b></a></p>" : "") +
       (p.fb === "share" ? '<p class="fb-note">Just sharing: no critique needed. Say what you enjoy about it.</p>' : '<p class="fb-note">Feedback welcome: start with what works, then your suggestion.</p>');
     return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
-      cls: cat + (Club.thisWeek(data, p) ? " this-week" : "") + (series ? " s-" + p.series : "") + (p.theme ? " e-" + p.theme : "") + (p.fb === "share" ? "" : " fb-on"),
+      cls: cats + (Club.thisWeek(data, p) ? " this-week" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") + (p.fb === "share" ? "" : " fb-on"),
       series: series, lines: lines, byHref: "gallery.html?by=" + encodeURIComponent(p.by),
       extra: p.pub ? '<p class="note">Also in the club\'s public <a href="exhibition.html#p-' + esc(p.id) + '">exhibition</a>, where anyone can see it.</p>' : ""
     });
@@ -113,7 +113,7 @@
     var chip = function (id, label, cls) { rules.push(".gallery:has(#" + id + ":checked) .tile:not(." + cls + ") { display: none; }");
       return '<input type="radio" name="cat" class="extra-chip" id="' + id + '"><label class="extra-chip" for="' + id + '"' + ml(label) + ">" + esc(label) + "</label>"; };
     if (d.entry && !themeMonth && list.some(function (p) { return p.theme === d.entry.month; })) html += chip("c-e", "Theme: " + d.entry.title, "e-" + d.entry.month);
-    (d.series || []).forEach(function (s) { if (list.some(function (p) { return p.series === s.id; })) html += chip("c-s-" + s.id, s.name, "s-" + s.id); });
+    (d.series || []).forEach(function (s) { if (list.some(function (p) { return Club.seriesOf(p).indexOf(s.id) >= 0; })) html += chip("c-s-" + s.id, s.name, "s-" + s.id); });
     $("c-all").nextElementSibling.insertAdjacentHTML("afterend", html);
     if (list.some(function (p) { return p.fb !== "share"; }) && list.some(function (p) { return p.fb === "share"; })) $("c-week").insertAdjacentHTML("beforebegin", chip("c-fb", "Feedback welcome", "fb-on"));
     style.textContent = rules.join("\n");

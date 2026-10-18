@@ -30,7 +30,11 @@ const POTW = "potw";                   // Photos of the week, chosen by an admin
 const LINK_HOURS = 12;                 // photo links work for 12 to 24 hours, then the page gets new ones
 const SERIES = "series";               // long-term series, like Life in Germany
 const DEFAULT_SERIES = [{ id: "life-in-germany", name: "Life in Germany", open: true,
-  desc: "The club's long-term series: everyday life in Germany as we live it. Streets, kitchens, festivals, train platforms, winter mornings." }];
+  desc: "The club's long-term series: everyday life in Germany as we live it. Streets, kitchens, festivals, train platforms, winter mornings." },
+  { id: "from-the-dining-table", name: "From the Dining Table", open: true,
+  desc: "Food and the people who make it: family recipes cooked with German ingredients, festival meals, Sunday lunches, the spice shelf, a table set for friends." }];
+// Series added to the site later reach clubs that had already saved their own list, once (removing one afterwards sticks)
+const SERIES_ADDED = { 2: ["from-the-dining-table"] }, SERIES_VERSION = "2", SERIES_SEEN = "series-version";
 const ARCHIVE = "archive";             // each month's theme and most-voted photos, for the theme archive
 const REPORTS = "reports";             // comments members have reported to the admins
 const REPORTS_PER_DAY = 10;            // per member
@@ -195,10 +199,17 @@ function clean(v, max, label, required) {
   if (v.length > max) throw fail(400, "The " + label + " is too long (" + max + " characters at most).");
   return v;
 }
-function category(v) {
-  if (!CATEGORIES.includes(v)) throw fail(400, "Choose one of the categories.");
-  return v;
+// One or more categories (a photo can be Street and Night), in the order of CATEGORIES
+function categories(v) {
+  const given = new Set((Array.isArray(v) ? v : [v]).flatMap((x) => String(x == null ? "" : x).split(",")).map((x) => x.trim()).filter(Boolean));
+  if (!given.size) throw fail(400, "Choose a category.");
+  for (const c of given) if (!CATEGORIES.includes(c)) throw fail(400, "Choose one of the categories.");
+  return CATEGORIES.filter((c) => given.has(c));
 }
+// cat is the first category (as before), cats all of them when there are several
+function setCats(x, cats) { x.cat = cats[0]; if (cats.length > 1) x.cats = cats; else delete x.cats; }
+function setSeries(x, ids) { if (ids.length) x.series = ids; else delete x.series; }
+function catsOf(cats) { return cats.length > 1 ? { cat: cats[0], cats } : { cat: cats[0], cats: undefined }; }
 // The text, sizes and both image files of a photo sent as a form (Share a photo, or an admin posting one).
 async function photoFields(form) {
   const int = (k) => {
@@ -207,10 +218,11 @@ async function photoFields(form) {
     return v;
   };
   const p = {
-    title: clean(form.get("title"), 80, "title", true), desc: clean(form.get("desc"), 400, "description"), cat: category(clean(form.get("cat"), 20, "category", true)),
+    title: clean(form.get("title"), 80, "title", true), desc: clean(form.get("desc"), 400, "description"),
     lens: clean(form.get("lens"), 30, "lens"), ap: clean(form.get("ap"), 30, "aperture"), sh: clean(form.get("sh"), 30, "shutter speed"), iso: clean(form.get("iso"), 30, "ISO"),
     w: int("w"), h: int("h"), tw: int("tw"), th: int("th"),
   };
+  setCats(p, categories(form.getAll("cat")));
   const full = form.get("full"), thumb = form.get("thumb");
   const fullBytes = await image(full, MAX_FULL, "photo");
   const thumbBytes = await image(thumb, MAX_THUMB, "thumbnail");
@@ -223,8 +235,7 @@ async function submit(request, env) {
   const m = await member(request, env);
   const form = await readForm(request);
   const { p, files } = await photoFields(form);
-  const series = await checkSeries(env, form.get("series"), true);
-  if (series) p.series = series;
+  setSeries(p, await checkSeries(env, form.getAll("series"), true));
   if (form.get("pubOk") === "1") p.pubOk = true;     // the member agrees the photo may go in the public exhibition
   if (form.get("fb") === "share") p.fb = "share";    // "Just sharing": no critique wanted
   if (form.get("entry") === "1") {                    // an entry for the monthly theme
@@ -306,13 +317,13 @@ async function gallery(request, env) {
   const who = await viewer(request, env);
   const now = Date.now();
   const [list, potw, token, top, series, archived, people] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastWeeksTop(env, now),
-    env.INBOX.get(SERIES), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE)]);
+    seriesRaw(env), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE)]);
   const themes = (archived || []).filter((m) => m.month && m.theme).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
   const cur = monthId(now, env), entry = [nextMonth(cur), cur, previousMonth(cur)].map((mo) => themes.find((t) => t.month === mo)).filter(Boolean)[0] || null;
   const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), weekStart: weekStart(now, env), week: weekId(now, env),
                  perWeek: votesPerWeek(env), token, top, themes, entry };
   // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick
-  const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + ',"series":' + (series || JSON.stringify(DEFAULT_SERIES)) +
+  const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + ',"series":' + series +
     ',"people":' + (people || "{}") + "}";
   return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 }
@@ -341,7 +352,7 @@ async function exhibition(env) {
   for (const p of list || []) {
     if (!p.pub) continue;
     const x = { id: p.id, title: p.title, by: p.by, cat: p.cat, w: p.w, h: p.h, tw: p.tw, th: p.th, added: p.added, v: p.v };
-    for (const k of ["desc", "lens", "ap", "sh", "iso", "series"]) if (p[k]) x[k] = p[k];
+    for (const k of ["desc", "lens", "ap", "sh", "iso", "series", "cats"]) if (p[k]) x[k] = p[k];
     x.t = exp.toString(36) + "." + (await sign(env, "public photo " + p.id + " until " + exp));
     photos.push(x);
   }
@@ -349,15 +360,34 @@ async function exhibition(env) {
 }
 
 /* ------------------------------------------------------------------ series */
-async function seriesList(env) { return (await env.INBOX.get(SERIES, "json")) || DEFAULT_SERIES; }
-// "" for no series; otherwise the series must exist (and, for members sending a photo, take new photos)
+// The series list as stored (text), with any series added to the site since the club saved its own list
+async function seriesRaw(env) {
+  const [raw, seen] = await Promise.all([env.INBOX.get(SERIES), env.INBOX.get(SERIES_SEEN)]);
+  if (!raw) return JSON.stringify(DEFAULT_SERIES);
+  if (seen === SERIES_VERSION) return raw;
+  let list;
+  try { list = JSON.parse(raw); } catch { return raw; }
+  for (const [v, ids] of Object.entries(SERIES_ADDED)) {
+    if (seen && +seen >= +v) continue;
+    for (const id of ids) if (!list.some((x) => x.id === id) && list.length < 12) list.push(DEFAULT_SERIES.find((d) => d.id === id));
+  }
+  const text = JSON.stringify(list);
+  await env.INBOX.put(SERIES, text);
+  await env.INBOX.put(SERIES_SEEN, SERIES_VERSION);
+  return text;
+}
+async function seriesList(env) { return JSON.parse(await seriesRaw(env)); }
+// A photo's series: none, one or several. Each must exist (and, for members sending a photo, take new photos).
 async function checkSeries(env, v, openOnly) {
-  v = String(v == null ? "" : v).trim();
-  if (!v) return "";
-  const s = (await seriesList(env)).find((x) => x.id === v);
-  if (!s) throw fail(400, "That series doesn't exist any more. Choose another one.");
-  if (openOnly && !s.open) throw fail(400, "The series " + s.name + " isn't taking new photos at the moment.");
-  return s.id;
+  const ids = [...new Set((Array.isArray(v) ? v : [v]).flatMap((x) => String(x == null ? "" : x).split(",")).map((x) => x.trim()).filter(Boolean))];
+  if (!ids.length) return [];
+  const list = await seriesList(env);
+  return ids.map((id) => {
+    const s = list.find((x) => x.id === id);
+    if (!s) throw fail(400, "That series doesn't exist any more. Choose another one.");
+    if (openOnly && !s.open) throw fail(400, "The series " + s.name + " isn't taking new photos at the moment.");
+    return s.id;
+  });
 }
 // The admin saves the whole list at once: [{ id?, name, desc, open }]. Photos keep their series' id.
 async function saveSeries(request, env) {
@@ -374,6 +404,7 @@ async function saveSeries(request, env) {
     out.push({ id, name, desc, open: s.open !== false });
   }
   await env.INBOX.put(SERIES, JSON.stringify(out));
+  await env.INBOX.put(SERIES_SEEN, SERIES_VERSION);      // what the admin removed stays removed
   return json({ ok: true, series: out });
 }
 
@@ -497,12 +528,13 @@ async function addToGallery(env, p, files) {
   let id = base, n = 2;
   while (taken.has(id)) id = base.slice(0, 70) + "-" + n++;
   const now = Date.now();
-  const entry = { id, title: p.title, by: p.by, cat: p.cat, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
+  const entry = { id, title: p.title, by: p.by, cat: p.cat, cats: p.cats, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
                   ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: p.added == null ? clubDate(now, env) : p.added, at: now, v: now.toString(36),
                   series: p.series, pubOk: !!p.pubOk, pub: !!(p.pub && p.pubOk), theme: p.theme, fb: p.fb === "share" ? "share" : "",
                   kb: Math.round((files.full.byteLength + files.thumb.byteLength) / 1024) };
   if (p.sub) entry.sub = p.sub;
-  for (const k of ["desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "fb"]) if (!entry[k]) delete entry[k];
+  for (const k of ["desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "fb", "cats"]) if (!entry[k]) delete entry[k];
+  if (Array.isArray(entry.series) && !entry.series.length) delete entry.series;
   await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
   await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
   list.unshift(entry);
@@ -663,9 +695,9 @@ async function decide(request, env, sid) {
     // the admin may have corrected the title, category or description
     const p = { ...meta, by: meta.name, sub: sid,
                 title: clean(body.title == null ? meta.title : body.title, 80, "title", true),
-                cat: category(body.cat == null ? meta.cat : body.cat),
+                ...catsOf(body.cats != null || body.cat != null ? categories(body.cats != null ? body.cats : body.cat) : meta.cats || [meta.cat]),
                 desc: clean(body.desc == null ? meta.desc : body.desc, 400, "description"),
-                series: body.series == null ? meta.series : await checkSeries(env, body.series),
+                series: body.series == null ? meta.series : await checkSeries(env, body.series),   // a list now; [] is no series
                 pubOk: !!(meta.pubOk || body.pubOk === true), pub: body.pub === true,
                 theme: body.theme == null ? meta.theme : checkMonth(body.theme), fb: body.fb == null ? meta.fb : body.fb === "share" ? "share" : "" };
     if (p.pub && !p.pubOk) throw fail(409, "Only photos the photographer has agreed to can go in the public exhibition. Ask " + meta.name + " first.");
@@ -696,7 +728,7 @@ async function post(request, env) {
   const added = String(form.get("added") || "");
   if (form.has("added")) p.added = /^\d{4}-\d{2}-\d{2}$/.test(added) ? added : "";
   if (form.get("sub")) p.sub = String(form.get("sub")).replace(/[^a-z0-9-]/gi, "").slice(0, 40);
-  p.series = await checkSeries(env, form.get("series"));
+  setSeries(p, await checkSeries(env, form.getAll("series")));
   if (form.get("pub") === "1") p.pub = p.pubOk = true;      // the admin has the photographer's permission
   p.theme = checkMonth(form.get("theme"));
   if (form.get("fb") === "share") p.fb = "share";
@@ -712,9 +744,9 @@ async function editPhoto(request, env, rawId) {
   if (!x) throw fail(404, "This photo isn't in the gallery any more.");
   if (body.title != null) x.title = clean(body.title, 80, "title", true);
   if (body.by != null) x.by = clean(body.by, 60, "photographer's name", true);
-  if (body.cat != null) x.cat = category(body.cat);
+  if (body.cats != null || body.cat != null) setCats(x, categories(body.cats != null ? body.cats : body.cat));
   if (body.desc != null) { x.desc = clean(body.desc, 400, "description"); if (!x.desc) delete x.desc; }
-  if (body.series != null) { x.series = await checkSeries(env, body.series); if (!x.series) delete x.series; }
+  if (body.series != null) setSeries(x, await checkSeries(env, body.series));
   if (body.theme != null) { x.theme = checkMonth(body.theme); if (!x.theme) delete x.theme; }
   if (body.fb != null) { if (body.fb === "share") x.fb = "share"; else delete x.fb; }
   if (body.pubOk === true) x.pubOk = true;          // the admin has asked the photographer
@@ -930,19 +962,19 @@ async function restorePhoto(request, env) {
   if (list.some((x) => x.id === id)) return json({ ok: true, already: true, id });
   const { p, files } = await photoFields(form);
   const at = parseInt(form.get("at"), 10) || Date.now(), added = String(form.get("added") || "");
-  const entry = { id, title: p.title, by: clean(form.get("by"), 60, "photographer's name", true), cat: p.cat, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
+  const entry = { id, title: p.title, by: clean(form.get("by"), 60, "photographer's name", true), cat: p.cat, cats: p.cats, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
                   ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: /^\d{4}-\d{2}-\d{2}$/.test(added) ? added : "", at, v: Date.now().toString(36) };
   const sub = String(form.get("sub") || "").replace(/[^a-z0-9-]/gi, "").slice(0, 40);
   if (sub) entry.sub = sub;
-  const series = String(form.get("series") || "");
-  if (/^[a-z0-9][a-z0-9-]{0,49}$/.test(series)) entry.series = series;
+  const series = form.getAll("series").flatMap((x) => String(x).split(",")).map((x) => x.trim()).filter((x) => /^[a-z0-9][a-z0-9-]{0,49}$/.test(x));
+  if (series.length) entry.series = [...new Set(series)];
   const yes = (k) => form.get(k) === "true" || form.get(k) === "1";
   if (yes("pubOk")) { entry.pubOk = true; if (yes("pub")) entry.pub = true; }
   const theme = String(form.get("theme") || "");
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(theme)) entry.theme = theme;
   if (form.get("fb") === "share") entry.fb = "share";
   entry.kb = Math.round((files.full.byteLength + files.thumb.byteLength) / 1024);
-  for (const k of ["desc", "lens", "ap", "sh", "iso"]) if (!entry[k]) delete entry[k];
+  for (const k of ["desc", "lens", "ap", "sh", "iso", "cats"]) if (!entry[k]) delete entry[k];
   await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
   await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
   const fresh = (await env.INBOX.get(GALLERY, "json")) || [];       // read again: the images took a moment

@@ -89,6 +89,10 @@ var Club = (function () {
   }
   function layout(root) { (root || document).querySelectorAll(".just").forEach(justify); }
 
+  // A photo's categories and series: one or several (older photos have a single one)
+  function cats(p) { return p.cats && p.cats.length ? p.cats : p.cat ? [p.cat] : []; }
+  function seriesOf(p) { return Array.isArray(p.series) ? p.series : p.series ? [p.series] : []; }
+  function catClass(c) { return String(c).toLowerCase().replace(/[^a-z]/g, ""); }
   // The series a photo belongs to, by id, from a list of series
   function seriesName(list, id) {
     var s = (list || []).filter(function (x) { return x.id === id; })[0];
@@ -104,5 +108,6 @@ var Club = (function () {
   function signOut() { setCode(""); loading = null; }
 
   return { ready: ready, code: code, esc: esc, call: call, gallery: gallery, photoUrl: photoUrl, thisWeek: thisWeek, signIn: signIn, signOut: signOut,
-           exhibition: exhibition, publicUrl: publicUrl, ml: ml, shuffle: shuffle, seriesName: seriesName, layout: layout };
+           exhibition: exhibition, publicUrl: publicUrl, ml: ml, shuffle: shuffle, seriesName: seriesName, layout: layout,
+           cats: cats, seriesOf: seriesOf, catClass: catClass };
 })();

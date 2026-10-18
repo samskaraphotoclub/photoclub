@@ -204,15 +204,12 @@
       <input type="text" id="title" maxlength="80">
       <label class="f" for="by">Photographer</label>
       <input type="text" id="by" maxlength="60" autocomplete="name">
-      <label class="f" for="cat">Category</label>
-      <select id="cat">
-        <option>Landscape</option><option>Nature</option><option>Travel</option><option>Street</option>
-        <option>Architecture</option><option>Night</option><option>Abstract</option>
-      </select>
+      <p class="f" id="cat-l">Category <small>(one or more)</small></p>
+      <div class="pills" id="cat" role="group" aria-labelledby="cat-l"><label><input type="checkbox" value="Landscape"><span>Landscape</span></label><label><input type="checkbox" value="Nature"><span>Nature</span></label><label><input type="checkbox" value="Travel"><span>Travel</span></label><label><input type="checkbox" value="Street"><span>Street</span></label><label><input type="checkbox" value="Architecture"><span>Architecture</span></label><label><input type="checkbox" value="Night"><span>Night</span></label><label><input type="checkbox" value="Abstract"><span>Abstract</span></label></div>
       <label class="f" for="desc">Description <small>(optional)</small></label>
       <textarea id="desc" maxlength="400"></textarea>
-      <label class="f" for="series">Series <small>(optional)</small></label>
-      <select id="series"><option value="">None</option></select>
+      <p class="f" id="series-l">Series <small>(optional, one or more)</small></p>
+      <div class="pills" id="series" role="group" aria-labelledby="series-l"></div>
       <label class="tick consent"><input type="checkbox" id="pub"> <span>Also show in the public exhibition <small class="muted">Only if the photographer has agreed that anyone may see it.</small></span></label>
       <div class="two">
         <div><label class="f" for="ptheme">Monthly theme</label><select id="ptheme"><option value="">Not an entry</option></select></div>
@@ -348,6 +345,18 @@
     return (galleryData ? Promise.resolve(galleryData) : loadGallery().then(function () { return galleryData; }))
       .then(function (d) { return d.series || []; }).catch(function () { return []; });
   }
+  // tick-able chips for several categories or series; ticked(el) reads them back
+  function pills(cls, options, selected) {
+    return '<div class="pills ' + cls + '" role="group">' + options.map(function (o) {
+      return '<label><input type="checkbox" value="' + esc(o.value) + '"' + (selected.indexOf(o.value) >= 0 ? " checked" : "") + "><span" + ml(o.label) + ">" + esc(o.label) + "</span></label>";
+    }).join("") + "</div>";
+  }
+  function ticked(el) { return el ? [].map.call(el.querySelectorAll("input:checked"), function (i) { return i.value; }) : []; }
+  function catPills(p) { return pills("e-cats", CATS.map(function (c) { return { value: c, label: c }; }), p.cats && p.cats.length ? p.cats : p.cat ? [p.cat] : []); }
+  function seriesPills(list, p) {
+    var mine = Array.isArray(p.series) ? p.series : p.series ? [p.series] : [];
+    return pills("e-series", list.map(function (s) { return { value: s.id, label: s.name + (s.open ? "" : " (closed)") }; }), mine);
+  }
   function seriesOptions(list, selected) {
     return '<option value="">None</option>' + list.map(function (s) {
       return '<option value="' + esc(s.id) + '"' + (s.id === selected ? " selected" : "") + ">" + esc(s.name) + (s.open ? "" : " (closed)") + "</option>";
@@ -387,7 +396,11 @@
     if (name === "votes") loadVotes();
     if (name === "comments") loadComments();
     if (name === "home") loadHome();
-    if (name === "post") getSeries().then(function (list) { var v = $("series").value; $("series").innerHTML = seriesOptions(list, v); $("ptheme").innerHTML = themeOptions($("ptheme").value, "Not an entry"); });
+    if (name === "post") getSeries().then(function (list) {
+      var v = ticked($("series"));
+      $("series").innerHTML = list.map(function (s) { return '<label><input type="checkbox" value="' + esc(s.id) + '"' + (v.indexOf(s.id) >= 0 ? " checked" : "") + "><span" + ml(s.name) + ">" + esc(s.name) + (s.open ? "" : " (closed)") + "</span></label>"; }).join("");
+      $("ptheme").innerHTML = themeOptions($("ptheme").value, "Not an entry");
+    });
     if (name === "events") loadEvents();
     if (name === "settings") loadStorage();
   }
@@ -438,9 +451,9 @@
       '<img class="sub-img" alt="' + esc(p.title) + '" width="' + p.tw + '" height="' + p.th + '">' +
       '<p class="sub-by">From <b>' + esc(p.name) + "</b>, sent " + T.ago(p.sent) + "</p>" +
       '<label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(p.title) + '"></label>' +
-      '<label class="f">Category<select class="e-cat">' + cats.map(function (c) { return "<option" + (c === p.cat ? " selected" : "") + ">" + c + "</option>"; }).join("") + "</select></label>" +
+      '<p class="f">Category <small>(one or more)</small></p>' + catPills(p) +
       '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
-      (series.length ? '<label class="f">Series<select class="e-series">' + seriesOptions(series, p.series || "") + "</select></label>" : "") +
+      (series.length ? '<p class="f">Series</p>' + seriesPills(series, p) : "") +
       pubBox(p.name, p.pubOk, false) +
       '<div class="two"><div><label class="f">Monthly theme' + (p.theme ? " <small>(" + esc(p.name.split(" ")[0]) + " entered it)</small>" : "") + '<select class="e-theme">' + themeOptions(p.theme || "") + "</select></label></div>" +
       '<div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
@@ -465,9 +478,10 @@
       var title = el.querySelector(".e-title").value.trim();
       if (!title) { setStatus(status, "Add a title.", true); return; }
       buttons(false); setStatus(status, "Approving…");
-      var pub = el.querySelector(".e-pub").checked, ser = el.querySelector(".e-series");
-      inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cat: el.querySelector(".e-cat").value, desc: el.querySelector(".e-desc").value.trim(),
-        series: ser ? ser.value : undefined, pub: pub, pubOk: pub || undefined, theme: el.querySelector(".e-theme").value, fb: el.querySelector(".e-fb").value } }).then(function (r) {
+      var pub = el.querySelector(".e-pub").checked, ser = el.querySelector(".e-series"), cats = ticked(el.querySelector(".e-cats"));
+      if (!cats.length) { setStatus(status, "Choose a category.", true); return; }
+      inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cats: cats, desc: el.querySelector(".e-desc").value.trim(),
+        series: ser ? ticked(ser) : undefined, pub: pub, pubOk: pub || undefined, theme: el.querySelector(".e-theme").value, fb: el.querySelector(".e-fb").value } }).then(function (r) {
         markDecided(p.sid); galleryInfo = null;
         done(el, "“" + title + "” by " + p.name + " is now in the gallery" + (pub ? " and the public exhibition." : "."), r.id ? "gallery.html#p-" + r.id : "");
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
@@ -517,8 +531,8 @@
     li.className = "rank g-row";
     function view() {
       li.innerHTML = '<img src="' + esc(thumbUrl(d, p)) + '" alt="" width="72" height="48" loading="lazy">' +
-        '<span><b' + ml(p.title) + '><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc(p.cat) + (p.added ? ", added " + esc(day(p.added)) : "") +
-        (p.series && seriesName(d.series, p.series) ? ", " + esc(seriesName(d.series, p.series)) : "") + (p.theme ? ", theme entry " + esc(monthName(p.theme)) : "") + (p.fb === "share" ? ", just sharing" : "") +
+        '<span><b' + ml(p.title) + '><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc((p.cats && p.cats.length ? p.cats : [p.cat]).join(", ")) + (p.added ? ", added " + esc(day(p.added)) : "") +
+        (Array.isArray(p.series) ? p.series : p.series ? [p.series] : []).map(function (id) { var n = seriesName(d.series, id); return n ? ", " + esc(n) : ""; }).join("") + (p.theme ? ", theme entry " + esc(monthName(p.theme)) : "") + (p.fb === "share" ? ", just sharing" : "") +
         "</span>" + (p.pub ? '<span class="chip ok">In the exhibition</span>' : "") + "</span>" +
         '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div>' +
         '<p class="status" aria-live="polite"></p>';
@@ -542,9 +556,9 @@
         '<form class="g-edit" novalidate>' +
         '<label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(p.title) + '"></label>' +
         '<label class="f">Photographer<input type="text" class="e-by" maxlength="60" value="' + esc(p.by) + '"></label>' +
-        '<label class="f">Category<select class="e-cat">' + CATS.map(function (c) { return "<option" + (c === p.cat ? " selected" : "") + ">" + c + "</option>"; }).join("") + "</select></label>" +
+        '<p class="f">Category <small>(one or more)</small></p>' + catPills(p) +
         '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
-        '<label class="f">Series<select class="e-series">' + seriesOptions(d.series || [], p.series || "") + "</select></label>" +
+        ((d.series || []).length ? '<p class="f">Series</p>' + seriesPills(d.series, p) : "") +
         pubBox(p.by, p.pubOk, p.pub) +
         '<div class="two"><div><label class="f">Monthly theme<select class="e-theme">' + themeOptions(p.theme || "") + '</select></label></div><div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
         '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
@@ -555,9 +569,10 @@
         ev.preventDefault();
         var st = form.querySelector(".status");
         setStatus(st, "Saving…");
-        var pub = form.querySelector(".e-pub").checked;
+        var pub = form.querySelector(".e-pub").checked, cats = ticked(form.querySelector(".e-cats"));
+        if (!cats.length) { setStatus(form.querySelector(".status"), "Choose a category.", true); return; }
         inbox("/admin/gallery/" + encodeURIComponent(p.id), { method: "POST", json: { title: form.querySelector(".e-title").value, by: form.querySelector(".e-by").value,
-          cat: form.querySelector(".e-cat").value, desc: form.querySelector(".e-desc").value, series: form.querySelector(".e-series").value, pub: pub, pubOk: pub || undefined,
+          cats: cats, desc: form.querySelector(".e-desc").value, series: ticked(form.querySelector(".e-series")), pub: pub, pubOk: pub || undefined,
           theme: form.querySelector(".e-theme").value, fb: form.querySelector(".e-fb").value } }).then(function (r) {
           p = r.photo; galleryInfo = null; view(); setStatus(li.querySelector(".status"), "Saved.");
         }).catch(function (e) { setStatus(st, e.message, true); });
@@ -1055,11 +1070,12 @@
     if (!$("title").value.trim() || !$("by").value.trim()) { setStatus($("post-status"), "Add a title and the photographer's name.", true); return; }
     cfg.by = $("by").value.trim(); save();
     var f = new FormData();
-    var fields = { title: $("title").value.trim(), by: cfg.by, cat: $("cat").value, desc: $("desc").value.trim(),
+    if (!ticked($("cat")).length) { setStatus($("post-status"), "Choose a category.", true); return; }
+    var fields = { title: $("title").value.trim(), by: cfg.by, cat: ticked($("cat")), desc: $("desc").value.trim(),
       lens: $("lens").value.trim(), ap: $("ap").value.trim(), sh: $("sh").value.trim(), iso: $("iso").value.trim(),
-      w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h, series: $("series").value, theme: $("ptheme").value, fb: $("pfb").value };
+      w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h, series: ticked($("series")), theme: $("ptheme").value, fb: $("pfb").value };
     if ($("pub").checked) fields.pub = "1";
-    Object.keys(fields).forEach(function (k) { f.append(k, fields[k]); });
+    Object.keys(fields).forEach(function (k) { [].concat(fields[k]).forEach(function (v) { f.append(k, v); }); });
     f.append("full", prepared.full.blob, "photo." + prepared.full.ext);
     f.append("thumb", prepared.thumb.blob, "thumb." + prepared.thumb.ext);
     $("publish").disabled = true; setStatus($("post-status"), "Uploading…");
