@@ -1,56 +1,110 @@
-/* The Conscious Frame – home page photos, for signed-in members only.
-   Visitors see the theme, contests and club text, plus an invitation to sign in.
-   Members also see a large photo, Photos of the week, the newest photos and the contest photos,
-   loaded from the club's inbox. Needs config.js and club.js. */
+/* The Conscious Frame – the home page's photos.
+   Everyone: a few photos from the public exhibition, picked at random on each visit. Visitors also get one of
+   them as the large photo. Members instead see last week's top three as a fan of prints, Photos of the week,
+   the long-term series, the newest photos and the polls' photos, loaded from the club's inbox.
+   Needs config.js and club.js. */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var esc = Club.esc;
-  if (!Club.ready() || !Club.code()) return;      // visitors: the page stays as it is
+  var esc = Club.esc, ml = Club.ml;
+  if (!Club.ready()) return;
 
-  function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }   // Malayalam text gets a Malayalam font
-  function link(p, inner, label) {
-    return '<a href="gallery.html#p-' + esc(p.id) + '"' + (label ? ' aria-label="' + esc(label) + '"' : "") + ">" + inner + "</a>";
-  }
-  function img(d, p, size, alt, extra) {
+  function ar(p) { return (p.tw > 0 && p.th > 0 ? p.tw / p.th : 1.5).toFixed(3); }
+  function img(src, p, size, alt, extra) {
     var w = size === "full" ? p.w : p.tw, h = size === "full" ? p.h : p.th;
-    return '<img src="' + esc(Club.photoUrl(d, p, size)) + '" alt="' + esc(alt) + '" width="' + (w | 0) + '" height="' + (h | 0) + '"' + (extra || ' loading="lazy"') + ">";
+    return '<img src="' + esc(src) + '" alt="' + esc(alt) + '" width="' + (w | 0) + '" height="' + (h | 0) + '"' + (extra || ' loading="lazy"') + ">";
+  }
+  function byLine(p) { return "<b" + ml(p.title) + ">" + esc(p.title) + "</b> by <span" + ml(p.by) + ">" + esc(p.by) + "</span>"; }
+
+  var member = !!Club.code();
+  var shown = Club.exhibition().catch(function () { return { photos: [], series: [] }; });
+  var gallery = member ? Club.gallery().catch(function () { return null; }) : Promise.resolve(null);
+
+  Promise.all([shown, gallery]).then(function (r) {
+    var ex = r[0], d = r[1];
+    var pool = Club.shuffle(ex.photos.slice());
+    if (d) members(d);
+    else if (pool.length) visitorPhoto(pool.shift());
+    // a few more from the exhibition, for everyone
+    var strip = pool.slice(0, 6);
+    if (strip.length) {
+      $("exhibit").innerHTML = strip.map(function (p) {
+        return '<a href="exhibition.html#p-' + esc(p.id) + '" style="--ar:' + ar(p) + '" aria-label="' + esc(p.title + " by " + p.by) + '">' + img(Club.publicUrl(p, "thumb"), p, "thumb", "") + "</a>";
+      }).join("");
+      $("exhibit-section").hidden = false;
+    }
+    Club.layout();
+  });
+
+  // Visitors: one photo from the exhibition as the large photo, gently tilted. The invitation to sign in moves below.
+  function visitorPhoto(p) {
+    $("hero-photo").style.setProperty("--ar", ar(p));
+    $("hero-photo").innerHTML = '<a href="exhibition.html#p-' + esc(p.id) + '">' + img(Club.publicUrl(p, "full"), p, "full", p.title, ' fetchpriority="high"') + "</a>" +
+      "<figcaption>" + byLine(p) + ', from the club\'s <a href="exhibition.html">exhibition</a></figcaption>';
+    $("hero-photo").hidden = false;
+    $("join-slot").appendChild($("hero-card"));
+    $("join-slot").hidden = false;
   }
 
-  Club.gallery().then(function (d) {
+  function members(d) {
+    function link(p, inner, label) {
+      return '<a href="gallery.html#p-' + esc(p.id) + '"' + (label ? ' aria-label="' + esc(label) + '"' : "") + ">" + inner + "</a>";
+    }
     var potw = ((d.potw && d.potw.items) || []).map(function (x) { var p = d.byId[x.id]; return p ? { p: p, votes: x.votes } : null; }).filter(Boolean);
 
-    // the large photo: the photo with the most votes last week (still in the gallery), else the latest
-    // Photos of the week, else the newest photo. This week's votes stay secret until the week is over.
-    var top = ((d.top && d.top.items) || []).filter(function (x) { return d.byId[x.id]; })[0];
-    var lead = top ? d.byId[top.id] : potw.length ? potw[0].p : d.photos[0];
-    var why = top ? ", most votes last week" : potw.length ? ", top photo of the week" : ", newest in the gallery";
-    if (lead) {
-      $("hero-photo").innerHTML = link(lead, img(d, lead, "full", lead.title, ' fetchpriority="high"')) +
-        "<figcaption><b" + ml(lead.title) + ">" + esc(lead.title) + "</b> by <span" + ml(lead.by) + ">" + esc(lead.by) + "</span>" + why + "</figcaption>";
-      $("hero-photo").hidden = false; $("hero-card").hidden = true;
+    // The fan: last week's three most-voted photos (still in the gallery), else Photos of the week, else the newest.
+    // This week's votes stay secret until the week is over.
+    var top = ((d.top && d.top.items) || []).filter(function (x) { return d.byId[x.id]; }).slice(0, 3).map(function (x) { return d.byId[x.id]; });
+    var fan = top.length ? top : potw.length ? potw.map(function (x) { return x.p; }) : d.photos.slice(0, 3);
+    var why = top.length ? (fan.length > 1 ? "Most votes last week. In front: " : "Most votes last week: ")
+            : potw.length ? "Photos of the week. In front: " : fan.length > 1 ? "Newest in the gallery. In front: " : "Newest in the gallery: ";
+    if (fan.length) {
+      $("hero-fan").innerHTML = '<div class="stage">' + fan.map(function (p, i) {
+        return '<a class="p' + (i + 1) + '" href="gallery.html#p-' + esc(p.id) + '" style="--ar:' + ar(p) + '" aria-label="' + esc((i + 1) + ". " + p.title + " by " + p.by) + '">' +
+          img(Club.photoUrl(d, p, i ? "thumb" : "full"), p, i ? "thumb" : "full", "", i ? "" : ' fetchpriority="high"') + "</a>";
+      }).join("") + "</div><figcaption>" + why + byLine(fan[0]) + "</figcaption>";
+      $("hero-fan").hidden = false; $("hero-card").hidden = true;
     } else {
       $("hero-card").querySelector("h2").textContent = "No photos yet";
       $("hero-card").querySelector("p").textContent = "The gallery fills up as members share their photos. Be the first.";
       $("hero-card").querySelector(".actions").innerHTML = '<a class="btn btn-dark" href="submit.html">Share a photo</a>';
     }
 
-    if (potw.length) {
+    // Photos of the week, unless the fan already shows the same photos
+    var inFan = fan.map(function (p) { return p.id; });
+    if (potw.length && !potw.every(function (x) { return inFan.indexOf(x.p.id) >= 0; })) {
       $("potw").innerHTML = potw.map(function (x) {
-        return '<figure class="print">' + link(x.p, img(d, x.p, "thumb", x.p.title)) + "<h3" + ml(x.p.title) + ">" + esc(x.p.title) + "</h3><figcaption" + ml(x.p.by) + ">" + esc(x.p.by) +
+        return '<figure class="print" style="--ar:' + ar(x.p) + '">' + link(x.p, img(Club.photoUrl(d, x.p, "thumb"), x.p, "thumb", x.p.title)) + "<h3" + ml(x.p.title) + ">" + esc(x.p.title) + "</h3><figcaption" + ml(x.p.by) + ">" + esc(x.p.by) +
           (x.votes ? ", " + x.votes + (x.votes === 1 ? " vote" : " votes") : "") + "</figcaption></figure>";
       }).join("");
       $("potw-section").hidden = false;
     }
 
+    // the long-term series, like Life in Germany
+    $("series-list").innerHTML = (d.series || []).map(function (s) {
+      var photos = d.photos.filter(function (p) { return p.series === s.id; });
+      if (!photos.length && !s.open) return "";
+      return '<section class="wrap section"><div class="head"><h2' + ml(s.name) + ">" + esc(s.name) + "</h2>" +
+        (photos.length ? '<a href="gallery.html#series-' + esc(s.id) + '">See all ' + photos.length + (photos.length === 1 ? " photo" : " photos") + "</a>" : "") + "</div>" +
+        (s.desc ? '<p class="series-desc"' + ml(s.desc) + ">" + esc(s.desc) + "</p>" : "") +
+        (photos.length ? '<div class="just strip">' + photos.slice(0, 8).map(function (p) {
+          return '<a href="gallery.html#p-' + esc(p.id) + '" style="--ar:' + ar(p) + '" aria-label="' + esc(p.title + " by " + p.by) + '">' + img(Club.photoUrl(d, p, "thumb"), p, "thumb", "") + "</a>";
+        }).join("") + "</div>" : "") +
+        (s.open ? '<div class="actions home-actions"><a class="btn btn-light" href="submit.html?series=' + esc(s.id) + '">' + (photos.length ? "Add your photo to the series" : "Be the first: share a photo for it") + "</a></div>" : "") +
+        "</section>";
+    }).join("");
+
     if (d.photos.length) {
-      $("newest").innerHTML = d.photos.slice(0, 8).map(function (p) { return link(p, img(d, p, "thumb", ""), p.title + " by " + p.by); }).join("");
+      $("newest").innerHTML = d.photos.slice(0, 8).map(function (p) {
+        return '<a href="gallery.html#p-' + esc(p.id) + '" style="--ar:' + ar(p) + '" aria-label="' + esc(p.title + " by " + p.by) + '">' + img(Club.photoUrl(d, p, "thumb"), p, "thumb", "") + "</a>";
+      }).join("");
       $("newest-section").hidden = false;
     }
 
+    // the polls' photos
     document.querySelectorAll(".contest[data-photo]").forEach(function (c) {
       var p = d.byId[c.getAttribute("data-photo")];
-      if (p) c.insertAdjacentHTML("afterbegin", link(p, img(d, p, "thumb", "")));
+      if (p) c.insertAdjacentHTML("afterbegin", link(p, img(Club.photoUrl(d, p, "thumb"), p, "thumb", "")));
     });
-  }).catch(function () { /* signed out or offline: the visitor view stays */ });
+  }
 })();

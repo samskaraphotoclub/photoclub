@@ -1,7 +1,8 @@
-/* The Conscious Frame – shared by the gallery and the home page.
+/* The Conscious Frame – shared by the gallery, exhibition, theme archive and home page.
    Signing in with an invite code, and loading the members-only gallery from the club's inbox
    (config.js holds its address). Photos are never part of the website itself: the inbox only
-   hands them to signed-in members, through links that stop working within a day. */
+   hands them to signed-in members, through links that stop working within a day. The exhibition's
+   photos are the exception: anyone can see those, because their photographers agreed. */
 var Club = (function () {
   "use strict";
   var KEY = "conscious-frame-member";          // the same sign-in as the Share a photo page
@@ -14,7 +15,7 @@ var Club = (function () {
 
   function call(path, opts) {
     opts = opts || {};
-    var headers = {}, c = opts.code || code();
+    var headers = {}, c = opts.anon ? "" : opts.code || code();
     if (c) headers.Authorization = "Bearer " + c;
     if (opts.json) headers["Content-Type"] = "application/json";
     return fetch(INBOX + path, { method: opts.method || "GET", headers: headers, body: opts.json ? JSON.stringify(opts.json) : undefined })
@@ -42,6 +43,57 @@ var Club = (function () {
   function photoUrl(d, p, size) {
     return INBOX + "/img/" + encodeURIComponent(p.id) + "/" + size + "?v=" + encodeURIComponent(p.v || "") + "&t=" + encodeURIComponent(d.token);
   }
+  // The public exhibition: { photos, series }. Each photo carries its own link key (p.t).
+  var showing = null;
+  function exhibition() {
+    if (!showing) {
+      showing = call("/exhibition", { anon: true });
+      showing.catch(function () { showing = null; });
+    }
+    return showing;
+  }
+  function publicUrl(p, size) {
+    return INBOX + "/img/" + encodeURIComponent(p.id) + "/" + size + "?v=" + encodeURIComponent(p.v || "") + "&t=" + encodeURIComponent(p.t);
+  }
+  // lang="ml" on Malayalam text: phones then use a Malayalam font, line spacing and line breaking
+  function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  /* Rows of photos, each photo at its own shape (nothing cropped), each row as close as possible to the
+     row height in the CSS (--row). Picks where rows break, so a tall photo never ends up alone and huge.
+     Works on every .just box; call it again after adding photos or filtering. The CSS alone is the fallback. */
+  var watched = typeof WeakSet === "function" ? new WeakSet() : null, ro = window.ResizeObserver ? new ResizeObserver(function (es) { es.forEach(function (e) { justify(e.target); }); }) : null;
+  function justify(box) {
+    var W = box.clientWidth;
+    if (!W) return;
+    if (ro && watched && !watched.has(box)) { watched.add(box); ro.observe(box); }
+    var cs = getComputedStyle(box), target = parseFloat(cs.getPropertyValue("--row")) || 200, pad = parseFloat(cs.getPropertyValue("--pad")) || 0, gap = parseFloat(cs.columnGap) || 0;
+    var items = [].filter.call(box.children, function (el) { return getComputedStyle(el).display !== "none"; });
+    function height(row, sum) { return (W - gap * (row.length - 1) - pad * row.length - 1) / sum; }   // 1px to spare against rounding
+    function place(row, h) { row.forEach(function (x) { x.el.style.flex = "0 0 auto"; x.el.style.width = Math.floor((x.ar * h + pad) * 100) / 100 + "px"; }); }
+    var row = [], sum = 0;
+    items.forEach(function (el) {
+      var ar = parseFloat(el.style.getPropertyValue("--ar")) || 1.5;
+      row.push({ el: el, ar: ar }); sum += ar;
+      if (sum * target + pad * row.length + gap * (row.length - 1) < W) return;
+      var withIt = height(row, sum), without = row.length > 1 ? height(row.slice(0, -1), sum - ar) : Infinity;
+      if (Math.abs(Math.log(without / target)) < Math.abs(Math.log(withIt / target))) {   // closer to the row height without the last photo
+        place(row.slice(0, -1), without); row = [row[row.length - 1]]; sum = ar;
+        if (sum * target + pad < W) return;
+      }
+      place(row, height(row, sum)); row = []; sum = 0;
+    });
+    place(row, Math.min(target, row.length ? height(row, sum) : target));   // the last row keeps the row height
+  }
+  function layout(root) { (root || document).querySelectorAll(".just").forEach(justify); }
+
+  // The series a photo belongs to, by id, from a list of series
+  function seriesName(list, id) {
+    var s = (list || []).filter(function (x) { return x.id === id; })[0];
+    return s ? s.name : "";
+  }
   function thisWeek(d, p) { return !!p.added && p.added >= d.weekStart && p.added <= d.today; }
 
   function signIn(typed) {
@@ -51,5 +103,6 @@ var Club = (function () {
   }
   function signOut() { setCode(""); loading = null; }
 
-  return { ready: ready, code: code, esc: esc, call: call, gallery: gallery, photoUrl: photoUrl, thisWeek: thisWeek, signIn: signIn, signOut: signOut };
+  return { ready: ready, code: code, esc: esc, call: call, gallery: gallery, photoUrl: photoUrl, thisWeek: thisWeek, signIn: signIn, signOut: signOut,
+           exhibition: exhibition, publicUrl: publicUrl, ml: ml, shuffle: shuffle, seriesName: seriesName, layout: layout };
 })();

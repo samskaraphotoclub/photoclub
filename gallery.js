@@ -1,7 +1,7 @@
 /* The Conscious Frame – the members-only gallery.
    Members sign in with their invite code; the photos then load from the club's inbox.
-   Also: the photo viewer (previous/next, swipe, arrow keys, Esc) and, under each photo,
-   members' comments and votes for this week's photos. Needs config.js and club.js. */
+   Filters for categories and series, and under each photo in the viewer, members' comments
+   (with a Report button) and votes for this week's photos. Needs config.js, club.js and viewer.js. */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
@@ -11,8 +11,7 @@
     ["🙌", "raised hands"], ["❤️", "red heart"], ["🔥", "fire"], ["✨", "sparkles"], ["🌟", "glowing star"], ["💯", "hundred points"],
     ["📷", "camera"], ["🌅", "sunrise"], ["🌊", "wave"], ["🌲", "tree"], ["🍂", "autumn leaves"], ["🌙", "moon"]];
 
-  // lang="ml" on Malayalam text: phones then use a Malayalam font, line spacing and line breaking
-  function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }
+  var ml = Club.ml;
   function setStatus(el, msg, isError) { if (el) { el.classList.add("status"); el.classList.toggle("error", !!isError); el.textContent = msg; } }
   function ago(ms) {
     var m = Math.round((Date.now() - ms) / 60000);
@@ -45,6 +44,7 @@
     $("gate").hidden = true; $("g-status").hidden = false; $("g-status").textContent = "Loading the photos…";
     Club.gallery().then(function (d) {
       data = d;
+      seriesChips(d);
       $("grid").innerHTML = d.photos.map(tile).join("");
       $("g-status").hidden = d.photos.length > 0;
       $("g-status").textContent = "No photos yet. Share the first one on the Share a photo page.";
@@ -53,8 +53,11 @@
       var fresh = d.photos.filter(function (p) { return Club.thisWeek(d, p); }).length;
       $("l-week").hidden = !fresh;
       if (location.hash === "#this-week" && fresh) $("c-week").checked = true;
-      addSteps();
-      sync();
+      var s = location.hash.match(/^#series-([a-z0-9-]+)$/), chip = s && $("c-s-" + s[1]);
+      if (chip) { chip.checked = true; chip.scrollIntoView({ block: "nearest", inline: "center" }); }
+      Club.layout();
+      Viewer.addSteps();
+      Viewer.sync();
     }).catch(function (e) {
       if (e.status === 401) showGate(e.message);
       else { $("g-status").hidden = false; $("g-status").textContent = e.message; }
@@ -62,70 +65,35 @@
   }
 
   function tile(p) {
-    var id = esc(p.id), title = esc(p.title), cat = String(p.cat || "").toLowerCase().replace(/[^a-z]/g, "");
-    var rows = [["Lens", p.lens], ["Aperture", p.ap], ["Shutter", p.sh], ["ISO", p.iso]].filter(function (r) { return r[1]; })
-      .map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("");
-    return '<figure class="tile ' + cat + (Club.thisWeek(data, p) ? " this-week" : "") + '" id="t-' + id + '">' +
-      '<a href="#p-' + id + '"><img src="' + esc(Club.photoUrl(data, p, "thumb")) + '" alt="' + title + '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a>' +
-      "<figcaption><b" + ml(p.title) + ">" + title + "</b><span" + ml(p.by) + ">" + esc(p.by) + "</span></figcaption>" +
-      '<div class="viewer" id="p-' + id + '" role="dialog" aria-label="' + title + '">' +
-        '<a class="shade" href="#t-' + id + '" aria-label="Close" tabindex="-1"></a>' +
-        '<div class="box">' +
-          '<a class="close" href="#t-' + id + '" aria-label="Close">×</a>' +
-          '<div class="pic"><img src="' + esc(Club.photoUrl(data, p, "full")) + '" alt="' + title + '" width="' + (p.w | 0) + '" height="' + (p.h | 0) + '" loading="lazy"></div>' +
-          '<div class="info"><h2' + ml(p.title) + '>' + title + '</h2><p class="by"' + ml(p.by) + '>' + esc(p.by) + ", " + esc(p.cat) + "</p>" +
-            (p.desc ? '<p class="desc"' + ml(p.desc) + '>' + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "") + "</div>" +
-        "</div>" +
-      "</div></figure>";
-  }
-
-  /* ---------- the viewer: open from the address, previous/next, swipe, keys ---------- */
-  // The open photo, from the address. The page adds "open" itself, because the browser doesn't
-  // apply :target to photos that arrive after the page has loaded.
-  function current() {
-    var id = "";
-    try { id = decodeURIComponent(location.hash.slice(1)); } catch (e) {}
-    var v = id && document.getElementById(id);
-    return v && v.classList.contains("viewer") ? v : null;
-  }
-  function sync() {
-    var v = current();
-    document.querySelectorAll(".viewer.open").forEach(function (o) { if (o !== v) o.classList.remove("open"); });
-    if (v) { v.classList.add("open"); panel(v); }
-    else if (data && /^#p-/.test(location.hash)) { $("g-status").hidden = false; $("g-status").textContent = "That photo isn't in the gallery any more."; }
-  }
-  window.addEventListener("hashchange", sync);
-  function addSteps() {
-    document.querySelectorAll(".viewer .pic").forEach(function (pic) {
-      pic.insertAdjacentHTML("beforeend", '<button class="step prev" type="button" aria-label="Previous photo">‹</button><button class="step next" type="button" aria-label="Next photo">›</button>');
+    var cat = String(p.cat || "").toLowerCase().replace(/[^a-z]/g, "");
+    var series = p.series ? Club.seriesName(data.series, p.series) : "";
+    return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
+      cls: cat + (Club.thisWeek(data, p) ? " this-week" : "") + (series ? " s-" + p.series : ""),
+      series: series,
+      extra: p.pub ? '<p class="note">Also in the club\'s public <a href="exhibition.html#p-' + esc(p.id) + '">exhibition</a>, where anyone can see it.</p>' : ""
     });
   }
-  function go(step) {
-    var cur = current(); if (!cur) return;
-    var tiles = [].filter.call(document.querySelectorAll(".tile"), function (t) { return t.offsetParent || t.contains(cur); });
-    var i = tiles.indexOf(cur.closest(".tile"));
-    location.replace("#" + tiles[(i + step + tiles.length) % tiles.length].querySelector(".viewer").id);
+
+  // A filter chip for each series that has photos, right after "All" (filtering is plain CSS, like the categories)
+  function seriesChips(d) {
+    document.querySelectorAll(".chips .series-chip").forEach(function (el) { el.remove(); });
+    var style = $("series-filters") || document.head.appendChild(Object.assign(document.createElement("style"), { id: "series-filters" }));
+    var rules = [], html = "";
+    (d.series || []).forEach(function (s) {
+      if (!d.photos.some(function (p) { return p.series === s.id; })) return;
+      html += '<input type="radio" name="cat" class="series-chip" id="c-s-' + esc(s.id) + '"><label class="series-chip" for="c-s-' + esc(s.id) + '"' + ml(s.name) + ">" + esc(s.name) + "</label>";
+      rules.push(".gallery:has(#c-s-" + s.id + ":checked) .tile:not(.s-" + s.id + ") { display: none; }");
+    });
+    $("c-all").nextElementSibling.insertAdjacentHTML("afterend", html);
+    style.textContent = rules.join("\n");
   }
-  function close() { var cur = current(); if (cur) location.replace(cur.querySelector(".close").getAttribute("href")); }
-  document.addEventListener("click", function (e) {
-    var b = e.target.closest(".step, .viewer .close, .viewer .shade");
-    if (!b) return;
-    e.preventDefault();
-    b.classList.contains("step") ? go(b.classList.contains("prev") ? -1 : 1) : close();
-  });
-  document.addEventListener("keydown", function (e) {
-    if (!current() || e.target.closest("input, textarea, select, [contenteditable]")) return;
-    if (e.key === "Escape") close();
-    if (e.key === "ArrowLeft") go(-1);
-    if (e.key === "ArrowRight") go(1);
-  });
-  var x0 = null, y0 = 0;
-  document.addEventListener("touchstart", function (e) { if (e.target.closest(".viewer .pic")) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; } }, { passive: true });
-  document.addEventListener("touchend", function (e) {
-    if (x0 === null) return;
-    var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
-    x0 = null;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
+
+  document.addEventListener("change", function (e) { if (e.target.name === "cat") Club.layout(); });   // filters change which photos are in the rows
+
+  /* ---------- the viewer ---------- */
+  Viewer.init({
+    onOpen: function (v) { panel(v); },
+    onMissing: function () { if (data) { $("g-status").hidden = false; $("g-status").textContent = "That photo isn't in the gallery any more."; } }
   });
 
   /* ---------- votes and comments under the photo ---------- */
@@ -158,7 +126,8 @@
     html += d.comments.length
       ? '<ol class="comments">' + d.comments.map(function (c) {
           return '<li data-cid="' + esc(c.cid) + '"><p class="who-said"><b' + ml(c.name) + '>' + esc(c.name) + "</b> <time>" + ago(c.at) + '</time></p><p class="said"' + ml(c.text) + '>' + esc(c.text) + "</p>" +
-            (c.mine ? '<div class="del-box"><button class="linkish del" type="button">Delete</button></div>' : "") + "</li>";
+            (c.mine ? '<div class="del-box"><button class="linkish del" type="button">Delete</button></div>'
+              : member ? '<div class="del-box">' + (c.reported ? '<span class="muted">You reported this comment</span>' : '<button class="linkish report" type="button">Report</button>') + "</div>" : "") + "</li>";
         }).join("") + "</ol>"
       : '<p class="muted">No comments yet.' + (member ? " Start with what you like about the photo." : "") + "</p>";
     if (member) {
@@ -212,6 +181,25 @@
         }).catch(function (e) { btn.disabled = false; setStatus(st, e.message, true); });
       });
     }
+
+    box.querySelectorAll(".report").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var li = b.closest("li"), act = b.parentNode, fid = "rw-" + li.getAttribute("data-cid");
+        act.innerHTML = '<div class="report-box"><label class="f" for="' + fid + '">Report this comment to the club\'s admins? <small>They see your name; the person who wrote it doesn\'t.</small></label>' +
+          '<input type="text" id="' + fid + '" maxlength="300" placeholder="What\'s wrong with it? (optional)">' +
+          '<div class="row-btns"><button class="btn btn-dark btn-small yes" type="button">Report</button><button class="btn btn-light btn-small no" type="button">Cancel</button></div><p class="status" aria-live="polite"></p></div>';
+        var why = act.querySelector("input"), st = act.querySelector(".status");
+        why.focus();
+        act.querySelector(".no").addEventListener("click", function () { draw(box, id, d, thisWeek); });
+        act.querySelector(".yes").addEventListener("click", function () {
+          act.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
+          setStatus(st, "Sending…");
+          Club.call("/report", { method: "POST", json: { photo: id, cid: li.getAttribute("data-cid"), why: why.value } }).then(function () {
+            act.innerHTML = '<p class="status" style="margin:4px 0 0">Thank you. The club\'s admins will have a look.</p>';
+          }).catch(function (e) { act.querySelectorAll("button").forEach(function (x) { x.disabled = false; }); setStatus(st, e.message, true); });
+        });
+      });
+    });
 
     box.querySelectorAll(".del").forEach(function (b) {
       b.addEventListener("click", function () {

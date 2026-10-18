@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Exhibition – The Conscious Frame</title>
+<meta name="description" content="Photos by members of The Conscious Frame, the photography club of Samskara Germany e.V., shown with the photographers' permission.">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Conscious Frame">
+<link rel="manifest" href="site.webmanifest">
+<link rel="stylesheet" href="style.css">
+<script>(function(){var m;try{m=localStorage.getItem("conscious-frame-mode")}catch(e){}if(!m&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)m="dark";if(m)document.documentElement.setAttribute("data-theme",m)})()</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
+    <nav aria-label="Main"><a href="exhibition.html" aria-current="page">Exhibition</a><a href="gallery.html">Gallery</a><a href="about.html">About</a></nav>
+    <button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
+    <a class="btn btn-dark btn-small join" href="submit.html">Share a photo</a>
+  </div>
+</header>
+<main id="main">
+
+<section class="wrap page-head">
+  <h1>Exhibition</h1>
+  <p>A selection of photos by members of The Conscious Frame, chosen by the club and shown here with each photographer's permission. Select a photo to see it larger.</p>
+</section>
+<section class="wrap gallery" aria-label="Photos">
+  <div class="chips" id="x-chips" role="radiogroup" aria-label="Series" hidden></div>
+  <p class="muted g-status" id="x-status" aria-live="polite">Loading…</p>
+  <noscript><p class="muted">The exhibition needs JavaScript switched on.</p></noscript>
+  <div class="grid just" id="grid"></div>
+  <p class="note" style="margin-top:36px">Every photo belongs to the member who took it. Members of the club see the whole gallery: <a href="gallery.html">sign in</a>, or see <a href="about.html#join">how to join</a>.</p>
+</section>
+
+</main>
+<footer>
+  <div class="wrap">
+    <div>
+      <a class="brand" href="index.html"><img class="logo" src="logo-badge.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
+      <p>The photography club of Samskara Germany e.V. Photographers of every background and skill level, because perspective matters.</p>
+    </div>
+    <ul>
+      <li><a href="exhibition.html">Exhibition</a></li>
+      <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="archive.html">Theme archive</a></li>
+      <li><a href="submit.html">Share a photo</a></li>
+      <li><a href="about.html">About the club</a></li>
+      <li><a href="about.html#join">How to join</a></li>
+      <li><a href="https://samskara-germany.de/">Samskara Germany e.V.</a></li>
+    </ul>
+    <p class="note">© 2026 Samskara Germany e.V. All rights reserved. <span class="legal">· <a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Privacy policy</a></span></p>
+  </div>
+</footer>
+<script src="config.js"></script>
+<script src="club.js"></script>
+<script src="viewer.js"></script>
+<script src="exhibition.js"></script>
+<script src="theme.js"></script>
+</body>
+</html>

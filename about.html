@@ -11,13 +11,15 @@
 <meta name="apple-mobile-web-app-title" content="Conscious Frame">
 <link rel="manifest" href="site.webmanifest">
 <link rel="stylesheet" href="style.css">
+<script>(function(){var m;try{m=localStorage.getItem("conscious-frame-mode")}catch(e){}if(!m&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)m="dark";if(m)document.documentElement.setAttribute("data-theme",m)})()</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
-    <nav aria-label="Main"><a href="gallery.html">Gallery</a><a href="about.html" aria-current="page">About</a></nav>
+    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="about.html" aria-current="page">About</a></nav>
+    <button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
     <a class="btn btn-dark btn-small join" href="submit.html">Share a photo</a>
   </div>
 </header>
@@ -35,15 +37,23 @@
       <p>As a club, we welcome photographers of all backgrounds, skill levels, and styles. Whether you are a seasoned artist or picking up a camera for the first time, you will find in our club a space that is welcoming, non-hierarchical, and genuinely collaborative. We uphold the dignity of every member and are committed to maintaining a community free from discrimination, bigotry, and exclusion. The club is rooted in our organisational values of equality, inclusivity, secularism, and the championing of progressive thought.</p>
       <p>We aspire, through our lenses, to document the lived experiences of life in Germany. Together, we shoot, learn, reflect, and grow — be it through workshops, exhibitions, photo walks, or open critique sessions.</p>
     </section>
-    <section id="contests">
-      <h2>Weekly themes and contests</h2>
-      <p>Every Monday a new theme goes up on the home page. Share one photo that fits by Sunday evening; interpret it however you like.</p>
-      <p>Each member has three votes a week for photos added to the gallery that week. Open a photo and tap <strong>Vote</strong>; tap it again to take the vote back. Votes stay secret until the week is over. On Monday, the three photos with the most votes become Photos of the week on the home page. You can't vote for your own photos.</p>
-      <p>Alongside that, a bigger contest runs each month: about three weeks of entries, then a week of voting. Winners are shown to members on the home page and in the gallery.</p>
+    <section id="polls">
+      <h2>Weekly themes and polls</h2>
+      <p>Every week a new theme goes up on the home page. Share one photo that fits by Sunday evening; interpret it however you like. Past themes, with the photos members liked most, are kept in the <a href="archive.html">theme archive</a>.</p>
+      <p>Each member has three votes a week for photos added to the gallery that week. Open a photo and tap <strong>Vote</strong>; tap it again to take the vote back. Votes stay secret until the week is over. On Monday, the three photos with the most votes go on the home page. You can't vote for your own photos.</p>
+      <p>Now and then the club also runs a poll on a subject, shown on the home page with what to do and by when. Polls are about seeing what members enjoy, not about winning.</p>
+    </section>
+    <section id="series">
+      <h2>Life in Germany</h2>
+      <p>Alongside the weekly themes, the club keeps long-term series that grow over months and years. The first is <strong>Life in Germany</strong>: everyday life here as we live it, from streets and kitchens to festivals, train platforms and winter mornings. When you share a photo, choose the series if it fits. Members find the series on the home page and in the gallery.</p>
+    </section>
+    <section id="exhibition">
+      <h2>The exhibition</h2>
+      <p>The <a href="exhibition.html">Exhibition</a> page shows a selection of members' photos to everyone, not only members. The club's admins choose them, but only from photos whose photographers have agreed: tick the box when you share a photo if you're happy for it to be shown there. Changed your mind? Tell an admin and the photo comes off the Exhibition page straight away.</p>
     </section>
     <section id="feedback">
       <h2>Giving feedback</h2>
-      <p>Members can comment on any photo in the gallery, under the photo when you open it. Like the photos, comments are only for members, and your name is shown with each one. You can delete your own comments at any time.</p>
+      <p>Members can comment on any photo in the gallery, under the photo when you open it. Like the photos, comments are only for members, and your name is shown with each one. You can delete your own comments at any time. If a comment breaks the rules below, tap <strong>Report</strong> under it: the admins will look at it, and the person who wrote it won't know who reported it.</p>
       <p>Every comment here is written for the person who took the photo. Before you post, read it back as if it were about your own picture.</p>
       <ul>
         <li><strong>Start with what works.</strong> Name something you genuinely like, then make your suggestion.</li>
@@ -54,7 +64,7 @@
     </section>
     <section id="ownership">
       <h2>Your photos stay yours</h2>
-      <p>You keep full copyright of everything you share. Posting here only gives the club permission to show your photo to its members. The gallery is private: people need an invite code to see it, and it isn't listed by search engines. Only share photos you took yourself, and never repost or edit another member's photo without asking them first.</p>
+      <p>You keep full copyright of everything you share. Posting here only gives the club permission to show your photo to its members, and, if you tick the box for it, in the public exhibition. The gallery itself is private: people need an invite code to see it, and it isn't listed by search engines. Only share photos you took yourself, and never repost or edit another member's photo without asking them first. More in the <a href="datenschutz.html">privacy policy</a>.</p>
     </section>
     <section id="content">
       <h2>What you can post</h2>
@@ -68,11 +78,11 @@
     </section>
     <section id="faq">
       <h2>Questions</h2>
-      <details><summary>Who can see my photos?</summary><p>Only club members, signed in with their invite code. Visitors to the site see the weekly theme and contests, but no photos.</p></details>
+      <details><summary>Who can see my photos?</summary><p>Club members, signed in with their invite code. Visitors to the site only see photos in the exhibition, and a photo only goes there if you agreed when you shared it.</p></details>
       <details><summary>Can I write in Malayalam?</summary><p>Yes. Titles, descriptions and comments can be in Malayalam, English or both. Add a Malayalam keyboard to your phone: on Android, in Gboard, go to <strong>Settings</strong> &gt; <strong>Languages</strong> &gt; <strong>Add keyboard</strong> &gt; <strong>Malayalam</strong>. Its transliteration layout turns English letters into Malayalam as you type: “namaskaram” becomes <span lang="ml">നമസ്കാരം</span>. On iPhone, go to <strong>Settings</strong> &gt; <strong>General</strong> &gt; <strong>Keyboard</strong> &gt; <strong>Keyboards</strong> &gt; <strong>Add New Keyboard</strong> &gt; <strong>Malayalam</strong>. Switch keyboards with the globe key.</p></details>
       <details><summary>Do I need a proper camera?</summary><p>No. Plenty of members shoot mostly on their phones.</p></details>
       <details><summary>How many photos can I share?</summary><p>Up to five a week. Fewer, better photos tend to get more thoughtful comments.</p></details>
-      <details><summary>Someone left a comment that upset me. What can I do?</summary><p>Contact the club through the <a href="https://samskara-germany.de/">Samskara Germany e.V.</a> website. Admins can remove any comment, and we read every message and reply within a day or two.</p></details>
+      <details><summary>Someone left a comment that upset me. What can I do?</summary><p>Tap <strong>Report</strong> under the comment. The admins see the report, with your reason if you add one, and can remove the comment. You can also contact the club through the <a href="https://samskara-germany.de/">Samskara Germany e.V.</a> website.</p></details>
     </section>
   </article>
 </div>
@@ -85,14 +95,17 @@
       <p>The photography club of Samskara Germany e.V. Photographers of every background and skill level, because perspective matters.</p>
     </div>
     <ul>
+      <li><a href="exhibition.html">Exhibition</a></li>
       <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="archive.html">Theme archive</a></li>
       <li><a href="submit.html">Share a photo</a></li>
       <li><a href="about.html">About the club</a></li>
       <li><a href="about.html#join">How to join</a></li>
       <li><a href="https://samskara-germany.de/">Samskara Germany e.V.</a></li>
     </ul>
-    <p class="note">© 2026 Samskara Germany e.V. All rights reserved.</p>
+    <p class="note">© 2026 Samskara Germany e.V. All rights reserved. <span class="legal">· <a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Privacy policy</a></span></p>
   </div>
 </footer>
+<script src="theme.js"></script>
 </body>
 </html>

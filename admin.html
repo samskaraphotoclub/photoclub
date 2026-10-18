@@ -11,12 +11,14 @@
 <meta name="apple-mobile-web-app-title" content="Club admin">
 <link rel="manifest" href="admin.webmanifest">
 <link rel="stylesheet" href="style.css">
+<script>(function(){var m;try{m=localStorage.getItem("conscious-frame-mode")}catch(e){}if(!m&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)m="dark";if(m)document.documentElement.setAttribute("data-theme",m)})()</script>
 </head>
 <body>
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
-    <nav aria-label="Main"><a href="gallery.html">Gallery</a></nav>
+    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="about.html">About</a></nav>
+    <button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
   </div>
 </header>
 
@@ -27,7 +29,7 @@
     <button type="button" role="tab" id="tab-gallery" aria-controls="panel-gallery" aria-selected="false">Gallery</button>
     <button type="button" role="tab" id="tab-members" aria-controls="panel-members" aria-selected="false">Members</button>
     <button type="button" role="tab" id="tab-votes" aria-controls="panel-votes" aria-selected="false">Votes</button>
-    <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false">Comments</button>
+    <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false">Comments <span id="r-count"></span></button>
     <button type="button" role="tab" id="tab-home" aria-controls="panel-home" aria-selected="false">Home page</button>
     <button type="button" role="tab" id="tab-post" aria-controls="panel-post" aria-selected="false">Post a photo</button>
     <button type="button" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false">Settings</button>
@@ -107,6 +109,11 @@
       <p id="c-status" aria-live="polite">Loading…</p>
       <button class="linkish" type="button" id="c-refresh">Refresh</button>
     </div>
+    <section class="card" id="r-card" aria-labelledby="r-h" hidden>
+      <h2 id="r-h">Reported comments</h2>
+      <p class="muted">Members reported these. Delete the comment, or keep it if it's fine. The person who wrote it never sees who reported it.</p>
+      <ul class="list" id="r-list"></ul>
+    </section>
     <section class="card" aria-label="Latest comments"><ul class="list" id="c-list"></ul></section>
   </section>
 
@@ -115,18 +122,29 @@
     <form class="card" id="home-form" novalidate>
       <p class="muted" id="h-loading" style="margin-top:0">Loading what's on the home page now…</p>
       <h2>Theme of the week</h2>
+      <label class="f" for="h-week">For</label>
+      <select id="h-week"><option value="this">This week</option><option value="next">Next week</option></select>
       <label class="f" for="h-theme">Theme</label>
       <input type="text" id="h-theme" maxlength="40" placeholder="For example: Shadows">
       <label class="f" for="h-lede">What to photograph <small>(one or two sentences)</small></label>
       <textarea id="h-lede" maxlength="220" placeholder="For example: Long shadows, silhouettes, light through blinds. Share one photo that fits by Sunday evening."></textarea>
 
-      <h2 style="margin-top:28px">Contests</h2>
-      <p class="muted">Up to three contests, shown side by side on the home page.</p>
+      <h2 style="margin-top:28px">Polls</h2>
+      <p class="muted">Up to three polls, shown side by side on the home page.</p>
       <div id="h-contests"></div>
-      <button class="btn btn-light btn-small" type="button" id="h-add">Add a contest</button>
+      <button class="btn btn-light btn-small" type="button" id="h-add">Add a poll</button>
 
       <button class="btn btn-dark wide" type="submit" id="h-publish">Publish home page</button>
       <p class="status" id="h-status" aria-live="polite"></p>
+      <p class="note">The theme is also saved in the members' theme archive, with the week's most-voted photos.</p>
+    </form>
+    <form class="card" id="series-form" novalidate>
+      <h2>Series</h2>
+      <p class="muted">Long-term projects members add photos to over months, like Life in Germany. Members choose a series when they share a photo; each series gets a section on the members' home page and a filter in the gallery.</p>
+      <div id="s-list"></div>
+      <button class="btn btn-light btn-small" type="button" id="s-add">Add a series</button>
+      <button class="btn btn-dark wide" type="submit" id="s-save">Save series</button>
+      <p class="status" id="s-status" aria-live="polite"></p>
     </form>
   </section>
 
@@ -155,6 +173,9 @@
       </select>
       <label class="f" for="desc">Description <small>(optional)</small></label>
       <textarea id="desc" maxlength="400"></textarea>
+      <label class="f" for="series">Series <small>(optional)</small></label>
+      <select id="series"><option value="">None</option></select>
+      <label class="tick consent"><input type="checkbox" id="pub"> <span>Also show in the public exhibition <small class="muted">Only if the photographer has agreed that anyone may see it.</small></span></label>
       <details style="margin-top:16px">
         <summary>Camera settings <small class="muted" id="exif-note"></small></summary>
         <div class="two">
@@ -223,13 +244,15 @@
       <p>The photography club of Samskara Germany e.V. Photographers of every background and skill level, because perspective matters.</p>
     </div>
     <ul>
+      <li><a href="exhibition.html">Exhibition</a></li>
       <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="archive.html">Theme archive</a></li>
       <li><a href="submit.html">Share a photo</a></li>
       <li><a href="about.html">About the club</a></li>
       <li><a href="about.html#join">How to join</a></li>
       <li><a href="https://samskara-germany.de/">Samskara Germany e.V.</a></li>
     </ul>
-    <p class="note">© 2026 Samskara Germany e.V. All rights reserved.</p>
+    <p class="note">© 2026 Samskara Germany e.V. All rights reserved. <span class="legal">· <a href="impressum.html">Impressum</a> · <a href="datenschutz.html">Privacy policy</a></span></p>
   </div>
 </footer>
 
@@ -267,6 +290,23 @@
   function setStatus(el, msg, isError) { el.className = "status" + (isError ? " error" : ""); el.textContent = msg; }
   function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }   // Malayalam text gets a Malayalam font
   function pretty(c) { return c.replace(/(.{4})(?=.)/g, "$1-"); }
+  /* series (like Life in Germany) and the public exhibition */
+  function getSeries() {
+    return (galleryData ? Promise.resolve(galleryData) : loadGallery().then(function () { return galleryData; }))
+      .then(function (d) { return d.series || []; }).catch(function () { return []; });
+  }
+  function seriesOptions(list, selected) {
+    return '<option value="">None</option>' + list.map(function (s) {
+      return '<option value="' + esc(s.id) + '"' + (s.id === selected ? " selected" : "") + ">" + esc(s.name) + (s.open ? "" : " (closed)") + "</option>";
+    }).join("");
+  }
+  function seriesName(list, id) { var s = (list || []).filter(function (x) { return x.id === id; })[0]; return s ? s.name : ""; }
+  // the exhibition tick box: only photos whose photographer agreed may go in
+  function pubBox(name, agreed, on) {
+    var first = String(name || "").split(" ")[0];
+    return '<label class="tick consent"><input type="checkbox" class="e-pub"' + (on ? " checked" : "") + "> <span>In the public exhibition, where anyone can see it " +
+      '<small class="muted">' + (agreed ? esc(first) + " agreed to this." : "Only if " + esc(first) + " has agreed: ask them first.") + "</small></span></label>";
+  }
 
   /* ---------- tabs ---------- */
   var tabs = ["approve", "gallery", "members", "votes", "comments", "home", "post", "settings"];
@@ -281,6 +321,7 @@
     if (name === "votes") loadVotes();
     if (name === "comments") loadComments();
     if (name === "home") loadHome();
+    if (name === "post") getSeries().then(function (list) { var v = $("series").value; $("series").innerHTML = seriesOptions(list, v); });
   }
   tabs.forEach(function (t) { $("tab-" + t).addEventListener("click", function () { show(t); }); });
 
@@ -308,18 +349,19 @@
   function loadQueue() {
     if (!inboxReady()) { $("queue-status").textContent = "Add the inbox address and admin password in Settings to see members' photos."; $("queue").innerHTML = ""; return; }
     $("queue-status").textContent = "Loading…";
-    inbox("/admin/pending").then(function (d) {
+    Promise.all([inbox("/admin/pending"), getSeries()]).then(function (res) {
+      var d = res[0], series = res[1];
       var gone = decided();
       var list = d.photos.filter(function (p) { return !gone[p.sid]; });
       setCount(list.length);
       $("queue-status").textContent = list.length ? list.length + (list.length === 1 ? " photo is" : " photos are") + " waiting for approval." : "Nothing waiting. New photos from members will show here.";
       $("queue").innerHTML = "";
-      list.forEach(function (p) { $("queue").appendChild(card(p)); });
+      list.forEach(function (p) { $("queue").appendChild(card(p, series)); });
     }).catch(function (e) { $("queue-status").textContent = e.message; });
   }
   $("refresh").addEventListener("click", loadQueue);
 
-  function card(p) {
+  function card(p, series) {
     var el = document.createElement("article");
     el.className = "card";
     var cats = ["Landscape", "Nature", "Travel", "Street", "Architecture", "Night", "Abstract"];
@@ -330,6 +372,8 @@
       '<label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(p.title) + '"></label>' +
       '<label class="f">Category<select class="e-cat">' + cats.map(function (c) { return "<option" + (c === p.cat ? " selected" : "") + ">" + c + "</option>"; }).join("") + "</select></label>" +
       '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
+      (series.length ? '<label class="f">Series<select class="e-series">' + seriesOptions(series, p.series || "") + "</select></label>" : "") +
+      pubBox(p.name, p.pubOk, false) +
       (settings ? '<p class="sub-settings">' + esc(settings) + "</p>" : "") +
       '<div class="row-btns"><button class="btn btn-dark approve" type="button">Approve</button><button class="btn btn-light decline" type="button">Decline</button></div>' +
       '<div class="decline-box" hidden><label class="f">Note to ' + esc(p.name.split(" ")[0]) + ' <small>(optional, they will see it)</small><textarea class="e-note" maxlength="300" placeholder="For example: a bit soft, try a faster shutter speed"></textarea></label>' +
@@ -351,9 +395,11 @@
       var title = el.querySelector(".e-title").value.trim();
       if (!title) { setStatus(status, "Add a title.", true); return; }
       buttons(false); setStatus(status, "Approving…");
-      inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cat: el.querySelector(".e-cat").value, desc: el.querySelector(".e-desc").value.trim() } }).then(function (r) {
+      var pub = el.querySelector(".e-pub").checked, ser = el.querySelector(".e-series");
+      inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cat: el.querySelector(".e-cat").value, desc: el.querySelector(".e-desc").value.trim(),
+        series: ser ? ser.value : undefined, pub: pub, pubOk: pub || undefined } }).then(function (r) {
         markDecided(p.sid); galleryInfo = null;
-        done(el, "“" + title + "” by " + p.name + " is now in the gallery.", r.id ? "gallery.html#p-" + r.id : "");
+        done(el, "“" + title + "” by " + p.name + " is now in the gallery" + (pub ? " and the public exhibition." : "."), r.id ? "gallery.html#p-" + r.id : "");
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
     });
     return el;
@@ -380,7 +426,9 @@
     $("g-status").textContent = "Loading…";
     loadGallery().then(function () {
       var d = galleryData;
-      $("g-status").textContent = d.photos.length ? d.photos.length + (d.photos.length === 1 ? " photo" : " photos") + " in the gallery, newest first. Only members can see them." : "The gallery is empty.";
+      var pubs = d.photos.filter(function (p) { return p.pub; }).length;
+      $("g-status").textContent = d.photos.length ? d.photos.length + (d.photos.length === 1 ? " photo" : " photos") + " in the gallery, newest first. Only members can see them" +
+        (pubs ? ", except the " + pubs + " in the public exhibition." : ". Tick a photo's Edit > public exhibition box to show it to everyone, if the photographer agrees.") : "The gallery is empty.";
       $("g-list").innerHTML = "";
       d.photos.forEach(function (p) { $("g-list").appendChild(galleryRow(d, p)); });
       $("g-card").hidden = !d.photos.length;
@@ -394,7 +442,8 @@
     li.className = "rank g-row";
     function view() {
       li.innerHTML = '<img src="' + esc(thumbUrl(d, p)) + '" alt="" width="72" height="48" loading="lazy">' +
-        '<span><b' + ml(p.title) + '><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc(p.cat) + (p.added ? ", added " + esc(day(p.added)) : "") + "</span></span>" +
+        '<span><b' + ml(p.title) + '><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc(p.cat) + (p.added ? ", added " + esc(day(p.added)) : "") +
+        (p.series && seriesName(d.series, p.series) ? ", " + esc(seriesName(d.series, p.series)) : "") + "</span>" + (p.pub ? '<span class="chip ok">In the exhibition</span>' : "") + "</span>" +
         '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div>' +
         '<p class="status" aria-live="polite"></p>';
       var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
@@ -419,6 +468,8 @@
         '<label class="f">Photographer<input type="text" class="e-by" maxlength="60" value="' + esc(p.by) + '"></label>' +
         '<label class="f">Category<select class="e-cat">' + CATS.map(function (c) { return "<option" + (c === p.cat ? " selected" : "") + ">" + c + "</option>"; }).join("") + "</select></label>" +
         '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
+        '<label class="f">Series<select class="e-series">' + seriesOptions(d.series || [], p.series || "") + "</select></label>" +
+        pubBox(p.by, p.pubOk, p.pub) +
         '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
         '<p class="status" aria-live="polite"></p></form>';
       var form = li.querySelector("form");
@@ -427,8 +478,9 @@
         ev.preventDefault();
         var st = form.querySelector(".status");
         setStatus(st, "Saving…");
+        var pub = form.querySelector(".e-pub").checked;
         inbox("/admin/gallery/" + encodeURIComponent(p.id), { method: "POST", json: { title: form.querySelector(".e-title").value, by: form.querySelector(".e-by").value,
-          cat: form.querySelector(".e-cat").value, desc: form.querySelector(".e-desc").value } }).then(function (r) {
+          cat: form.querySelector(".e-cat").value, desc: form.querySelector(".e-desc").value, series: form.querySelector(".e-series").value, pub: pub, pubOk: pub || undefined } }).then(function (r) {
           p = r.photo; galleryInfo = null; view(); setStatus(li.querySelector(".status"), "Saved.");
         }).catch(function (e) { setStatus(st, e.message, true); });
       });
@@ -643,13 +695,15 @@
     if (!inboxReady()) { $("c-status").textContent = "Add the inbox address and admin password in Settings first."; $("c-list").innerHTML = ""; return; }
     $("c-status").textContent = "Loading…";
     var gallery = galleryInfo ? Promise.resolve(galleryInfo) : loadGallery().catch(function () { return {}; });
-    Promise.all([inbox("/admin/comments"), gallery]).then(function (res) {
-      var list = res[0].comments, map = res[1];
+    Promise.all([inbox("/admin/comments"), gallery, inbox("/admin/reports").catch(function () { return { reports: [] }; })]).then(function (res) {
+      var list = res[0].comments, map = res[1], reported = {};
+      showReports(res[2].reports, map);
+      res[2].reports.forEach(function (r) { reported[r.cid] = true; });
       $("c-status").textContent = list.length ? "The latest " + list.length + (list.length === 1 ? " comment" : " comments") + ", newest first." : "No comments yet.";
       $("c-list").innerHTML = "";
       list.forEach(function (c) {
         var li = document.createElement("li"), g = map[c.photo];
-        li.innerHTML = "<b>" + esc(c.name) + '</b><span class="meta">' + T.ago(c.at) + ' on <a href="gallery.html#p-' + esc(c.photo) + '">' + esc(g ? g.title : c.photo) + "</a></span>" +
+        li.innerHTML = (reported[c.cid] ? '<span class="chip no">Reported</span>' : "") + "<b>" + esc(c.name) + '</b><span class="meta">' + T.ago(c.at) + ' on <a href="gallery.html#p-' + esc(c.photo) + '">' + esc(g ? g.title : c.photo) + "</a></span>" +
           '<p class="said"' + ml(c.text) + '>' + esc(c.text) + '</p><div class="row-btns"><button class="btn btn-light btn-small" type="button">Delete</button></div><p class="status" aria-live="polite"></p>';
         var row = li.querySelector(".row-btns"), st = li.querySelector(".status");
         row.querySelector("button").addEventListener("click", function () {
@@ -666,10 +720,35 @@
     }).catch(function (e) { $("c-status").textContent = e.message; });
   }
   $("c-refresh").addEventListener("click", loadComments);
+  function setReportCount(n) { $("r-count").textContent = n ? "(" + n + ")" : ""; }
+  function countReports() { if (inboxReady()) inbox("/admin/reports").then(function (r) { setReportCount(r.reports.length); }).catch(function () {}); }
+  function showReports(list, map) {
+    setReportCount(list.length);
+    $("r-card").hidden = !list.length;
+    $("r-list").innerHTML = "";
+    list.forEach(function (x) {
+      var li = document.createElement("li"), g = map[x.photo];
+      li.innerHTML = "<b>" + esc(x.name) + '</b><span class="meta">' + T.ago(x.at) + ' on <a href="gallery.html#p-' + esc(x.photo) + '">' + esc(g ? g.title : x.photo) + "</a></span>" +
+        '<p class="said"' + ml(x.text) + ">" + esc(x.text) + "</p>" +
+        '<span class="meta">Reported by ' + x.by.map(function (b) { return "<b>" + esc(b.name) + "</b>" + (b.why ? ": “<span" + ml(b.why) + ">" + esc(b.why) + "</span>”" : ""); }).join("; ") + "</span>" +
+        '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="del">Delete comment</button><button class="btn btn-light btn-small" type="button" data-a="keep">Keep it</button></div><p class="status" aria-live="polite"></p>';
+      var st = li.querySelector(".status");
+      li.querySelector('[data-a="del"]').addEventListener("click", function () {
+        setStatus(st, "Deleting…");
+        inbox("/admin/comment/delete", { method: "POST", json: { photo: x.photo, cid: x.cid } }).then(loadComments).catch(function (e) { setStatus(st, e.message, true); });
+      });
+      li.querySelector('[data-a="keep"]').addEventListener("click", function () {
+        setStatus(st, "Saving…");
+        inbox("/admin/reports/dismiss", { method: "POST", json: { cid: x.cid } }).then(loadComments).catch(function (e) { setStatus(st, e.message, true); });
+      });
+      $("r-list").appendChild(li);
+    });
+  }
 
-  /* ---------- home page: theme of the week and contests ---------- */
-  var STATUSES = ["Open for entries", "Voting now", "Judging", "Winners announced", "Coming soon"];
-  var LIVE = ["Open for entries", "Voting now", "Judging"];   // shown with a red dot
+  /* ---------- home page: theme of the week, polls and series ---------- */
+  var STATUSES = ["Open for entries", "Voting now", "Counting votes", "Results are in", "Coming soon"];
+  var LIVE = ["Open for entries", "Voting now", "Counting votes"];   // shown with a red dot
+  var RENAMED = { "Judging": "Counting votes", "Winners announced": "Results are in" };   // from when polls were contests
   var homeGallery = {};
   function photoOptions(selected) {
     return Object.keys(homeGallery).map(function (id) {
@@ -686,13 +765,13 @@
       '<label class="f">Title<input type="text" class="c-title" maxlength="60" value="' + esc(c.title) + '"></label>' +
       '<label class="f">Description <small>(what it\'s about, and the dates)</small><textarea class="c-desc" maxlength="200">' + esc(c.desc) + "</textarea></label>" +
       '<label class="f">Photo <small>(from the gallery, shown to members)</small><select class="c-photo"><option value="">No photo</option>' + photoOptions(c.photo) + "</select></label>" +
-      '<button class="linkish c-remove" type="button">Remove this contest</button>';
+      '<button class="linkish c-remove" type="button">Remove this poll</button>';
     f.querySelector(".c-remove").addEventListener("click", function () { f.remove(); numberContests(); });
     return f;
   }
   function numberContests() {
     var all = $("h-contests").querySelectorAll(".contest-edit");
-    all.forEach(function (f, i) { f.querySelector("legend").textContent = "Contest " + (i + 1); });
+    all.forEach(function (f, i) { f.querySelector("legend").textContent = "Poll " + (i + 1); });
     $("h-add").hidden = all.length >= 3;
   }
   function loadHome() {
@@ -709,14 +788,17 @@
       $("h-contests").innerHTML = "";
       doc.querySelectorAll(".contest").forEach(function (el) {
         var img = el.querySelector("img"), m = el.getAttribute("data-photo") ? [0, el.getAttribute("data-photo")] : img && (img.getAttribute("src") || "").match(/photos\/(.+?)-sm\./);
+        var status = (el.querySelector(".tag") || {}).textContent || "Open for entries";
         $("h-contests").appendChild(contestFields({
-          status: (el.querySelector(".tag") || {}).textContent || "Open for entries",
+          status: RENAMED[status] || status,
           title: (el.querySelector("h3") || {}).textContent || "",
           desc: (el.querySelector("p") || {}).textContent || "",
           photo: m ? m[1] : ""
         }));
       });
       numberContests();
+      $("h-week").value = new Date().getDay() === 0 ? "next" : "this";   // on Sundays, usually next week's theme
+      showSeriesEditor((galleryData && galleryData.series) || []);
       $("h-loading").hidden = true;
     }).catch(function (e) { $("h-loading").textContent = e.message; });
   }
@@ -738,20 +820,74 @@
       if (!c.title && !missing) missing = f.querySelector(".c-title");
       contests.push(c);
     });
-    if (missing) { setStatus(st, "Give each contest a title, or remove it.", true); missing.focus(); return; }
+    if (missing) { setStatus(st, "Give each poll a title, or remove it.", true); missing.focus(); return; }
     var themeHtml = '    <p class="kicker">This week\'s theme</p>\n    <h1 class="theme"' + ml(theme) + '>' + esc(theme) + "</h1>\n" +
       (lede ? '    <p class="lede"' + ml(lede) + '>' + esc(lede) + "</p>\n" : "");
     var contestHtml = contests.map(function (c) {
       // only the photo's name goes on the page; members' browsers fetch the photo itself from the inbox
       return '    <div class="contest"' + (c.photo ? ' data-photo="' + esc(c.photo) + '"' : "") + '><span class="tag' + (LIVE.indexOf(c.status) >= 0 ? " live" : "") + '">' + esc(c.status) + "</span><h3" + ml(c.title) + ">" +
         esc(c.title) + "</h3>" + (c.desc ? "<p" + ml(c.desc) + ">" + esc(c.desc) + "</p>" : "") + "</div>\n";
-    }).join("") || '    <p class="muted">No contests at the moment.</p>\n';
+    }).join("") || '    <p class="muted">No polls at the moment.</p>\n';
     $("h-publish").disabled = true; setStatus(st, "Publishing…");
+    var which = $("h-week").value;
     Publish.publishSections(cfg, { THEME: themeHtml, CONTESTS: contestHtml }, "Home page: theme “" + theme + "”").then(function () {
+      // and into the theme archive
+      return (inboxReady() ? inbox("/admin/theme", { method: "POST", json: { which: which, title: theme, lede: lede } }).then(function () { return " It's in the theme archive too."; },
+        function (e) { return " It couldn't be saved in the theme archive: " + e.message; }) : Promise.resolve(""));
+    }).then(function (note) {
       st.className = "status";
-      st.innerHTML = 'Published. The home page will update in a minute or two. <a href="' + fresh("index.html") + '">View the home page</a>';
+      st.innerHTML = "Published. The home page will update in a minute or two." + esc(note) + ' <a href="' + fresh("index.html") + '">View the home page</a>';
     }).catch(function (e) { setStatus(st, e.message, true); })
       .then(function () { $("h-publish").disabled = false; });
+  });
+
+  // the series editor (saved in the inbox, separately from the home page)
+  function seriesFields(s) {
+    s = s || { name: "", desc: "", open: true };
+    var f = document.createElement("fieldset");
+    f.className = "contest-edit";
+    if (s.id) f.setAttribute("data-id", s.id);
+    f.innerHTML = "<legend></legend>" +
+      '<label class="f">Name<input type="text" class="s-name" maxlength="60" value="' + esc(s.name) + '"></label>' +
+      '<label class="f">What it\'s about<textarea class="s-desc" maxlength="300">' + esc(s.desc || "") + "</textarea></label>" +
+      '<label class="tick consent"><input type="checkbox" class="s-open"' + (s.open ? " checked" : "") + "> <span>Open for new photos <small class=\"muted\">Untick to close the series; its photos stay.</small></span></label>" +
+      '<button class="linkish c-remove" type="button">Remove this series</button>';
+    f.querySelector(".c-remove").addEventListener("click", function () { f.remove(); numberSeries(); });
+    return f;
+  }
+  function numberSeries() {
+    var all = $("s-list").querySelectorAll(".contest-edit");
+    all.forEach(function (f, i) { f.querySelector("legend").textContent = "Series " + (i + 1); });
+    $("s-add").hidden = all.length >= 12;
+  }
+  function showSeriesEditor(list) {
+    $("s-list").innerHTML = "";
+    list.forEach(function (s) { $("s-list").appendChild(seriesFields(s)); });
+    numberSeries();
+  }
+  $("s-add").addEventListener("click", function () {
+    $("s-list").appendChild(seriesFields());
+    numberSeries();
+    $("s-list").lastElementChild.querySelector(".s-name").focus();
+  });
+  $("series-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var st = $("s-status");
+    if (!inboxReady()) { setStatus(st, "Add the inbox address and admin password in Settings first.", true); return; }
+    var list = [], missing = null;
+    $("s-list").querySelectorAll(".contest-edit").forEach(function (f) {
+      var s = { id: f.getAttribute("data-id") || undefined, name: f.querySelector(".s-name").value.trim(), desc: f.querySelector(".s-desc").value.trim(), open: f.querySelector(".s-open").checked };
+      if (!s.name && !missing) missing = f.querySelector(".s-name");
+      list.push(s);
+    });
+    if (missing) { setStatus(st, "Give each series a name, or remove it.", true); missing.focus(); return; }
+    $("s-save").disabled = true; setStatus(st, "Saving…");
+    inbox("/admin/series", { method: "POST", json: { series: list } }).then(function (r) {
+      if (galleryData) galleryData.series = r.series;
+      showSeriesEditor(r.series);
+      setStatus(st, "Saved. Members see the change straight away.");
+    }).catch(function (e) { setStatus(st, e.message, true); })
+      .then(function () { $("s-save").disabled = false; });
   });
 
   /* ---------- post a photo directly ---------- */
@@ -783,7 +919,8 @@
     var f = new FormData();
     var fields = { title: $("title").value.trim(), by: cfg.by, cat: $("cat").value, desc: $("desc").value.trim(),
       lens: $("lens").value.trim(), ap: $("ap").value.trim(), sh: $("sh").value.trim(), iso: $("iso").value.trim(),
-      w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h };
+      w: prepared.full.w, h: prepared.full.h, tw: prepared.thumb.w, th: prepared.thumb.h, series: $("series").value };
+    if ($("pub").checked) fields.pub = "1";
     Object.keys(fields).forEach(function (k) { f.append(k, fields[k]); });
     f.append("full", prepared.full.blob, "photo." + prepared.full.ext);
     f.append("thumb", prepared.thumb.blob, "thumb." + prepared.thumb.ext);
@@ -915,7 +1052,7 @@
       if (!cfg.inbox) notes.push("Add the inbox address to approve members' photos.");
       if (!github()) notes.push("Without GitHub, the Home page tab can't publish.");
       setStatus(s, notes.join(" "));
-      loadQueue();
+      loadQueue(); countReports();
     }).catch(function (e) { setStatus(s, notes.concat(e.message).join(" "), true); });
   });
   $("forget").addEventListener("click", function () {
@@ -925,7 +1062,9 @@
 
   /* ---------- start ---------- */
   show(inboxReady() ? "approve" : "settings");
+  countReports();
 })();
 </script>
+<script src="theme.js"></script>
 </body>
 </html>

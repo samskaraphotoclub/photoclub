@@ -63,6 +63,10 @@ Then invite your first member: **Members** > type a name > **Create invite code*
 - **The admin page says it can't reach the inbox:** check the inbox address, and that `ALLOWED_ORIGIN` is your site's address with `https://` and no slash at the end.
 - **Members get "The photo is missing" when they send a photo:** open the Worker's **Settings**, and set the **Compatibility date** to today's date.
 
+## Updating the inbox program
+
+When `worker.js` changes (new features), open the Worker in Cloudflare > **Edit code**, select everything in the editor, paste the new `worker.js` over it and tap **Deploy**. Nothing stored is lost: members, photos, comments and votes stay. The site keeps working while you do it.
+
 ## Changing the admin password
 
 Change `ADMIN_PASSWORD` in the Worker's settings, then enter the new password in **Settings** on each admin's phone. The password also signs the gallery's photo links, so members who have the gallery open just reload the page to see the photos again.

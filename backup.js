@@ -49,7 +49,7 @@ var Backup = (function () {
   /* inbox(path) -> Promise of JSON (the admin page's inbox call); photoUrl(d, p, size) -> address of a photo.
      onStatus(message) shows progress. Resolves with { blob, name, photos }. */
   function make(inbox, photoUrl, onStatus) {
-    var files = [], records = {}, d;
+    var files = [], records = {}, d, archive = [];
     var parts = [["member:", "members"], ["c:", "comments"], ["owner:", "who sent which photo"], ["own:", "members' sent photos"], ["v:", "votes"], ["moved:", "earlier invite codes"]];
     onStatus("Getting the gallery…");
     return inbox("/gallery").then(function (g) {
@@ -69,6 +69,9 @@ var Backup = (function () {
         return page(null).then(nextPart);
       }
       return nextPart();
+    }).then(function () {
+      onStatus("Getting the theme archive…");
+      return inbox("/archive").then(function (a) { archive = a.weeks || []; }, function () { archive = []; });   // older inboxes have no archive
     }).then(function () {
       var n = 0;
       function nextPhoto() {
@@ -91,14 +94,14 @@ var Backup = (function () {
       var t = new Date(), pad = function (n) { return (n < 10 ? "0" : "") + n; };
       var day = t.getFullYear() + "-" + pad(t.getMonth() + 1) + "-" + pad(t.getDate());   // this phone's date
       var data = { made: new Date().toISOString(), members: records["member:"], comments: records["c:"], owners: records["owner:"],
-                   sent: records["own:"], votes: records["v:"], earlierCodes: records["moved:"] };
+                   sent: records["own:"], votes: records["v:"], earlierCodes: records["moved:"], series: d.series || [], archive: archive };
       var readme = "The Conscious Frame – backup made on " + day + "\r\n\r\n" +
         "Keep this file private: it contains members' invite codes.\r\n\r\n" +
         "photos/                   Every photo in the gallery: NAME.webp or NAME.jpg (large) and NAME-sm (thumbnail)\r\n" +
         "photos.csv                The list of photos, to open in a spreadsheet\r\n" +
         "gallery.json              The gallery as the inbox keeps it (titles, photographers, camera settings, dates)\r\n" +
         "photos-of-the-week.json   The current Photos of the week\r\n" +
-        "data.json                 Members and their invite codes, comments, votes, and who sent which photo\r\n\r\n" +
+        "data.json                 Members and their invite codes, comments, votes, who sent which photo, series and the theme archive\r\n\r\n" +
         d.photos.length + " photos, " + records["member:"].length + " members.\r\n";
       var all = [text("README.txt", readme), text("photos.csv", csv(d.photos)), text("gallery.json", JSON.stringify(d.photos, null, 2)),
                  text("photos-of-the-week.json", JSON.stringify(d.potw, null, 2)), text("data.json", JSON.stringify(data, null, 2))].concat(files);
@@ -176,7 +179,7 @@ var Backup = (function () {
         var full = b.photoFile(p.id + "." + p.ext), thumb = b.photoFile(p.id + "-sm." + p.ext);
         if (!full || !thumb) return Promise.reject(new Error("The backup is missing the files for “" + p.title + "”."));
         var type = p.ext === "webp" ? "image/webp" : "image/jpeg", f = new FormData();
-        ["id", "title", "by", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th"].forEach(function (k) { f.append(k, p[k] == null ? "" : p[k]); });
+        ["id", "title", "by", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th", "series", "pubOk", "pub"].forEach(function (k) { f.append(k, p[k] == null ? "" : p[k]); });
         f.append("full", new Blob([full], { type: type }), "photo." + p.ext);
         f.append("thumb", new Blob([thumb], { type: type }), "thumb." + p.ext);
         return inbox("/admin/restore/photo", { form: f }).then(function (r) { if (!r.already) done.photos++; photos[p.id] = true; }).then(nextPhoto);
@@ -191,6 +194,8 @@ var Backup = (function () {
         .concat((data.votes || []).filter(function (e) { return members[code(e)]; }))
         .concat(data.earlierCodes || []);
       if (b.potw) rest.push({ key: "potw", value: b.potw });
+      if (data.series && data.series.length) rest.push({ key: "series", value: data.series });
+      if (data.archive && data.archive.length) rest.push({ key: "archive", value: data.archive });
       return records(rest, "comments and votes");
     }).then(function () { return done; });
   }
