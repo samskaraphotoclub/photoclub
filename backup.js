@@ -50,7 +50,7 @@ var Backup = (function () {
      onStatus(message) shows progress. Resolves with { blob, name, photos }. */
   function make(inbox, photoUrl, onStatus) {
     var files = [], records = {}, d, archive = [], events = [], downloads = [];
-    var parts = [["member:", "members"], ["c:", "comments"], ["owner:", "who sent which photo"], ["own:", "members' sent photos"], ["v:", "votes"], ["moved:", "earlier invite codes"], ["rsvp:", "event sign-ups"]];
+    var parts = [["member:", "members"], ["c:", "comments"], ["owner:", "who sent which photo"], ["own:", "members' sent photos"], ["h:", "hearts"], ["v:", "votes from before hearts"], ["moved:", "earlier invite codes"], ["rsvp:", "event sign-ups"]];
     onStatus("Getting the gallery…");
     return inbox("/gallery").then(function (g) {
       d = g;
@@ -66,7 +66,7 @@ var Backup = (function () {
             return r.cursor ? page(r.cursor) : null;
           });
         }
-        return page(null).then(nextPart);
+        return page(null).catch(function (e) { if (prefix === "h:" && /Unknown part/.test(e.message)) return null; throw e; }).then(nextPart);   // older inboxes have no hearts
       }
       return nextPart();
     }).then(function () {
@@ -115,7 +115,7 @@ var Backup = (function () {
       var t = new Date(), pad = function (n) { return (n < 10 ? "0" : "") + n; };
       var day = t.getFullYear() + "-" + pad(t.getMonth() + 1) + "-" + pad(t.getDate());   // this phone's date
       var data = { made: new Date().toISOString(), members: records["member:"], comments: records["c:"], owners: records["owner:"],
-                   sent: records["own:"], votes: records["v:"], earlierCodes: records["moved:"], series: d.series || [], archive: archive,
+                   sent: records["own:"], hearts: records["h:"], votes: records["v:"], earlierCodes: records["moved:"], series: d.series || [], archive: archive,
                    people: d.people || {}, events: events, signups: records["rsvp:"], downloads: downloads };
       var readme = "The Conscious Frame – backup made on " + day + "\r\n\r\n" +
         "Keep this file private: it contains members' invite codes.\r\n\r\n" +
@@ -124,7 +124,7 @@ var Backup = (function () {
         "photos.csv                The list of photos, to open in a spreadsheet\r\n" +
         "gallery.json              The gallery as the inbox keeps it (titles, photographers, camera settings, dates)\r\n" +
         "photos-of-the-week.json   The current Photos of the month\r\n" +
-        "data.json                 Members and their invite codes, comments, votes, who sent which photo, series, the theme archive,\r\n" +
+        "data.json                 Members and their invite codes, comments, hearts, who sent which photo, series, the theme archive,\r\n" +
         "                          photographers' lines about themselves, events and who signed up, the list of downloads\r\n\r\n" +
         d.photos.length + " photos, " + records["member:"].length + " members.\r\n";
       var all = [text("README.txt", readme), text("photos.csv", csv(d.photos)), text("gallery.json", JSON.stringify(d.photos, null, 2)),
@@ -218,6 +218,7 @@ var Backup = (function () {
         .concat((data.comments || []).filter(function (e) { return photos[e.key.slice(2)]; }))
         .concat((data.owners || []).filter(function (e) { return photos[e.key.slice(6)]; }))
         .concat((data.sent || []).filter(function (e) { return members[e.key.slice(4)]; }))
+        .concat(data.hearts || [])                                   // hearts count even after a member leaves (only as numbers)
         .concat((data.votes || []).filter(function (e) { return members[code(e)]; }))
         .concat(data.earlierCodes || []);
       if (b.potw) rest.push({ key: "potw", value: b.potw });

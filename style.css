@@ -249,6 +249,7 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
 .vote-heart svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
 .vote-heart[aria-pressed="true"] { background: var(--red); color: #fff; }
 .vote-heart[aria-pressed="true"] svg { fill: currentColor; }
+.vote-heart[aria-disabled="true"] { cursor: default; }   /* a heart from an earlier day stays */
 .vote-heart.pop { animation: pop .3s ease-out; }
 @keyframes pop { 50% { transform: scale(1.18); } }
 @media (prefers-reduced-motion: reduce) { .vote-heart.pop { animation: none; } }

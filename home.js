@@ -79,10 +79,10 @@
     }
     var potw = ((d.potw && d.potw.items) || []).map(function (x) { var p = d.byId[x.id]; return p ? { p: p, votes: x.votes } : null; }).filter(Boolean);
 
-    // The fan: last month's three most-voted photos (still in the gallery), else Photos of the month, else the newest.
+    // The fan: last month's favourites, by the hearts given that month (still in the gallery), else Photos of the month, else the newest.
     var top = ((d.top && d.top.items) || []).filter(function (x) { return d.byId[x.id]; }).slice(0, 3).map(function (x) { return d.byId[x.id]; });
     var fan = top.length ? top : potw.length ? potw.map(function (x) { return x.p; }) : d.photos.slice(0, 3);
-    var why = top.length ? (fan.length > 1 ? "Most votes last month. In front: " : "Most votes last month: ")
+    var why = top.length ? (fan.length > 1 ? "Most hearts last month. In front: " : "Most hearts last month: ")
             : potw.length ? "Photos of the month. In front: " : fan.length > 1 ? "Newest in the gallery. In front: " : "Newest in the gallery: ";
     if (fan.length) {
       $("hero-fan").innerHTML = '<div class="stage">' + fan.map(function (p, i) {
@@ -101,7 +101,7 @@
     if (potw.length && !potw.every(function (x) { return inFan.indexOf(x.p.id) >= 0; })) {
       $("potw").innerHTML = potw.map(function (x) {
         return '<figure class="print" style="--ar:' + ar(x.p) + '">' + link(x.p, img(Club.photoUrl(d, x.p, "thumb"), x.p, "thumb", x.p.title)) + "<h3" + ml(x.p.title) + ">" + esc(x.p.title) + "</h3><figcaption" + ml(x.p.by) + ">" + esc(x.p.by) +
-          (x.votes ? ", " + x.votes + (x.votes === 1 ? " vote" : " votes") : "") + "</figcaption></figure>";
+          (x.votes ? ", " + x.votes + (x.votes === 1 ? " heart" : " hearts") : "") + "</figcaption></figure>";
       }).join("");
       $("potw-section").hidden = false;
     }

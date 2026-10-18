@@ -1,8 +1,8 @@
 # Setting up the photo inbox
 
-The photo inbox is a small program that runs on Cloudflare's free plan. It keeps photos that members send private until an admin approves or declines them, keeps the approved photos in the members-only gallery, and stores members' comments and monthly votes. Only people with an invite code can see the gallery, send photos, comment or vote, and only the admin password can see waiting photos and vote counts.
+The photo inbox is a small program that runs on Cloudflare's free plan. It keeps photos that members send private until an admin approves or declines them, keeps the approved photos in the members-only gallery, and stores members' comments and hearts. Only people with an invite code can see the gallery, send photos, comment or give hearts, and only the admin password can see waiting photos and the monthly rankings.
 
-**Already set up the inbox before the gallery became members-only?** Repeat point 3 of step 3 with the new `worker.js` (Edit code, replace everything, Deploy). Your members, comments and votes stay as they are.
+**Already set up the inbox before the gallery became members-only?** Repeat point 3 of step 3 with the new `worker.js` (Edit code, replace everything, Deploy). Your members, comments and hearts stay as they are.
 
 You set it up once, in the Cloudflare dashboard, in about 15 minutes. You don't need to install anything. Cloudflare sometimes renames menu items, so the names below may differ slightly.
 
@@ -36,8 +36,8 @@ Open the Worker, then **Settings** > **Variables and Secrets** > **Add**:
 | `ADMIN_PASSWORD` | Secret | A long password, at least 12 characters. Share it only with club admins. |
 | `ALLOWED_ORIGIN` | Text | Your site's address without anything after the domain, for example `https://yourname.github.io` |
 | `WEEKLY_LIMIT` | Text | Optional. How many photos each member can send per 7 days. Default 5. |
-| `VOTES_PER_MONTH` | Text | Optional. How many votes each member can give per month. Default 5. (An old `VOTES_PER_WEEK` setting is no longer used.) |
-| `TIMEZONE` | Text | Optional. When voting months start, for example `Europe/Berlin` (the default) or `Europe/London`. |
+| `HEARTS_PER_DAY` | Text | Optional. How many hearts each member can give per day. Default 20, which keeps a busy club within the free plan's 1,000 saved changes a day. (Old `VOTES_PER_WEEK` or `VOTES_PER_MONTH` settings are no longer used.) |
+| `TIMEZONE` | Text | Optional. When days and months start, for example `Europe/Berlin` (the default) or `Europe/London`. |
 
 Save and deploy.
 
@@ -65,7 +65,7 @@ Then invite your first member: **Members** > type a name > **Create invite code*
 
 ## Updating the inbox program
 
-When `worker.js` changes (new features), open the Worker in Cloudflare > **Edit code**, select everything in the editor, paste the new `worker.js` over it and tap **Deploy**. Nothing stored is lost: members, photos, comments and votes stay. The site keeps working while you do it.
+When `worker.js` changes (new features), open the Worker in Cloudflare > **Edit code**, select everything in the editor, paste the new `worker.js` over it and tap **Deploy**. Nothing stored is lost: members, photos, comments and hearts stay. The site keeps working while you do it.
 
 ## Changing the admin password
 
@@ -76,5 +76,5 @@ Change `ADMIN_PASSWORD` in the Worker's settings, then enter the new password in
 Nothing for a club this size. The free plan allows 1 GB of storage, 100,000 requests a day and 1,000 saved changes a day.
 
 - **Storage:** the gallery's photos are kept here. Each photo takes about 0.5–1.2 MB (large version and thumbnail), so 1 GB holds roughly 1,000 photos. Deleting photos in the admin page's Gallery tab frees the space again. Waiting photos are removed as soon as they're approved or declined; comments take very little space.
-- **Saved changes:** an approved photo uses 9 (4 when it's sent, 5 when it's approved), a comment 3 and a vote 1, so even a busy day of 50 photos, 60 comments and 75 votes stays under the limit.
+- **Saved changes:** an approved photo uses 9 (4 when it's sent, 5 when it's approved), a comment 3 and a heart 2, so even a busy day of 50 photos, 60 comments and 75 hearts stays under the limit.
 - **Requests:** each photo someone opens is one request. Phones keep the photos for a day, so 25 members use only a few thousand a day.

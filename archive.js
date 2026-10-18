@@ -1,5 +1,5 @@
 /* The Conscious Frame – the theme archive, for members: every month's theme and the photos
-   members voted for most that month. Needs config.js and club.js. */
+   members gave the most hearts that month. Needs config.js and club.js. */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
@@ -41,23 +41,23 @@
         var head = '<p class="kicker">' + (current ? "This month · " : later ? "Next month · " : "") + monthName(w.month) + "</p>";
         var theme = w.theme ? '<h2 class="past-theme"' + ml(w.theme.title) + ">" + esc(w.theme.title) + "</h2>" + (w.theme.lede ? '<p class="lede"' + ml(w.theme.lede) + ">" + esc(w.theme.lede) + "</p>" : "")
                             : '<h2 class="past-theme muted">No theme recorded</h2>';
-        var label = picks.length ? '<p class="kicker" style="margin-top:14px">' + (best.length ? "Most-voted entries" : "Most votes that month") + "</p>" : "";
+        var label = picks.length ? '<p class="kicker" style="margin-top:14px">' + (best.length ? "Theme entries with the most hearts" : "Most hearts that month") + "</p>" : "";
         var count = entries ? '<p class="entries-line" style="margin-top:8px"><a href="gallery.html?theme=' + esc(w.month) + '">' + (entries === 1 ? "1 entry" : "All " + entries + " entries") + "</a></p>" : "";
         var body = picks.length ? label + '<div class="just winners">' + picks.map(function (x, i) {
             var p = d.byId[x.id];
             return '<figure class="print" style="--ar:' + (p.tw / p.th || 1.5).toFixed(3) + '"><a href="gallery.html#p-' + esc(p.id) + '"><img src="' + esc(Club.photoUrl(d, p, "thumb")) + '" alt="' + esc(p.title) +
               '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a><figcaption><b' + ml(p.title) + ">" + (i + 1) + ". " + esc(p.title) + "</b> <span" + ml(p.by) + ">" + esc(p.by) + "</span>" +
-              (x.votes ? ", " + x.votes + (x.votes === 1 ? " vote" : " votes") : "") + "</figcaption></figure>";
+              (x.votes ? ", " + x.votes + (x.votes === 1 ? " heart" : " hearts") : "") + "</figcaption></figure>";
           }).join("") + "</div>"
-          : current ? '<p class="muted">The month\'s most-voted photos appear here once it\'s over. <a href="gallery.html#this-month">Vote for this month\'s photos</a></p>'
-          : later ? "" : '<p class="muted">No votes that month.</p>';
+          : current ? '<p class="muted">The photos with the most hearts this month appear here once it\'s over. <a href="gallery.html">Give hearts to photos you like</a></p>'
+          : later ? "" : '<p class="muted">No hearts that month.</p>';
         return '<article class="week">' + head + theme + count + body + "</article>";
       }).join("");
       $("weeks").innerHTML = html;
       $("weeks").hidden = !html;
       Club.layout();
       if (html) $("a-status").hidden = true;
-      else setStatus($("a-status"), "The archive starts with the next theme of the month. Each month's theme and its most-voted photos will be kept here.");
+      else setStatus($("a-status"), "The archive starts with the next theme of the month. Each month's theme and the photos with the most hearts will be kept here.");
     }).catch(function (e) {
       if (e.status === 401) showGate(e.message);
       else { $("a-status").hidden = false; setStatus($("a-status"), e.status === 404 ? "The theme archive opens soon." : e.message, e.status !== 404); }

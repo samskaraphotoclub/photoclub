@@ -2,7 +2,7 @@
  * The Conscious Frame – photo inbox and members-only gallery
  * A small Cloudflare Worker that keeps members' photos private until an admin approves them,
  * keeps the approved photos in the club's gallery (shown only to members), and stores
- * members' comments and monthly votes. Photos an admin puts in the exhibition (only with the
+ * members' comments and hearts. Photos an admin puts in the exhibition (only with the
  * photographer's permission) can be seen by anyone, on the site's Exhibition page. Also keeps the
  * club's downloads: posters, cheat sheets and guides the admins share, for everyone or only members.
  *
@@ -12,7 +12,7 @@
  *   ALLOWED_ORIGIN  variable, the site's address, e.g. https://yourname.github.io
  * Optional variables:
  *   WEEKLY_LIMIT    photos each member can send per 7 days (default 5)
- *   VOTES_PER_MONTH votes each member can give per month (default 5)
+ *   HEARTS_PER_DAY  hearts each member can give per day (default 20; keeps within the free plan's daily writes)
  *   TIMEZONE        the club's time zone, for when weeks and months start (default Europe/Berlin)
  */
 
@@ -44,7 +44,9 @@ const EVENTS = "events";               // photo walks, workshops, exhibitions; s
 const EVENT_KINDS = ["Photo walk", "Workshop", "Exhibition", "Meet-up", "Other"];
 const SIZES = "sizes";                 // sizes of photos added before sizes were kept, for the storage meter
 const STORAGE_KB = 1024 * 1024;        // Cloudflare's free plan: 1 GB
-const TOTALS = "vote-totals";          // each photo's votes from months that are over (and from when votes were weekly); this month's are in tally:MONTH
+const HEARTS = "hearts";               // each photo's number of hearts { totals }, worked out again after every heart
+const HEARTERS = "hearters";           // { codes }: the invite codes with hearts in h:CODE, so counting needs no list request
+// h:CODE = { photoId: "YYYY-MM-DD" }: the photos a member gave a heart, and on which day (one heart per photo, ever)
 const FILES = "files";                 // the club's downloads, newest first; each file is in file:ID, its preview in fthumb:ID
 const FILE_KINDS = ["Poster", "Cheat sheet", "Guide", "Form", "Other"];
 const MAX_FILE = 20 * 1024 * 1024;     // bytes, one download (Cloudflare keeps up to 25 MB in one item)
@@ -302,12 +304,11 @@ async function photoInfo(request, env, rawId) {
   const who = await viewer(request, env);
   const id = photoId(rawId);
   const comments = (await env.INBOX.get("c:" + id, "json")) || [];
-  const month = monthId(Date.now(), env), perMonth = votesPerMonth(env);
-  const out = { photo: id, month, perMonth, perWeek: perMonth, comments: comments.map((c) => publicComment(c)), votes: (await voteCounts(env, Date.now()))[id] || 0 };
+  const out = { photo: id, comments: comments.map((c) => publicComment(c)), votes: (await heartCounts(env))[id] || 0, perDay: heartsPerDay(env) };
   if (who.code) {
-    const [mine, owner] = await Promise.all([env.INBOX.get("v:" + month + ":" + who.code, "json"), env.INBOX.get("owner:" + id)]);
-    const votes = mine || [];
-    Object.assign(out, { member: who.name, voted: votes.includes(id), votesLeft: Math.max(0, perMonth - votes.length), own: !!owner && who.codes.includes(owner) });
+    const [recs, owner] = await Promise.all([Promise.all(who.codes.map((c) => env.INBOX.get("h:" + c, "json"))), env.INBOX.get("owner:" + id)]);
+    const day = recs.map((r) => r && r[id]).find(Boolean) || null;    // the day this member gave it a heart
+    Object.assign(out, { member: who.name, voted: !!day, day, canUndo: !!day && day === clubDate(Date.now(), env), own: !!owner && who.codes.includes(owner) });
     out.comments = comments.map((c) => publicComment(c, who.codes));
     if (comments.length) {   // which comments this member has already reported
       const reports = (await env.INBOX.get(REPORTS, "json")) || [];
@@ -330,7 +331,7 @@ async function viewer(request, env) {
   throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
 }
 
-// The whole gallery, Photos of the month and a photo link key that works for 12 to 24 hours.
+// The whole gallery, Photos of the month, each photo's hearts and a photo link key that works for 12 to 24 hours.
 async function gallery(request, env) {
   const who = await viewer(request, env);
   const now = Date.now();
@@ -338,86 +339,93 @@ async function gallery(request, env) {
     seriesRaw(env), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE)]);
   const themes = (archived || []).filter((m) => m.month && m.theme).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
   const cur = monthId(now, env), entry = [nextMonth(cur), cur, previousMonth(cur)].map((mo) => themes.find((t) => t.month === mo)).filter(Boolean)[0] || null;
-  // monthStart: photos added since then can get votes (older pages call it weekStart and perWeek, from when votes were weekly)
+  // monthStart: for the "This month" filter (older pages call it weekStart); votes: each photo's number of hearts
   const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), monthStart: cur + "-01", weekStart: cur + "-01", month: cur,
-                 perMonth: votesPerMonth(env), perWeek: votesPerMonth(env), token, top, themes, entry, votes: await voteCounts(env, now) };
+                 perDay: heartsPerDay(env), token, top, themes, entry, votes: await heartCounts(env) };
   // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick
   const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + ',"series":' + series +
     ',"people":' + (people || "{}") + "}";
   return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
-// Last month's most-voted photos, best first: { month, items: [{ id, votes }] }. Last month's votes can't change any more,
-// so this is worked out once, on the first visit of the month, and kept (one storage write a month).
+// Last month's favourites, best first: { month, items: [{ id, votes }] }, by the hearts given during that month
+// (to any photo, old or new). Worked out once, on the first visit of the month, and kept.
 async function lastMonthsTop(env, now) {
   const month = previousMonth(monthId(now, env)), key = "top:" + month;
   const kept = await env.INBOX.get(key, "json");
   if (kept) return { month, items: kept.items };
-  const keys = await listAll(env, "v:");
-  const items = ranked(tallyByMonth(keys)[month] || {}).slice(0, 10);
+  const items = ranked(heartsIn(await allHearts(env), month)).slice(0, 10);
   await env.INBOX.put(key, JSON.stringify({ items }), { expirationTtl: 40 * 86400 });
-  await addFinishedPeriods(env, now, null, keys);
   return { month, items };
 }
 function ranked(tally) {
   return Object.entries(tally).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id));
 }
-// Each month's votes per photo, from members' vote records (v:MONTH:CODE). Months from before votes became
-// monthly add up their weekly records (v:WEEK:CODE) for the weeks that start in them. A month with monthly
-// records counts only those.
-function tallyByMonth(keys) {
-  const monthly = {}, weekly = {};
-  for (const k of keys) {
-    const p = k.name.split(":")[1], votes = (k.metadata && k.metadata.votes) || [];
-    const t = /^\d{4}-\d{2}$/.test(p) ? (monthly[p] ||= {}) : /^\d{4}-W\d{2}$/.test(p) ? (weekly[mondayOf(p).slice(0, 7)] ||= {}) : null;
-    if (t) for (const id of votes) t[id] = (t[id] || 0) + 1;
-  }
-  return Object.assign(weekly, monthly);
-}
 
-/* ------------------------------------------------------------------ vote counts */
-// Every photo shows how many votes it has, as they come in (who voted for what stays secret).
-// This month's counts are recounted from members' votes after each vote; months that are over are added to the totals once.
-async function voteCounts(env, now) {
-  const [totals, tally] = await Promise.all([voteTotals(env, now), env.INBOX.get("tally:" + monthId(now, env), "json")]);
-  const out = Object.assign({}, totals.totals);
-  for (const [id, n] of Object.entries(tally || {})) out[id] = (out[id] || 0) + n;
-  return out;
-}
-async function voteTotals(env, now) {
-  const kept = await env.INBOX.get(TOTALS, "json");
-  if (kept && kept.monthly) return kept;
-  // the first time (from all the votes still kept), or totals from when votes were weekly: those weeks are all over now
-  return addFinishedPeriods(env, now, Object.assign(kept || { weeks: [], totals: {} }, { monthly: true }));
-}
-async function addFinishedPeriods(env, now, start, keys) {
-  const totals = start || (await voteTotals(env, now)), current = monthId(now, env), done = new Set(totals.weeks);
-  let added = false;
-  for (const k of keys || (await listAll(env, "v:"))) {
-    const p = k.name.split(":")[1];
-    const over = /^\d{4}-W\d{2}$/.test(p) || (/^\d{4}-\d{2}$/.test(p) && p < current);   // weekly votes ended when votes became monthly
-    if (!over || done.has(p)) continue;
-    if (!totals.weeks.includes(p)) totals.weeks.push(p);
-    for (const id of (k.metadata && k.metadata.votes) || []) totals.totals[id] = (totals.totals[id] || 0) + 1;
-    added = true;
+/* ------------------------------------------------------------------ hearts */
+// A member gives a photo a heart: one per photo, any photo, at any time. It can be taken back on the same day
+// (a mis-tap), after that it stays. Each photo shows its number of hearts; who gave them stays secret.
+// Each month's favourites are the photos that got the most hearts during that month.
+function heartsPerDay(env) { const n = parseInt(env.HEARTS_PER_DAY, 10); return n > 0 ? n : 20; }
+
+// The codes with hearts. The first time, votes from before hearts (weekly or monthly records, kept up to 150 days)
+// become hearts, dated the Monday of their week or the 1st of their month.
+async function heartIndex(env) {
+  const kept = await env.INBOX.get(HEARTERS, "json");
+  if (kept) return kept;
+  const byCode = {};
+  for (const k of await listAll(env, "v:")) {
+    const [, period, code] = k.name.split(":");
+    const day = /^\d{4}-W\d{2}$/.test(period) ? mondayOf(period) : /^\d{4}-\d{2}$/.test(period) ? period + "-01" : "";
+    if (!day || !CODE_RE.test(code || "")) continue;
+    const r = byCode[code] || (byCode[code] = {});
+    for (const id of (k.metadata && k.metadata.votes) || []) if (!r[id] || day < r[id]) r[id] = day;
   }
-  if (added || start) {
-    totals.weeks = totals.weeks.sort().slice(-120);        // the months and weeks already added (their records expire long before)
-    await env.INBOX.put(TOTALS, JSON.stringify(totals));
-  }
-  return totals;
+  const codes = new Set((await listAll(env, "h:")).map((k) => k.name.slice(2)));     // (and anyone with hearts already, if the list was lost)
+  for (const [code, r] of Object.entries(byCode)) { await mergeHearts(env, code, r); codes.add(code); }
+  const index = { codes: [...codes] };
+  await env.INBOX.put(HEARTERS, JSON.stringify(index));
+  return index;
 }
-// this month's count for every photo, from members' vote records; fresh = the record just saved (lists can lag a moment)
-async function recountMonth(env, month, fresh) {
-  const tally = {};
-  let seen = false;
-  for (const k of await listAll(env, "v:" + month + ":")) {
-    const votes = k.name === fresh.key ? (seen = true, fresh.votes) : (k.metadata && k.metadata.votes) || [];
-    for (const id of votes) tally[id] = (tally[id] || 0) + 1;
-  }
-  if (!seen) for (const id of fresh.votes) tally[id] = (tally[id] || 0) + 1;
-  await env.INBOX.put("tally:" + month, JSON.stringify(tally), { expirationTtl: 45 * 86400 });
-  return tally;
+// adds hearts to a member's record, keeping the earliest day for each photo
+async function mergeHearts(env, code, add) {
+  const rec = (await env.INBOX.get("h:" + code, "json")) || {};
+  let changed = false;
+  for (const [id, day] of Object.entries(add)) if (!rec[id] || day < rec[id]) { rec[id] = day; changed = true; }
+  if (changed) await env.INBOX.put("h:" + code, JSON.stringify(rec));
+  return changed;
+}
+async function addHearter(env, index, code) {
+  if (index.codes.includes(code)) return;
+  index.codes.push(code);
+  await env.INBOX.put(HEARTERS, JSON.stringify(index));
+}
+async function allHearts(env, index) {   // [[code, { photo: day }]]
+  index = index || (await heartIndex(env));
+  const recs = await Promise.all(index.codes.map((c) => env.INBOX.get("h:" + c, "json")));
+  return index.codes.map((c, i) => [c, recs[i] || {}]);
+}
+function heartsIn(recs, month) {         // hearts given during a month, per photo
+  const t = {};
+  for (const [, r] of recs) for (const [id, day] of Object.entries(r)) if (String(day).startsWith(month)) t[id] = (t[id] || 0) + 1;
+  return t;
+}
+async function heartCounts(env) {        // each photo's hearts, from the kept counts
+  const kept = await env.INBOX.get(HEARTS, "json");
+  return kept ? kept.totals : (await recountHearts(env)).totals;
+}
+// counts every photo's hearts again from members' records; fresh = [code, record] just saved (another place may not see it yet)
+async function recountHearts(env, index, fresh) {
+  index = index || (await heartIndex(env));
+  const recs = await allHearts(env, index);
+  if (fresh) { const i = recs.findIndex((x) => x[0] === fresh[0]); if (i >= 0) recs[i] = fresh; else recs.push(fresh); }
+  const totals = {};
+  for (const [, r] of recs) for (const id of Object.keys(r)) totals[id] = (totals[id] || 0) + 1;
+  await env.INBOX.put(HEARTS, JSON.stringify({ totals, at: Date.now() }));
+  return { totals, recs };
+}
+function niceDay(day) {
+  try { return new Date(day + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" }); } catch { return day; }
 }
 
 /* ------------------------------------------------------------------ the public exhibition */
@@ -488,7 +496,7 @@ async function saveSeries(request, env) {
 
 /* ------------------------------------------------------------------ the theme archive */
 // Every month's theme (saved when an admin publishes the home page) and the photos with the most votes that month.
-// A month's favourites are counted once the month is over (months from when votes were weekly add up the weeks that start in them).
+// A month's favourites, by the hearts given during it, are counted once the month is over.
 async function archive(request, env) {
   await viewer(request, env);
   const now = Date.now();
@@ -515,9 +523,12 @@ async function countFinishedMonths(env, months, now, always) {
   const prev = previousMonth(done);
   let changed = !!always;
   if (always || !months.some((m) => m.month === prev && m.counted)) {
-    const keys = await listAll(env, "v:"), byMonth = tallyByMonth(keys), perPhoto = {}, tally = {};
-    for (const k of keys) for (const id of (k.metadata && k.metadata.votes) || []) perPhoto[id] = (perPhoto[id] || 0) + 1;   // every photo's votes, for the theme entries
-    for (const [month, t] of Object.entries(byMonth)) if (month < done && (always || month === prev)) tally[month] = t;
+    const recs = await allHearts(env), perPhoto = {}, tally = {};
+    for (const [, r] of recs) for (const [id, day] of Object.entries(r)) {
+      perPhoto[id] = (perPhoto[id] || 0) + 1;                // every photo's hearts, for the theme entries
+      const month = String(day).slice(0, 7);
+      if (month < done && (always || month === prev)) (tally[month] ||= {})[id] = (tally[month][id] || 0) + 1;
+    }
     const gallery = (await env.INBOX.get(GALLERY, "json")) || [];
     const counted = always ? Object.keys(tally).concat(prev in tally ? [] : [prev]) : [prev];
     for (const month of counted) {
@@ -618,22 +629,26 @@ async function vote(request, env) {
   const m = await member(request, env);
   const body = await request.json().catch(() => ({}));
   const id = photoId(body.photo);
-  const now = Date.now(), month = monthId(now, env), perMonth = votesPerMonth(env), key = "v:" + month + ":" + m.code;
-  const votes = (await env.INBOX.get(key, "json")) || [];
-  if (votes.includes(id)) votes.splice(votes.indexOf(id), 1);          // voting again takes the vote back, to use on another photo
-  else {
+  const today = clubDate(Date.now(), env), index = await heartIndex(env);
+  const recs = await Promise.all(m.codes.map((c) => env.INBOX.get("h:" + c, "json")));
+  const at = m.codes.findIndex((c, i) => recs[i] && recs[i][id]);
+  let code = m.code, rec = recs[0] || {};
+  if (at >= 0) {                                                     // tapping again takes the heart back, on the day it was given
+    code = m.codes[at]; rec = recs[at];
+    if (rec[id] !== today) throw fail(409, "You gave this photo a heart on " + niceDay(rec[id]) + ". A heart can only be taken back on the day you give it.");
+    delete rec[id];
+  } else {
     const [owner, list] = await Promise.all([env.INBOX.get("owner:" + id), env.INBOX.get(GALLERY, "json")]);
-    if (m.codes.includes(owner)) throw fail(403, "You can't vote for your own photo.");
-    const p = (list || []).find((x) => x.id === id);
-    if (!p) throw fail(404, "This photo isn't in the gallery any more.");
-    if (!String(p.added || "").startsWith(month)) throw fail(409, "Voting has closed for this photo. Each month's votes are for the photos added that month.");
-    if (votes.length >= perMonth) throw fail(409, "You've used your " + perMonth + " votes this month. Take one back to vote for this photo.");
-    votes.push(id);
+    if (m.codes.includes(owner)) throw fail(403, "You can't give your own photo a heart.");
+    if (!(list || []).some((x) => x.id === id)) throw fail(404, "This photo isn't in the gallery any more.");
+    const perDay = heartsPerDay(env), given = recs.reduce((n, r) => n + Object.values(r || {}).filter((d) => d === today).length, 0);
+    if (given >= perDay) throw fail(429, "You've given " + perDay + " hearts today. You can give more tomorrow.");
+    rec[id] = today;
   }
-  // the votes also go in the key's metadata, so the admin's standings need only one list request
-  await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 150 * 86400 });
-  const tally = await recountMonth(env, month, { key, votes }), totals = await voteTotals(env, now);
-  return json({ voted: votes.includes(id), votesLeft: perMonth - votes.length, perMonth, perWeek: perMonth, month, votes: (totals.totals[id] || 0) + (tally[id] || 0) });
+  await env.INBOX.put("h:" + code, JSON.stringify(rec));
+  await addHearter(env, index, code);
+  const { totals } = await recountHearts(env, index, [code, rec]);
+  return json({ voted: at < 0, day: at < 0 ? today : null, canUndo: at < 0, votes: totals[id] || 0 });
 }
 
 async function addComment(request, env) {
@@ -711,16 +726,15 @@ async function removeComment(env, rawId, cid, codes) {
   return json({ ok: true });
 }
 
-// A month's ranking for the admin page, with how many members voted (never who voted for what)
+// A month's ranking for the admin page: the hearts given during it, and how many members gave hearts (never who gave which)
 async function standings(url, env) {
   const now = Date.now();
   const current = monthId(now, env), previous = previousMonth(current);
   const month = url.searchParams.get("month") || current;
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail(400, "Unknown month.");
-  let keys = await listAll(env, "v:" + month + ":");
-  if (!keys.length) keys = (await listAll(env, "v:")).filter((k) => { const w = k.name.split(":")[1]; return /^\d{4}-W\d{2}$/.test(w) && mondayOf(w).startsWith(month); });   // from when votes were weekly
-  const voters = new Set(keys.filter((k) => ((k.metadata && k.metadata.votes) || []).length).map((k) => k.name.split(":")[2])).size;
-  const ranking = ranked(tallyByMonth(keys)[month] || {}).map((x) => ({ photo: x.id, votes: x.votes }));
+  const recs = await allHearts(env);
+  const voters = recs.filter(([, r]) => Object.values(r).some((d) => String(d).startsWith(month))).length;
+  const ranking = ranked(heartsIn(recs, month)).map((x) => ({ photo: x.id, votes: x.votes }));
   return json({ month, current, previous, voters, ranking });
 }
 
@@ -887,22 +901,26 @@ async function newCode(env, raw) {
   const old = normalize(raw);
   const m = await env.INBOX.get("member:" + old, "json");
   if (!m) throw fail(404, "That member isn't in the club any more. Refresh the list.");
-  const code = randomString(12), now = Date.now(), month = monthId(now, env);
+  const code = randomString(12), now = Date.now(), index = await heartIndex(env);
   const prev = (m.prev || []).concat(old).slice(-10);
   const rec = { name: m.name, created: m.created, renewed: now, prev };
   if (m.bio) rec.bio = m.bio;
   await env.INBOX.put("member:" + code, JSON.stringify(rec), { metadata: { name: m.name, created: m.created } });
-  const [own, votes] = await Promise.all([env.INBOX.get("own:" + old), env.INBOX.getWithMetadata("v:" + month + ":" + old)]);
+  const [own, hearts] = await Promise.all([env.INBOX.get("own:" + old), env.INBOX.get("h:" + old)]);
   if (own) await env.INBOX.put("own:" + code, own);
-  if (votes.value) await env.INBOX.put("v:" + month + ":" + code, votes.value, { metadata: votes.metadata, expirationTtl: 150 * 86400 });
+  if (hearts) {                                                      // their hearts move to the new code
+    await env.INBOX.put("h:" + code, hearts);
+    index.codes = index.codes.filter((c) => c !== old).concat(code);
+    await env.INBOX.put(HEARTERS, JSON.stringify(index));
+  }
   for (const p of prev) await env.INBOX.put("moved:" + p, code);     // photos they sent earlier, still waiting, follow them
-  await Promise.all(["member:" + old, "own:" + old, "v:" + month + ":" + old].map((k) => env.INBOX.delete(k)));
+  await Promise.all(["member:" + old, "own:" + old, "h:" + old].map((k) => env.INBOX.delete(k)));
   return json({ code, name: m.name, created: m.created });
 }
 
 // For the admin page's backup: one part of the club's records at a time, 250 entries per call
 // (a Worker may only make 1,000 storage calls per request).
-const EXPORTABLE = ["member:", "c:", "owner:", "own:", "v:", "moved:", "rsvp:"];
+const EXPORTABLE = ["member:", "c:", "owner:", "own:", "h:", "v:", "moved:", "rsvp:"];
 async function exportPart(url, env) {
   const prefix = url.searchParams.get("prefix") || "";
   if (!EXPORTABLE.includes(prefix)) throw fail(400, "Unknown part of the backup.");
@@ -913,7 +931,7 @@ async function exportPart(url, env) {
     : await Promise.all(page.keys.map(async (k) => {
         const raw = await env.INBOX.get(k.name);
         let value = raw;                                   // owner: and moved: hold a plain invite code
-        if (prefix === "member:" || prefix === "c:" || prefix === "own:" || prefix === "rsvp:") try { value = JSON.parse(raw); } catch { /* keep the text */ }
+        if (prefix === "member:" || prefix === "c:" || prefix === "own:" || prefix === "rsvp:" || prefix === "h:") try { value = JSON.parse(raw); } catch { /* keep the text */ }
         return { key: k.name, value };
       }));
   return json({ prefix, entries, cursor: page.list_complete ? null : page.cursor });
@@ -926,7 +944,8 @@ const CODE_RE = /^[0-9A-Z]{8,32}$/;
 async function restoreRecords(request, env) {
   const body = await request.json().catch(() => ({}));
   const entries = Array.isArray(body.entries) ? body.entries.slice(0, 120) : [];
-  let added = 0, merged = 0, skipped = 0;
+  let added = 0, merged = 0, skipped = 0, hearts = false;
+  const index = await heartIndex(env);
   for (const e of entries) {
     const key = String(e && e.key || ""), v = e && e.value;
     const [prefix, rest] = [key.slice(0, key.indexOf(":") + 1), key.slice(key.indexOf(":") + 1)];
@@ -962,13 +981,23 @@ async function restoreRecords(request, env) {
       if (await env.INBOX.get(prefix + name)) { skipped++; continue; }
       await env.INBOX.put(prefix + name, v);
       added++;
-    } else if (prefix === "v:") {
-      const m = rest.match(/^(\d{4}-W\d{2}|\d{4}-(?:0[1-9]|1[0-2])):([0-9A-Z]{8,32})$/);   // monthly votes, or weekly ones from before
-      if (!m || !Array.isArray(v)) throw fail(400, "The backup has a vote that can't be read.");
-      if (await env.INBOX.get(key)) { skipped++; continue; }
-      const votes = v.map((x) => photoId(x)).slice(0, 10);
-      await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 150 * 86400 });
-      added++;
+    } else if (prefix === "h:" || prefix === "v:") {
+      // hearts, or votes from a backup made before hearts (they become hearts, dated their week's Monday or month's 1st)
+      let code, add = {};
+      if (prefix === "h:") {
+        code = rest;
+        if (!CODE_RE.test(code) || !v || typeof v !== "object" || Array.isArray(v)) throw fail(400, "The backup has hearts that can't be read.");
+        for (const [id, day] of Object.entries(v).slice(0, 5000)) if (/^\d{4}-\d{2}-\d{2}$/.test(day)) add[photoId(id)] = day;
+      } else {
+        const m = rest.match(/^(\d{4}-W\d{2}|\d{4}-(?:0[1-9]|1[0-2])):([0-9A-Z]{8,32})$/);
+        if (!m || !Array.isArray(v)) throw fail(400, "The backup has a vote that can't be read.");
+        code = m[2];
+        const day = m[1].includes("W") ? mondayOf(m[1]) : m[1] + "-01";
+        for (const id of v.slice(0, 10)) add[photoId(id)] = day;
+      }
+      if (!(await mergeHearts(env, code, add))) { skipped++; continue; }
+      await addHearter(env, index, code);
+      hearts = true; added++;
     } else if (key === PEOPLE) {
       if (!v || typeof v !== "object" || Array.isArray(v)) throw fail(400, "The backup's photographer lines can't be read.");
       const people = (await env.INBOX.get(PEOPLE, "json")) || {};
@@ -1024,6 +1053,7 @@ async function restoreRecords(request, env) {
       added++;
     } else throw fail(400, "The backup has a record the inbox doesn't know.");
   }
+  if (hearts) await recountHearts(env, index);
   return json({ ok: true, added, merged, skipped });
 }
 
@@ -1296,7 +1326,6 @@ function photoId(x) {
   return v;
 }
 function weeklyLimit(env) { const n = parseInt(env.WEEKLY_LIMIT, 10); return n > 0 ? n : 5; }
-function votesPerMonth(env) { const n = parseInt(env.VOTES_PER_MONTH, 10); return n > 0 ? n : 5; }
 // the club's calendar date, YYYY-MM-DD
 function clubDate(ms, env) {
   try {

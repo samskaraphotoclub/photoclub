@@ -7,9 +7,9 @@ var Viewer = (function () {
 
   /* A tile with its viewer. thumb, full: the image addresses.
      o.cls: extra classes; o.series: the names of its series; o.extra: HTML under the details; o.byHref: link for the photographer's name;
-     o.votes: its number of votes (shown on the photo), which also makes room for the vote button beside the title. */
+     o.votes: its number of hearts (shown on the photo), which also makes room for the heart button beside the title. */
   var HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 4.3 13a4.9 4.9 0 0 1 0-7 4.9 4.9 0 0 1 7 0l.7.7.7-.7a4.9 4.9 0 0 1 7 0 4.9 4.9 0 0 1 0 7Z"/></svg>';
-  function badge(n, cls) { return '<span class="' + cls + '"' + (n ? "" : " hidden") + ' aria-label="' + n + (n === 1 ? " vote" : " votes") + '">' + HEART + "<b>" + (n | 0) + "</b></span>"; }
+  function badge(n, cls) { return '<span class="' + cls + '"' + (n ? "" : " hidden") + ' aria-label="' + n + (n === 1 ? " heart" : " hearts") + '">' + HEART + "<b>" + (n | 0) + "</b></span>"; }
   function tile(p, thumb, full, o) {
     o = o || {};
     var id = esc(p.id), title = esc(p.title), ar = (p.tw > 0 && p.th > 0 ? p.tw / p.th : 1.5).toFixed(3);
@@ -90,10 +90,10 @@ var Viewer = (function () {
     });
   }
 
-  // updates a photo's vote count on the photo and its thumbnail
+  // updates a photo's number of hearts on the photo and its thumbnail
   function setVotes(id, n) {
     document.querySelectorAll("#t-" + id + " .tile-votes, #p-" + id + " .vote-badge").forEach(function (b) {
-      b.hidden = !n; b.querySelector("b").textContent = n; b.setAttribute("aria-label", n + (n === 1 ? " vote" : " votes"));
+      b.hidden = !n; b.querySelector("b").textContent = n; b.setAttribute("aria-label", n + (n === 1 ? " heart" : " hearts"));
     });
   }
   return { tile: tile, init: init, sync: sync, addSteps: addSteps, current: current, setVotes: setVotes, HEART: HEART };
