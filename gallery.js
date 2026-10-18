@@ -99,7 +99,7 @@
       (p.fb === "share" ? '<p class="fb-note">Just sharing: no critique needed. Say what you enjoy about it.</p>' : '<p class="fb-note">Feedback welcome: start with what works, then your suggestion.</p>');
     return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
       cls: cats + (Club.thisWeek(data, p) ? " this-week" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") + (p.fb === "share" ? "" : " fb-on"),
-      series: series, lines: lines, byHref: "gallery.html?by=" + encodeURIComponent(p.by),
+      series: series, lines: lines, byHref: "gallery.html?by=" + encodeURIComponent(p.by), votes: (data.votes && data.votes[p.id]) || 0,
       extra: p.pub ? '<p class="note">Also in the club\'s public <a href="exhibition.html#p-' + esc(p.id) + '">exhibition</a>, where anyone can see it.</p>' : ""
     });
   }
@@ -146,13 +146,46 @@
       .catch(function (e) { if (e.status === 401) { Club.signOut(); showGate(e.message); return; } box.innerHTML = '<p class="muted">' + esc(e.message) + "</p>"; });
   }
 
+  // the heart beside the title: vote for this week's photos (not your own); the count on the photo updates
+  function voteControls(v, id, d, thisWeek) {
+    var slot = v.querySelector(".vote-slot"), note = v.querySelector(".vote-note");
+    if (!slot) return;
+    data.votes = data.votes || {};
+    if (typeof d.votes === "number") { data.votes[id] = d.votes; Viewer.setVotes(id, d.votes); }
+    var left = function (n) { return n + " of " + d.perWeek + " votes left this week"; };
+    if (!thisWeek || !d.member) { slot.innerHTML = ""; note.textContent = ""; note.hidden = true; return; }
+    note.hidden = false;
+    if (d.own) { slot.innerHTML = ""; note.textContent = "Your photo, so you can't vote for it."; return; }
+    slot.innerHTML = '<button class="vote-heart" type="button" aria-pressed="' + !!d.voted + '" aria-label="' + (d.voted ? "Take back your vote" : "Vote for this photo") + '">' + Viewer.HEART + "</button>";
+    note.textContent = (d.voted ? "You voted for this photo. " : "Tap the heart to vote. ") + left(d.votesLeft) + ".";
+    var btn = slot.querySelector("button");
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      Club.call("/vote", { method: "POST", json: { photo: id } }).then(function (r) {
+        d.voted = r.voted; d.votesLeft = r.votesLeft;
+        btn.setAttribute("aria-pressed", r.voted); btn.setAttribute("aria-label", r.voted ? "Take back your vote" : "Vote for this photo");
+        btn.classList.remove("pop"); void btn.offsetWidth; if (r.voted) btn.classList.add("pop");
+        if (typeof r.votes === "number") { data.votes[id] = r.votes; Viewer.setVotes(id, r.votes); }
+        note.className = "vote-note"; note.textContent = (r.voted ? "Thanks for voting. " : "Vote taken back. ") + left(r.votesLeft) + ".";
+      }).catch(function (e) { note.className = "vote-note error"; note.textContent = e.message; })
+        .then(function () { btn.disabled = false; });
+    });
+  }
+  // while a photo is open, its count keeps up with other members' votes
+  var polling = null;
+  function watch(v, id) {
+    clearInterval(polling);
+    polling = setInterval(function () {
+      if (!v.classList.contains("open")) { clearInterval(polling); return; }
+      if (document.hidden) return;
+      Club.call("/photo/" + id).then(function (d) { if (typeof d.votes === "number") { data.votes[id] = d.votes; Viewer.setVotes(id, d.votes); } }).catch(function () {});
+    }, 30000);
+  }
+
   function draw(box, id, d, thisWeek) {
     var member = !!d.member, html = "";
-    if (thisWeek && member) {
-      if (d.own) html += '<p class="vote-row muted">This is your photo, so you can\'t vote for it.</p>';
-      else html += '<div class="vote-row"><button class="btn btn-small vote" type="button" aria-pressed="' + !!d.voted + '">' + (d.voted ? "Your vote" : "Vote") +
-        '</button><span class="muted">' + d.votesLeft + " of " + d.perWeek + ' votes left this week</span></div><p class="status vote-status" aria-live="polite"></p>';
-    }
+    voteControls(box.closest(".viewer"), id, d, thisWeek);
+    watch(box.closest(".viewer"), id);
     html += "<h3>Comments" + (d.comments.length ? " (" + d.comments.length + ")" : "") + "</h3>";
     html += d.comments.length
       ? '<ol class="comments">' + d.comments.map(function (c) {
@@ -172,17 +205,6 @@
     }
     box.innerHTML = html;
 
-    var voteBtn = box.querySelector(".vote");
-    if (voteBtn) voteBtn.addEventListener("click", function () {
-      voteBtn.disabled = true;
-      Club.call("/vote", { method: "POST", json: { photo: id } }).then(function (r) {
-        voteBtn.setAttribute("aria-pressed", r.voted);
-        voteBtn.textContent = r.voted ? "Your vote" : "Vote";
-        voteBtn.nextElementSibling.textContent = r.votesLeft + " of " + r.perWeek + " votes left this week";
-        setStatus(box.querySelector(".vote-status"), r.voted ? "Thanks for voting. Results are announced on Monday." : "Vote taken back.");
-      }).catch(function (e) { setStatus(box.querySelector(".vote-status"), e.message, true); })
-        .then(function () { voteBtn.disabled = false; });
-    });
 
     var form = box.querySelector(".comment-form");
     if (form) {

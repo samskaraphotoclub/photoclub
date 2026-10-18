@@ -231,6 +231,28 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
 .viewer h2 { padding-right: 44px; }
 .viewer .by { color: var(--muted); }
 .viewer .desc { font-family: var(--serif); font-size: 1.08rem; }
+/* votes: the heart beside the title, and the count on the photo and its thumbnail */
+.viewer .title-row { display: flex; align-items: flex-start; gap: 12px; padding-right: 44px; }
+.viewer .title-row h2 { flex: 1; min-width: 0; padding-right: 0; }
+.vote-slot:empty { display: none; }
+.vote-heart { flex: none; width: 52px; height: 52px; margin-top: -4px; padding: 0; display: grid; place-items: center; border-radius: 50%;
+  border: 2px solid var(--red); background: var(--surface); color: var(--red); cursor: pointer; }
+.vote-heart svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.vote-heart[aria-pressed="true"] { background: var(--red); color: #fff; }
+.vote-heart[aria-pressed="true"] svg { fill: currentColor; }
+.vote-heart.pop { animation: pop .3s ease-out; }
+@keyframes pop { 50% { transform: scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .vote-heart.pop { animation: none; } }
+.vote-note { font-size: .9rem; color: var(--muted); margin: 4px 0 0; }
+.vote-note:empty { display: none; }
+.vote-note.error { color: var(--accent); font-weight: 600; }
+.vote-badge, .tile-votes { position: absolute; z-index: 1; display: inline-flex; align-items: center; gap: 5px; border-radius: 999px;
+  background: rgb(0 0 0 / .62); color: #fff; font-weight: 600; line-height: 1; pointer-events: none; }
+.vote-badge { top: 12px; left: 12px; padding: 7px 12px; font-size: .95rem; }
+.tile-votes { right: 6px; bottom: 6px; padding: 4px 8px; font-size: .8rem; }
+.vote-badge svg, .tile-votes svg { width: 1em; height: 1em; fill: #ff5c52; }
+.vote-badge[hidden], .tile-votes[hidden] { display: none !important; }
+.tile > a { position: relative; }
 .viewer .in-series { font-size: .95rem; color: var(--muted); }
 .viewer .in-series b { color: var(--ink); font-weight: 600; }
 .viewer .info .note { margin-top: 16px; }
@@ -251,6 +273,8 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
   .viewer .step { top: auto; bottom: 12px; transform: none; }
   .viewer .info { padding: 20px max(var(--gutter), env(safe-area-inset-left)) calc(28px + env(safe-area-inset-bottom)); overflow: visible; }
   .viewer h2 { padding-right: 0; }
+  .viewer .title-row { padding-right: 0; }
+  .vote-badge { top: calc(12px + env(safe-area-inset-top)); }
 }
 
 /* about page */

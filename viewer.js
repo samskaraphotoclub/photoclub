@@ -6,23 +6,27 @@ var Viewer = (function () {
   var esc = Club.esc, ml = Club.ml;
 
   /* A tile with its viewer. thumb, full: the image addresses.
-     o.cls: extra classes; o.series: the names of its series; o.extra: HTML under the details; o.byHref: link for the photographer's name. */
+     o.cls: extra classes; o.series: the names of its series; o.extra: HTML under the details; o.byHref: link for the photographer's name;
+     o.votes: its number of votes (shown on the photo), which also makes room for the vote button beside the title. */
+  var HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 4.3 13a4.9 4.9 0 0 1 0-7 4.9 4.9 0 0 1 7 0l.7.7.7-.7a4.9 4.9 0 0 1 7 0 4.9 4.9 0 0 1 0 7Z"/></svg>';
+  function badge(n, cls) { return '<span class="' + cls + '"' + (n ? "" : " hidden") + ' aria-label="' + n + (n === 1 ? " vote" : " votes") + '">' + HEART + "<b>" + (n | 0) + "</b></span>"; }
   function tile(p, thumb, full, o) {
     o = o || {};
     var id = esc(p.id), title = esc(p.title), ar = (p.tw > 0 && p.th > 0 ? p.tw / p.th : 1.5).toFixed(3);
-    var series = Array.isArray(o.series) ? o.series : o.series ? [o.series] : [];
+    var series = Array.isArray(o.series) ? o.series : o.series ? [o.series] : [], voting = o.votes !== undefined;
     var by = o.byHref ? '<a class="by-link" href="' + esc(o.byHref) + '"' + ml(p.by) + ">" + esc(p.by) + "</a>" : "<span" + ml(p.by) + ">" + esc(p.by) + "</span>";
     var rows = [["Lens", p.lens], ["Aperture", p.ap], ["Shutter", p.sh], ["ISO", p.iso]].filter(function (r) { return r[1]; })
       .map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("");
     return '<figure class="tile' + (o.cls ? " " + o.cls : "") + '" id="t-' + id + '" style="--ar:' + ar + '">' +
-      '<a href="#p-' + id + '"><img src="' + esc(thumb) + '" alt="' + title + '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a>' +
+      '<a href="#p-' + id + '"><img src="' + esc(thumb) + '" alt="' + title + '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy">' + (voting ? badge(o.votes, "tile-votes") : "") + "</a>" +
       "<figcaption><b" + ml(p.title) + ">" + title + "</b>" + by + "</figcaption>" +
       '<div class="viewer" id="p-' + id + '" role="dialog" aria-label="' + title + '">' +
         '<a class="shade" href="#t-' + id + '" aria-label="Close" tabindex="-1"></a>' +
         '<div class="box">' +
           '<a class="close" href="#t-' + id + '" aria-label="Close">×</a>' +
-          '<div class="pic"><img src="' + esc(full) + '" alt="' + title + '" width="' + (p.w | 0) + '" height="' + (p.h | 0) + '" loading="lazy"></div>' +
-          '<div class="info"><h2' + ml(p.title) + ">" + title + '</h2><p class="by">' + by + ", " + esc(Club.cats(p).join(", ")) + "</p>" +
+          '<div class="pic"><img src="' + esc(full) + '" alt="' + title + '" width="' + (p.w | 0) + '" height="' + (p.h | 0) + '" loading="lazy">' + (voting ? badge(o.votes, "vote-badge") : "") + "</div>" +
+          '<div class="info">' + (voting ? '<div class="title-row"><h2' + ml(p.title) + ">" + title + '</h2><div class="vote-slot"></div></div><p class="vote-note" aria-live="polite"></p>' : "<h2" + ml(p.title) + ">" + title + "</h2>") +
+            '<p class="by">' + by + ", " + esc(Club.cats(p).join(", ")) + "</p>" +
             (series.length ? '<p class="in-series">Part of the series ' + series.map(function (n) { return "<b" + ml(n) + ">" + esc(n) + "</b>"; }).join(" and ") + "</p>" : "") + (o.lines || "") +
             (p.desc ? '<p class="desc"' + ml(p.desc) + ">" + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "") + (o.extra || "") + "</div>" +
         "</div>" +
@@ -86,5 +90,11 @@ var Viewer = (function () {
     });
   }
 
-  return { tile: tile, init: init, sync: sync, addSteps: addSteps, current: current };
+  // updates a photo's vote count on the photo and its thumbnail
+  function setVotes(id, n) {
+    document.querySelectorAll("#t-" + id + " .tile-votes, #p-" + id + " .vote-badge").forEach(function (b) {
+      b.hidden = !n; b.querySelector("b").textContent = n; b.setAttribute("aria-label", n + (n === 1 ? " vote" : " votes"));
+    });
+  }
+  return { tile: tile, init: init, sync: sync, addSteps: addSteps, current: current, setVotes: setVotes, HEART: HEART };
 })();

@@ -43,6 +43,7 @@ const EVENTS = "events";               // photo walks, workshops, exhibitions; s
 const EVENT_KINDS = ["Photo walk", "Workshop", "Exhibition", "Meet-up", "Other"];
 const SIZES = "sizes";                 // sizes of photos added before sizes were kept, for the storage meter
 const STORAGE_KB = 1024 * 1024;        // Cloudflare's free plan: 1 GB
+const TOTALS = "vote-totals";          // each photo's votes from weeks that are over; this week's are in tally:WEEK
 
 export default {
   async fetch(request, env) {
@@ -285,7 +286,7 @@ async function photoInfo(request, env, rawId) {
   const id = photoId(rawId);
   const comments = (await env.INBOX.get("c:" + id, "json")) || [];
   const week = weekId(Date.now(), env), perWeek = votesPerWeek(env);
-  const out = { photo: id, week, perWeek, comments: comments.map((c) => publicComment(c)) };
+  const out = { photo: id, week, perWeek, comments: comments.map((c) => publicComment(c)), votes: (await voteCounts(env, Date.now()))[id] || 0 };
   if (who.code) {
     const [mine, owner] = await Promise.all([env.INBOX.get("v:" + week + ":" + who.code, "json"), env.INBOX.get("owner:" + id)]);
     const votes = mine || [];
@@ -321,7 +322,7 @@ async function gallery(request, env) {
   const themes = (archived || []).filter((m) => m.month && m.theme).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
   const cur = monthId(now, env), entry = [nextMonth(cur), cur, previousMonth(cur)].map((mo) => themes.find((t) => t.month === mo)).filter(Boolean)[0] || null;
   const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), weekStart: weekStart(now, env), week: weekId(now, env),
-                 perWeek: votesPerWeek(env), token, top, themes, entry };
+                 perWeek: votesPerWeek(env), token, top, themes, entry, votes: await voteCounts(env, now) };
   // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick
   const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + ',"series":' + series +
     ',"people":' + (people || "{}") + "}";
@@ -339,7 +340,51 @@ async function lastWeeksTop(env, now) {
   for (const k of await listAll(env, "v:" + week + ":")) for (const id of (k.metadata && k.metadata.votes) || []) tally[id] = (tally[id] || 0) + 1;
   const items = Object.entries(tally).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 10);
   await env.INBOX.put(key, JSON.stringify({ items }), { expirationTtl: 30 * 86400 });
+  await addFinishedWeeks(env, now);
   return { week, items };
+}
+
+/* ------------------------------------------------------------------ vote counts */
+// Every photo shows how many votes it has, as they come in (who voted for what stays secret).
+// This week's counts are recounted from members' votes after each vote; weeks that are over are added to the totals once.
+async function voteCounts(env, now) {
+  const [totals, tally] = await Promise.all([voteTotals(env, now), env.INBOX.get("tally:" + weekId(now, env), "json")]);
+  const out = Object.assign({}, totals.totals);
+  for (const [id, n] of Object.entries(tally || {})) out[id] = (out[id] || 0) + n;
+  return out;
+}
+async function voteTotals(env, now) {
+  const kept = await env.INBOX.get(TOTALS, "json");
+  if (kept) return kept;
+  return addFinishedWeeks(env, now, { weeks: [], totals: {} });     // the first time: from all the votes still kept (up to 120 days)
+}
+async function addFinishedWeeks(env, now, start) {
+  const totals = start || (await voteTotals(env, now)), current = weekId(now, env), done = new Set(totals.weeks);
+  let added = false;
+  for (const k of await listAll(env, "v:")) {
+    const week = k.name.split(":")[1];
+    if (!/^\d{4}-W\d{2}$/.test(week) || week >= current || done.has(week)) continue;
+    if (!totals.weeks.includes(week)) totals.weeks.push(week);
+    for (const id of (k.metadata && k.metadata.votes) || []) totals.totals[id] = (totals.totals[id] || 0) + 1;
+    added = true;
+  }
+  if (added || start) {
+    totals.weeks = totals.weeks.sort().slice(-40);
+    await env.INBOX.put(TOTALS, JSON.stringify(totals));
+  }
+  return totals;
+}
+// this week's count for every photo, from members' vote records; fresh = the record just saved (lists can lag a moment)
+async function recountWeek(env, week, fresh) {
+  const tally = {};
+  let seen = false;
+  for (const k of await listAll(env, "v:" + week + ":")) {
+    const votes = k.name === fresh.key ? (seen = true, fresh.votes) : (k.metadata && k.metadata.votes) || [];
+    for (const id of votes) tally[id] = (tally[id] || 0) + 1;
+  }
+  if (!seen) for (const id of fresh.votes) tally[id] = (tally[id] || 0) + 1;
+  await env.INBOX.put("tally:" + week, JSON.stringify(tally), { expirationTtl: 14 * 86400 });
+  return tally;
 }
 
 /* ------------------------------------------------------------------ the public exhibition */
@@ -556,7 +601,8 @@ async function vote(request, env) {
   }
   // the votes also go in the key's metadata, so the admin's standings need only one list request
   await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 120 * 86400 });
-  return json({ voted: votes.includes(id), votesLeft: perWeek - votes.length, perWeek, week });
+  const tally = await recountWeek(env, week, { key, votes }), totals = await voteTotals(env, Date.now());
+  return json({ voted: votes.includes(id), votesLeft: perWeek - votes.length, perWeek, week, votes: (totals.totals[id] || 0) + (tally[id] || 0) });
 }
 
 async function addComment(request, env) {
