@@ -49,7 +49,7 @@ var Backup = (function () {
   /* inbox(path) -> Promise of JSON (the admin page's inbox call); photoUrl(d, p, size) -> address of a photo.
      onStatus(message) shows progress. Resolves with { blob, name, photos }. */
   function make(inbox, photoUrl, onStatus) {
-    var files = [], records = {}, d, archive = [], events = [];
+    var files = [], records = {}, d, archive = [], events = [], downloads = [];
     var parts = [["member:", "members"], ["c:", "comments"], ["owner:", "who sent which photo"], ["own:", "members' sent photos"], ["v:", "votes"], ["moved:", "earlier invite codes"], ["rsvp:", "event sign-ups"]];
     onStatus("Getting the gallery…");
     return inbox("/gallery").then(function (g) {
@@ -75,6 +75,25 @@ var Backup = (function () {
         .then(function () { onStatus("Getting the events…"); return inbox("/events?all=1"); })
         .then(function (r) { events = r.upcoming.concat(r.past); }, function () { events = []; });
     }).then(function () {
+      // the downloads: posters, cheat sheets and guides, with their previews
+      return inbox("/files").then(function (r) {
+        downloads = r.files || [];
+        var n = 0;
+        function nextFile() {
+          if (n >= downloads.length) return Promise.resolve();
+          var f = downloads[n++], key = f.pub ? "" : "?t=" + encodeURIComponent(r.token || "");
+          onStatus("Getting download " + n + " of " + downloads.length + "…");
+          var get = function (path) { return inbox(path, { blob: true }).then(function (b) { return b.arrayBuffer(); }); };
+          return get("/file/" + encodeURIComponent(f.id) + key).then(function (b) {
+            files.push({ name: "downloads/" + f.id + "." + f.ext, data: new Uint8Array(b) });
+            return f.tw ? get("/file/" + encodeURIComponent(f.id) + "/thumb" + key).then(function (t) {
+              files.push({ name: "downloads/" + f.id + "-preview." + (f.tt === "image/jpeg" ? "jpg" : "webp"), data: new Uint8Array(t) });
+            }) : null;
+          }).then(nextFile);
+        }
+        return nextFile();
+      }, function (e) { if (!/Not found/.test(e.message)) throw e; downloads = []; });   // older inboxes have no downloads
+    }).then(function () {
       var n = 0;
       function nextPhoto() {
         if (n >= d.photos.length) return Promise.resolve();
@@ -97,15 +116,16 @@ var Backup = (function () {
       var day = t.getFullYear() + "-" + pad(t.getMonth() + 1) + "-" + pad(t.getDate());   // this phone's date
       var data = { made: new Date().toISOString(), members: records["member:"], comments: records["c:"], owners: records["owner:"],
                    sent: records["own:"], votes: records["v:"], earlierCodes: records["moved:"], series: d.series || [], archive: archive,
-                   people: d.people || {}, events: events, signups: records["rsvp:"] };
+                   people: d.people || {}, events: events, signups: records["rsvp:"], downloads: downloads };
       var readme = "The Conscious Frame – backup made on " + day + "\r\n\r\n" +
         "Keep this file private: it contains members' invite codes.\r\n\r\n" +
         "photos/                   Every photo in the gallery: NAME.webp or NAME.jpg (large) and NAME-sm (thumbnail)\r\n" +
+        "downloads/                The files on the Downloads page, with their previews (NAME-preview)\r\n" +
         "photos.csv                The list of photos, to open in a spreadsheet\r\n" +
         "gallery.json              The gallery as the inbox keeps it (titles, photographers, camera settings, dates)\r\n" +
         "photos-of-the-week.json   The current Photos of the week\r\n" +
         "data.json                 Members and their invite codes, comments, votes, who sent which photo, series, the theme archive,\r\n" +
-        "                          photographers' lines about themselves, events and who signed up\r\n\r\n" +
+        "                          photographers' lines about themselves, events and who signed up, the list of downloads\r\n\r\n" +
         d.photos.length + " photos, " + records["member:"].length + " members.\r\n";
       var all = [text("README.txt", readme), text("photos.csv", csv(d.photos)), text("gallery.json", JSON.stringify(d.photos, null, 2)),
                  text("photos-of-the-week.json", JSON.stringify(d.potw, null, 2)), text("data.json", JSON.stringify(data, null, 2))].concat(files);
@@ -151,13 +171,13 @@ var Backup = (function () {
     var json = function (name) { var f = files[pre + name]; return f ? JSON.parse(dec.decode(f)) : null; };
     var data = json("data.json") || {};
     return { made: data.made || "", gallery: json("gallery.json") || [], potw: json("photos-of-the-week.json"), data: data,
-             photoFile: function (name) { return files[pre + "photos/" + name]; } };
+             photoFile: function (name) { return files[pre + "photos/" + name]; }, downloadFile: function (name) { return files[pre + "downloads/" + name]; } };
   }
   /* Restores the chosen photos and members, then adds back comments, votes and the other records for
      everything that's in the club afterwards. inbox(path, opts) is the admin page's inbox call.
      photoIds/memberCodes: what to restore. have: { photos: {id: true}, members: {code: true} } now in the club. */
   function restore(inbox, b, photoIds, memberCodes, have, onStatus) {
-    var data = b.data, done = { photos: 0, members: 0, records: 0 };
+    var data = b.data, done = { photos: 0, members: 0, records: 0, files: 0 };
     var photos = {}, members = {};
     Object.keys(have.photos).forEach(function (id) { photos[id] = true; });
     Object.keys(have.members).forEach(function (c) { members[c] = true; });
@@ -207,6 +227,23 @@ var Backup = (function () {
       if (data.events && data.events.length) rest.push({ key: "events", value: data.events.map(function (e) { var x = {}; for (var k in e) if (k !== "going" && k !== "mine") x[k] = e[k]; return x; }) });
       rest = rest.concat(data.signups || []);
       return records(rest, "comments and votes");
+    }).then(function () {
+      // the downloads that are missing (the inbox skips the ones it already has)
+      var list = data.downloads || [], n = 0;
+      function nextFile() {
+        if (n >= list.length) return Promise.resolve();
+        var x = list[n++], file = b.downloadFile(x.id + "." + x.ext);
+        if (!file) return nextFile();
+        onStatus("Restoring download " + n + " of " + list.length + ": “" + x.title + "”…");
+        var f = new FormData();
+        ["id", "title", "kind", "desc", "added", "tw", "th"].forEach(function (k) { if (x[k] != null) f.append(k, x[k]); });
+        f.append("pub", x.pub ? "1" : "");
+        f.append("file", new Blob([file]), x.id + "." + x.ext);
+        var pv = x.tw && b.downloadFile(x.id + "-preview." + (x.tt === "image/jpeg" ? "jpg" : "webp"));
+        if (pv) f.append("thumb", new Blob([pv], { type: x.tt || "image/webp" }), "preview");
+        return inbox("/admin/files", { form: f }).then(function (r) { if (!r.already) done.files++; }).then(nextFile);
+      }
+      return nextFile();
     }).then(function () { return done; });
   }
 

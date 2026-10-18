@@ -1,8 +1,8 @@
 /* The Conscious Frame – the home page's photos.
    Everyone: a few photos from the public exhibition, picked at random on each visit. Visitors also get one of
    them as the large photo. Members instead see last week's top three as a fan of prints, Photos of the week,
-   the long-term series, the newest photos and the polls' photos, loaded from the club's inbox.
-   Needs config.js and club.js. */
+   the long-term series and the newest photos, loaded from the club's inbox. Everyone sees the next
+   events and the newest downloads. Needs config.js and club.js (and events.js, downloads.js). */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
@@ -29,6 +29,13 @@
     }).join("");
     $("coming-section").hidden = false;
   }).catch(function () { /* no events yet, or the inbox hasn't been updated */ });
+
+  // the three newest downloads (visitors get the ones for everyone)
+  if (window.ClubDownloads) ClubDownloads.load().then(function (d) {
+    if (!d.files || !d.files.length) return;
+    $("downloads").innerHTML = d.files.slice(0, 3).map(function (f) { return ClubDownloads.card(f, d); }).join("");
+    $("downloads-section").hidden = false;
+  }).catch(function () { /* no downloads yet, or the inbox hasn't been updated */ });
   var shown = Club.exhibition().catch(function () { return { photos: [], series: [] }; });
   var gallery = member ? Club.gallery().catch(function () { return null; }) : Promise.resolve(null);
 
@@ -121,10 +128,5 @@
       $("newest-section").hidden = false;
     }
 
-    // the polls' photos
-    document.querySelectorAll(".contest[data-photo]").forEach(function (c) {
-      var p = d.byId[c.getAttribute("data-photo")];
-      if (p) c.insertAdjacentHTML("afterbegin", link(p, img(Club.photoUrl(d, p, "thumb"), p, "thumb", "")));
-    });
   }
 })();

@@ -123,7 +123,7 @@ var Publish = (function () {
     });
   }
 
-  /* replaces marked parts of index.html, e.g. { THEME: "...", CONTESTS: "..." } between <!-- NAME:START --> and <!-- NAME:END --> */
+  /* replaces marked parts of index.html, e.g. { THEME: "..." } between <!-- NAME:START --> and <!-- NAME:END --> */
   function replaceSections(html, sections) {
     Object.keys(sections).forEach(function (name) {
       var a = html.indexOf("<!-- " + name + ":START -->"), b = html.indexOf("<!-- " + name + ":END -->");

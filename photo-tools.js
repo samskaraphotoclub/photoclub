@@ -98,5 +98,5 @@ var PhotoTools = (function () {
     return d === 1 ? "yesterday" : d + " days ago";
   }
 
-  return { readExif: readExif, settingsFromExif: settingsFromExif, prepare: prepare, kb: kb, esc: esc, ago: ago };
+  return { readExif: readExif, settingsFromExif: settingsFromExif, prepare: prepare, decodeImage: decodeImage, encode: encode, kb: kb, esc: esc, ago: ago };
 })();

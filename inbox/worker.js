@@ -3,7 +3,8 @@
  * A small Cloudflare Worker that keeps members' photos private until an admin approves them,
  * keeps the approved photos in the club's gallery (shown only to members), and stores
  * members' comments and weekly votes. Photos an admin puts in the exhibition (only with the
- * photographer's permission) can be seen by anyone, on the site's Exhibition page.
+ * photographer's permission) can be seen by anyone, on the site's Exhibition page. Also keeps the
+ * club's downloads: posters, cheat sheets and guides the admins share, for everyone or only members.
  *
  * Needs (set in the Cloudflare dashboard, see SETUP.md):
  *   INBOX           KV namespace binding
@@ -44,6 +45,17 @@ const EVENT_KINDS = ["Photo walk", "Workshop", "Exhibition", "Meet-up", "Other"]
 const SIZES = "sizes";                 // sizes of photos added before sizes were kept, for the storage meter
 const STORAGE_KB = 1024 * 1024;        // Cloudflare's free plan: 1 GB
 const TOTALS = "vote-totals";          // each photo's votes from weeks that are over; this week's are in tally:WEEK
+const FILES = "files";                 // the club's downloads, newest first; each file is in file:ID, its preview in fthumb:ID
+const FILE_KINDS = ["Poster", "Cheat sheet", "Guide", "Form", "Other"];
+const MAX_FILE = 20 * 1024 * 1024;     // bytes, one download (Cloudflare keeps up to 25 MB in one item)
+const MAX_FILES = 100;
+// what can be shared, by file ending: its type, and whether browsers open it themselves (the rest are saved)
+const FILE_TYPES = {
+  pdf: ["application/pdf", true], png: ["image/png", true], jpg: ["image/jpeg", true], jpeg: ["image/jpeg", true], webp: ["image/webp", true],
+  docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"], xlsx: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  pptx: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"], odt: ["application/vnd.oasis.opendocument.text"],
+  ods: ["application/vnd.oasis.opendocument.spreadsheet"], odp: ["application/vnd.oasis.opendocument.presentation"], zip: ["application/zip"],
+};
 
 export default {
   async fetch(request, env) {
@@ -84,6 +96,8 @@ async function route(request, env) {
   if (parts[0] === "report" && method === "POST") return report(request, env);
   if (parts[0] === "img" && method === "GET" && parts[1] && (parts[2] === "full" || parts[2] === "thumb")) return servePhoto(url, env, parts[1], parts[2]);
   if (parts[0] === "photo" && method === "GET" && parts[1]) return photoInfo(request, env, parts[1]);
+  if (parts[0] === "files" && method === "GET" && !parts[1]) return listFiles(request, env);
+  if (parts[0] === "file" && method === "GET" && parts[1] && (!parts[2] || parts[2] === "thumb")) return serveFile(url, env, parts[1], parts[2] === "thumb");
   if (parts[0] === "vote" && method === "POST") return vote(request, env);
   if (parts[0] === "comment" && method === "POST" && !parts[1]) return addComment(request, env);
   if (parts[0] === "comment" && method === "POST" && parts[1] === "delete") {
@@ -114,6 +128,9 @@ async function route(request, env) {
     if (what === "members" && method === "POST" && a && b === "bio") return adminBio(request, env, a);
     if (what === "events" && method === "POST" && !a) return saveEvent(request, env);
     if (what === "events" && method === "DELETE" && a) return deleteEvent(env, a);
+    if (what === "files" && method === "POST" && !a) return addFile(request, env);
+    if (what === "files" && method === "POST" && a) return editFile(request, env, a);
+    if (what === "files" && method === "DELETE" && a) return deleteFile(env, a);
     if (what === "storage" && method === "GET") return storage(env);
     if (what === "export" && method === "GET") return exportPart(url, env);
     if (what === "restore" && a === "records" && method === "POST") return restoreRecords(request, env);
@@ -1116,8 +1133,110 @@ async function rsvp(request, env, id) {
 /* ------------------------------------------------------------------ the storage meter */
 // How much of Cloudflare's free 1 GB the photos use. Photos added before sizes were kept are measured
 // a few at a time (each check measures up to 30), so the admin page asks again until it's done.
+/* ------------------------------------------------------------------ downloads */
+// Posters, cheat sheets and guides the admins share. Visitors see the ones for everyone; members see all of them.
+async function listFiles(request, env) {
+  let who = null;
+  if (bearer(request)) try { who = await viewer(request, env); } catch (e) { if (e.status !== 401) throw e; }
+  const all = (await env.INBOX.get(FILES, "json")) || [];
+  const files = who ? all : all.filter((f) => f.pub);
+  const out = { files, kinds: FILE_KINDS, member: !!(who && !who.admin), admin: !!(who && who.admin), forMembers: all.length - files.length };
+  if (who && all.some((f) => !f.pub)) out.token = await photoToken(env, Date.now());   // opens the members-only files for 12 to 24 hours
+  return json(out);
+}
+
+async function serveFile(url, env, rawId, thumb) {
+  const id = photoId(rawId);
+  const f = ((await env.INBOX.get(FILES, "json")) || []).find((x) => x.id === id);
+  if (!f || (thumb && !f.tw)) throw fail(404, "This download isn't available any more.");
+  if (!f.pub && !(await checkPhotoToken(env, url.searchParams.get("t")))) throw fail(403, "This download is for club members. Sign in on the club's website to get it.");
+  const value = await env.INBOX.get((thumb ? "fthumb:" : "file:") + id, { type: "stream" });
+  if (!value) throw fail(404, "This download isn't available any more.");
+  const headers = { "Cache-Control": (f.pub ? "public" : "private") + ", max-age=3600", "X-Content-Type-Options": "nosniff" };
+  if (thumb) headers["Content-Type"] = f.tt || "image/webp";
+  else {
+    const [type, opens] = FILE_TYPES[f.ext] || ["application/octet-stream"];
+    const name = (f.title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "download") + "." + f.ext;
+    headers["Content-Type"] = type;
+    headers["Content-Disposition"] = (opens && url.searchParams.get("dl") !== "1" ? "inline" : "attachment") +
+      '; filename="' + name.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "") + "\"; filename*=UTF-8''" + encodeURIComponent(name);
+  }
+  return new Response(value, { headers });
+}
+
+// the first bytes of each kind of file, so a renamed file can't pretend to be a PDF
+function fileMatches(ext, b) {
+  const text = (i, n) => String.fromCharCode(...b.slice(i, i + n));
+  if (ext === "pdf") return text(0, 5) === "%PDF-";
+  if (ext === "png") return b[0] === 0x89 && text(1, 3) === "PNG";
+  if (ext === "jpg" || ext === "jpeg") return b[0] === 0xff && b[1] === 0xd8;
+  if (ext === "webp") return text(0, 4) === "RIFF" && text(8, 4) === "WEBP";
+  return text(0, 4) === "PK\u0003\u0004";                // Word, Excel, PowerPoint, OpenDocument and ZIP files are all ZIP inside
+}
+function fileFields(b, f) {
+  f.title = clean(b.title, 80, "title", true);
+  f.kind = FILE_KINDS.includes(b.kind) ? b.kind : "Other";
+  const desc = clean(b.desc, 300, "description");
+  if (desc) f.desc = desc; else delete f.desc;
+  f.pub = b.pub === true || b.pub === "1" || b.pub === "true";
+  return f;
+}
+
+// A new download (or one from a backup, which keeps its name and date and is skipped if it's already here)
+async function addFile(request, env) {
+  const form = await readForm(request);
+  const file = form.get("file");
+  if (!file || typeof file === "string") throw fail(400, "Choose the file to share.");
+  const ext = String(file.name || "").toLowerCase().split(".").pop();
+  if (!FILE_TYPES[ext]) throw fail(400, "That kind of file can't be shared here. Use a PDF, an image (PNG, JPEG or WebP), a Word, Excel or PowerPoint file, or a ZIP file.");
+  if (file.size > MAX_FILE) throw fail(413, "That file is larger than 20 MB. Save a smaller version (for a PDF, choose a smaller file size when exporting) and try again.");
+  const list = (await env.INBOX.get(FILES, "json")) || [];
+  const keep = form.get("id") ? photoId(form.get("id")) : "";
+  if (keep && list.some((x) => x.id === keep)) return json({ ok: true, already: true, id: keep });
+  if (list.length >= MAX_FILES) throw fail(409, "There are " + MAX_FILES + " downloads already. Delete ones that are no longer needed first.");
+  const bytes = await file.arrayBuffer();
+  if (!fileMatches(ext, new Uint8Array(bytes, 0, Math.min(12, bytes.byteLength)))) throw fail(400, "That file doesn't look like a ." + ext + " file. Check that it opens on your computer, then try again.");
+  const entry = fileFields({ title: form.get("title"), kind: form.get("kind"), desc: form.get("desc"), pub: form.get("pub") }, {});
+  const taken = new Set(list.map((x) => x.id));
+  const slug = slugify(entry.title) === "photo" && !/photo/i.test(entry.title) ? "download" : slugify(entry.title);   // titles in Malayalam have no letters for an address
+  let id = keep || slug, n = 2;
+  while (taken.has(id)) id = slug.slice(0, 44) + "-" + n++;
+  Object.assign(entry, { id, ext, size: bytes.byteLength, added: Math.min(+form.get("added") || Date.now(), Date.now()) });
+  const t = form.get("thumb");
+  let thumb = null;
+  if (t && typeof t !== "string" && t.size) {
+    thumb = await image(t, MAX_THUMB, "preview");
+    entry.tw = Math.min(4000, Math.max(1, parseInt(form.get("tw"), 10) || 1)); entry.th = Math.min(4000, Math.max(1, parseInt(form.get("th"), 10) || 1));
+    entry.tt = t.type; entry.tkb = Math.max(1, Math.round(thumb.byteLength / 1024));
+  }
+  await env.INBOX.put("file:" + id, bytes, { metadata: { type: FILE_TYPES[ext][0] } });
+  if (thumb) await env.INBOX.put("fthumb:" + id, thumb);
+  const fresh = ((await env.INBOX.get(FILES, "json")) || []).filter((x) => x.id !== id);   // read again: the file took a moment
+  fresh.push(entry);
+  fresh.sort((a, b) => b.added - a.added);
+  await env.INBOX.put(FILES, JSON.stringify(fresh));
+  return json({ ok: true, file: entry });
+}
+
+async function editFile(request, env, raw) {
+  const id = photoId(raw), b = await request.json().catch(() => ({}));
+  const list = (await env.INBOX.get(FILES, "json")) || [], f = list.find((x) => x.id === id);
+  if (!f) throw fail(404, "That download isn't there any more.");
+  fileFields(b, f);
+  await env.INBOX.put(FILES, JSON.stringify(list));
+  return json({ ok: true, file: f });
+}
+
+async function deleteFile(env, raw) {
+  const id = photoId(raw), list = (await env.INBOX.get(FILES, "json")) || [];
+  const rest = list.filter((x) => x.id !== id);
+  if (rest.length !== list.length) await env.INBOX.put(FILES, JSON.stringify(rest));
+  await Promise.all([env.INBOX.delete("file:" + id), env.INBOX.delete("fthumb:" + id)]);
+  return json({ ok: true });
+}
+
 async function storage(env) {
-  const [list, kept, subs] = await Promise.all([env.INBOX.get(GALLERY, "json"), env.INBOX.get(SIZES, "json"), listAll(env, "sub:")]);
+  const [list, kept, subs, shared] = await Promise.all([env.INBOX.get(GALLERY, "json"), env.INBOX.get(SIZES, "json"), listAll(env, "sub:"), env.INBOX.get(FILES, "json")]);
   const photos = list || [], sizes = kept || {};
   const unmeasured = photos.filter((p) => !p.kb && !sizes[p.id]), now = unmeasured.slice(0, 30);
   for (const p of now) {
@@ -1134,8 +1253,9 @@ async function storage(env) {
   const avgKB = measured ? Math.round(photosKB / measured) : 700;
   const waiting = await Promise.all(subs.map((k) => env.INBOX.get(k.name, "json")));
   const pendingKB = waiting.reduce((n, x) => n + ((x && x.kb) || avgKB), 0);
-  const usedKB = photosKB + Math.round((photos.length - measured) * avgKB) + pendingKB;
-  return json({ usedKB, limitKB: STORAGE_KB, photos: photos.length, photosKB, pending: subs.length, pendingKB, avgKB, measuring: photos.length - measured,
+  const files = shared || [], filesKB = files.reduce((n, f) => n + Math.round((f.size || 0) / 1024) + (f.tkb || 0), 0);
+  const usedKB = photosKB + Math.round((photos.length - measured) * avgKB) + pendingKB + filesKB;
+  return json({ usedKB, limitKB: STORAGE_KB, photos: photos.length, photosKB, pending: subs.length, pendingKB, files: files.length, filesKB, avgKB, measuring: photos.length - measured,
                 roomFor: Math.max(0, Math.floor((STORAGE_KB - usedKB) / avgKB)) });
 }
 

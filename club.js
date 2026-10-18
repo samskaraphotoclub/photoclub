@@ -55,6 +55,14 @@ var Club = (function () {
   function publicUrl(p, size) {
     return INBOX + "/img/" + encodeURIComponent(p.id) + "/" + size + "?v=" + encodeURIComponent(p.v || "") + "&t=" + encodeURIComponent(p.t);
   }
+  // A download's address. Members-only files need the members' key (d.token from /files); o.thumb: its preview; o.dl: save it instead of opening it.
+  function fileUrl(f, token, o) {
+    o = o || {};
+    var q = ["v=" + encodeURIComponent(String(f.added || ""))];
+    if (!f.pub && token) q.push("t=" + encodeURIComponent(token));
+    if (o.dl) q.push("dl=1");
+    return INBOX + "/file/" + encodeURIComponent(f.id) + (o.thumb ? "/thumb" : "") + "?" + q.join("&");
+  }
   // lang="ml" on Malayalam text: phones then use a Malayalam font, line spacing and line breaking
   function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }
   function shuffle(a) {
@@ -109,5 +117,5 @@ var Club = (function () {
 
   return { ready: ready, code: code, esc: esc, call: call, gallery: gallery, photoUrl: photoUrl, thisWeek: thisWeek, signIn: signIn, signOut: signOut,
            exhibition: exhibition, publicUrl: publicUrl, ml: ml, shuffle: shuffle, seriesName: seriesName, layout: layout,
-           cats: cats, seriesOf: seriesOf, catClass: catClass };
+           cats: cats, seriesOf: seriesOf, catClass: catClass, fileUrl: fileUrl };
 })();

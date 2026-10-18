@@ -32,6 +32,7 @@
     <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false">Comments <span id="r-count"></span></button>
     <button type="button" role="tab" id="tab-home" aria-controls="panel-home" aria-selected="false">Home page</button>
     <button type="button" role="tab" id="tab-events" aria-controls="panel-events" aria-selected="false">Events</button>
+    <button type="button" role="tab" id="tab-files" aria-controls="panel-files" aria-selected="false">Downloads</button>
     <button type="button" role="tab" id="tab-post" aria-controls="panel-post" aria-selected="false">Post a photo</button>
     <button type="button" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false">Settings</button>
   </div>
@@ -136,11 +137,6 @@
       <label class="f" for="h-lede">What to photograph <small>(one or two sentences)</small></label>
       <textarea id="h-lede" maxlength="220" placeholder="For example: Long shadows, silhouettes, light through blinds. Share one photo that fits by the end of the month."></textarea>
 
-      <h2 style="margin-top:28px">Polls</h2>
-      <p class="muted">Up to three polls, shown side by side on the home page.</p>
-      <div id="h-contests"></div>
-      <button class="btn btn-light btn-small" type="button" id="h-add">Add a poll</button>
-
       <button class="btn btn-dark wide" type="submit" id="h-publish">Publish home page</button>
       <p class="status" id="h-status" aria-live="polite"></p>
       <p class="note">The theme is also saved in the members' theme archive, with the month's most-voted photos.</p>
@@ -183,6 +179,37 @@
       <p class="muted" id="ev-empty">Loading…</p>
       <ul class="list" id="ev-list"></ul>
       <details id="ev-past-box" hidden style="margin-top:12px"><summary>Past events</summary><ul class="list" id="ev-past"></ul></details>
+    </section>
+  </section>
+
+  <!-- ===================== Downloads ===================== -->
+  <section id="panel-files" role="tabpanel" aria-labelledby="tab-files" hidden>
+    <form class="card" id="f-form" novalidate>
+      <h2>Share a file</h2>
+      <p class="muted" style="margin-top:0">Posters, cheat sheets, guides and forms, for the home page and the Downloads page. A PDF, an image, a Word, Excel or PowerPoint file, or a ZIP file, up to 20 MB.</p>
+      <label class="pick" id="f-pick">
+        <input type="file" id="f-file" accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.pptx,.odt,.ods,.odp,.zip,application/pdf,image/png,image/jpeg,image/webp">
+        Choose a file
+        <span>From your phone or computer.</span>
+      </label>
+      <div class="f-chosen" id="f-chosen" hidden>
+        <div class="dl-pic" id="f-pv"></div>
+        <div><p id="f-info"></p><button class="btn btn-light btn-small" type="button" id="f-change">Choose a different file</button></div>
+      </div>
+      <label class="f" for="f-title">Title</label>
+      <input type="text" id="f-title" maxlength="80" placeholder="For example: Exposure cheat sheet">
+      <label class="f" for="f-kind">Kind</label>
+      <select id="f-kind"><option>Poster</option><option>Cheat sheet</option><option>Guide</option><option>Form</option><option>Other</option></select>
+      <label class="f" for="f-desc">Description <small>(optional, one or two sentences)</small></label>
+      <textarea id="f-desc" maxlength="300" placeholder="What it's for, and who it's for"></textarea>
+      <label class="tick consent"><input type="checkbox" id="f-pub"> <span>Visitors can download it too <small class="muted">Unticked, only signed-in members see it.</small></span></label>
+      <button class="btn btn-dark wide" type="submit" id="f-save">Share the file</button>
+      <p class="status" id="f-status" aria-live="polite"></p>
+    </form>
+    <section class="card" aria-labelledby="f-list-h">
+      <h2 id="f-list-h">Shared files</h2>
+      <p class="muted" id="f-empty">Loading…</p>
+      <ul class="list" id="f-list"></ul>
     </section>
   </section>
 
@@ -295,6 +322,7 @@
       <li><a href="events.html">Events</a></li>
       <li><a href="photographers.html">Photographers</a></li>
       <li><a href="archive.html">Theme archive</a></li>
+      <li><a href="downloads.html">Downloads</a></li>
       <li><a href="submit.html">Share a photo</a></li>
       <li><a href="about.html">About the club</a></li>
       <li><a href="about.html#join">How to join</a></li>
@@ -310,6 +338,7 @@
 <script src="backup.js"></script>
 <script src="club.js"></script>
 <script src="events.js"></script>
+<script src="downloads.js"></script>
 <script>
 (function () {
   "use strict";
@@ -384,7 +413,7 @@
   }
 
   /* ---------- tabs ---------- */
-  var tabs = ["approve", "gallery", "members", "votes", "comments", "home", "events", "post", "settings"];
+  var tabs = ["approve", "gallery", "members", "votes", "comments", "home", "events", "files", "post", "settings"];
   function show(name) {
     tabs.forEach(function (t) {
       $("tab-" + t).setAttribute("aria-selected", t === name);
@@ -402,6 +431,7 @@
       $("ptheme").innerHTML = themeOptions($("ptheme").value, "Not an entry");
     });
     if (name === "events") loadEvents();
+    if (name === "files") loadFiles();
     if (name === "settings") loadStorage();
   }
   tabs.forEach(function (t) { $("tab-" + t).addEventListener("click", function () { show(t); }); });
@@ -847,58 +877,17 @@
     });
   }
 
-  /* ---------- home page: theme of the month, polls and series ---------- */
-  var STATUSES = ["Open for entries", "Voting now", "Counting votes", "Results are in", "Coming soon"];
-  var LIVE = ["Open for entries", "Voting now", "Counting votes"];   // shown with a red dot
-  var RENAMED = { "Judging": "Counting votes", "Winners announced": "Results are in" };   // from when polls were contests
-  var homeGallery = {};
-  function photoOptions(selected) {
-    return Object.keys(homeGallery).map(function (id) {
-      return '<option value="' + esc(id) + '"' + (id === selected ? " selected" : "") + ">" + esc(homeGallery[id].title) + "</option>";
-    }).join("");
-  }
-  function contestFields(c) {
-    c = c || { status: "Open for entries", title: "", desc: "", photo: Object.keys(homeGallery)[0] || "" };
-    var statuses = STATUSES.indexOf(c.status) < 0 ? STATUSES.concat(c.status) : STATUSES;
-    var f = document.createElement("fieldset");
-    f.className = "contest-edit";
-    f.innerHTML = "<legend></legend>" +
-      '<label class="f">Status<select class="c-status">' + statuses.map(function (s) { return "<option" + (s === c.status ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("") + "</select></label>" +
-      '<label class="f">Title<input type="text" class="c-title" maxlength="60" value="' + esc(c.title) + '"></label>' +
-      '<label class="f">Description <small>(what it\'s about, and the dates)</small><textarea class="c-desc" maxlength="200">' + esc(c.desc) + "</textarea></label>" +
-      '<label class="f">Photo <small>(from the gallery, shown to members)</small><select class="c-photo"><option value="">No photo</option>' + photoOptions(c.photo) + "</select></label>" +
-      '<button class="linkish c-remove" type="button">Remove this poll</button>';
-    f.querySelector(".c-remove").addEventListener("click", function () { f.remove(); numberContests(); });
-    return f;
-  }
-  function numberContests() {
-    var all = $("h-contests").querySelectorAll(".contest-edit");
-    all.forEach(function (f, i) { f.querySelector("legend").textContent = "Poll " + (i + 1); });
-    $("h-add").hidden = all.length >= 3;
-  }
+  /* ---------- home page: theme of the month and series ---------- */
   function loadHome() {
     setStatus($("h-status"), "");
     $("h-loading").hidden = false;
     var viaSite = function () { return fetch("index.html", { cache: "no-store" }).then(function (r) { return r.text(); }); };
     var page = github() ? Publish.readSiteFile(cfg, "index.html").catch(viaSite) : viaSite();
     Promise.all([page, loadGallery().catch(function () { return {}; })]).then(function (res) {
-      homeGallery = res[1];
       var doc = new DOMParser().parseFromString(res[0], "text/html");
       var theme = doc.querySelector(".theme"), lede = doc.querySelector(".lede");
       $("h-theme").value = theme ? theme.textContent.trim() : "";
       $("h-lede").value = lede ? lede.textContent.trim() : "";
-      $("h-contests").innerHTML = "";
-      doc.querySelectorAll(".contest").forEach(function (el) {
-        var img = el.querySelector("img"), m = el.getAttribute("data-photo") ? [0, el.getAttribute("data-photo")] : img && (img.getAttribute("src") || "").match(/photos\/(.+?)-sm\./);
-        var status = (el.querySelector(".tag") || {}).textContent || "Open for entries";
-        $("h-contests").appendChild(contestFields({
-          status: RENAMED[status] || status,
-          title: (el.querySelector("h3") || {}).textContent || "",
-          desc: (el.querySelector("p") || {}).textContent || "",
-          photo: m ? m[1] : ""
-        }));
-      });
-      numberContests();
       var now = new Date(), last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), name = function (m) { return new Date(now.getFullYear(), m, 1).toLocaleDateString("en-GB", { month: "long" }); };
       $("h-month").options[0].textContent = "This month (" + name(now.getMonth()) + ")";
       $("h-month").options[1].textContent = "Next month (" + name(now.getMonth() + 1) + ")";
@@ -955,35 +944,17 @@
       "\n\nShare your photo for it: " + siteUrl("submit.html?entry=1"));
   }
   $("h-theme").addEventListener("input", themeShare); $("h-lede").addEventListener("input", themeShare);
-  $("h-add").addEventListener("click", function () {
-    $("h-contests").appendChild(contestFields());
-    numberContests();
-    $("h-contests").lastElementChild.querySelector(".c-title").focus();
-  });
   $("home-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
     var st = $("h-status");
     if (!github()) { setStatus(st, "Connect GitHub in Settings first.", true); return; }
     var theme = $("h-theme").value.trim(), lede = $("h-lede").value.trim();
     if (!theme) { setStatus(st, "Add the theme of the month.", true); $("h-theme").focus(); return; }
-    var contests = [], missing = null;
-    $("h-contests").querySelectorAll(".contest-edit").forEach(function (f) {
-      var c = { status: f.querySelector(".c-status").value, title: f.querySelector(".c-title").value.trim(),
-                desc: f.querySelector(".c-desc").value.trim(), photo: f.querySelector(".c-photo").value };
-      if (!c.title && !missing) missing = f.querySelector(".c-title");
-      contests.push(c);
-    });
-    if (missing) { setStatus(st, "Give each poll a title, or remove it.", true); missing.focus(); return; }
     var themeHtml = '    <p class="kicker">This month\'s theme</p>\n    <h1 class="theme"' + ml(theme) + '>' + esc(theme) + "</h1>\n" +
       (lede ? '    <p class="lede"' + ml(lede) + '>' + esc(lede) + "</p>\n" : "");
-    var contestHtml = contests.map(function (c) {
-      // only the photo's name goes on the page; members' browsers fetch the photo itself from the inbox
-      return '    <div class="contest"' + (c.photo ? ' data-photo="' + esc(c.photo) + '"' : "") + '><span class="tag' + (LIVE.indexOf(c.status) >= 0 ? " live" : "") + '">' + esc(c.status) + "</span><h3" + ml(c.title) + ">" +
-        esc(c.title) + "</h3>" + (c.desc ? "<p" + ml(c.desc) + ">" + esc(c.desc) + "</p>" : "") + "</div>\n";
-    }).join("") || '    <p class="muted">No polls at the moment.</p>\n';
     $("h-publish").disabled = true; setStatus(st, "Publishing…");
     var which = $("h-month").value;
-    Publish.publishSections(cfg, { THEME: themeHtml, CONTESTS: contestHtml }, "Home page: theme “" + theme + "”").then(function () {
+    Publish.publishSections(cfg, { THEME: themeHtml }, "Home page: theme “" + theme + "”").then(function () {
       // and into the theme archive
       return (inboxReady() ? inbox("/admin/theme", { method: "POST", json: { which: which, title: theme, lede: lede } }).then(function () { return " It's in the theme archive too."; },
         function (e) { return " It couldn't be saved in the theme archive: " + e.message; }) : Promise.resolve(""));
@@ -998,7 +969,7 @@
   function seriesFields(s) {
     s = s || { name: "", desc: "", open: true };
     var f = document.createElement("fieldset");
-    f.className = "contest-edit";
+    f.className = "series-edit";
     if (s.id) f.setAttribute("data-id", s.id);
     f.innerHTML = "<legend></legend>" +
       '<label class="f">Name<input type="text" class="s-name" maxlength="60" value="' + esc(s.name) + '"></label>' +
@@ -1009,7 +980,7 @@
     return f;
   }
   function numberSeries() {
-    var all = $("s-list").querySelectorAll(".contest-edit");
+    var all = $("s-list").querySelectorAll(".series-edit");
     all.forEach(function (f, i) { f.querySelector("legend").textContent = "Series " + (i + 1); });
     $("s-add").hidden = all.length >= 12;
   }
@@ -1028,7 +999,7 @@
     var st = $("s-status");
     if (!inboxReady()) { setStatus(st, "Add the inbox address and admin password in Settings first.", true); return; }
     var list = [], missing = null;
-    $("s-list").querySelectorAll(".contest-edit").forEach(function (f) {
+    $("s-list").querySelectorAll(".series-edit").forEach(function (f) {
       var s = { id: f.getAttribute("data-id") || undefined, name: f.querySelector(".s-name").value.trim(), desc: f.querySelector(".s-desc").value.trim(), open: f.querySelector(".s-open").checked };
       if (!s.name && !missing) missing = f.querySelector(".s-name");
       list.push(s);
@@ -1152,7 +1123,7 @@
         var members = (b.data.members || []).filter(function (e) { var c = e.key.slice(7); return !have.members[c] && !replaced[c]; });
         restoring = { backup: b, have: have };
         var made = b.made ? new Date(b.made).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "an unknown date";
-        $("restore-info").textContent = "Backup from " + made + ": " + b.gallery.length + (b.gallery.length === 1 ? " photo, " : " photos, ") + (b.data.members || []).length + " members. " +
+        $("restore-info").textContent = "Backup from " + made + ": " + b.gallery.length + (b.gallery.length === 1 ? " photo, " : " photos, ") + (b.data.members || []).length + " members" + ((b.data.downloads || []).length ? ", " + b.data.downloads.length + (b.data.downloads.length === 1 ? " download" : " downloads") : "") + ". " +
           (photos.length || members.length ? "Missing from the club now: " + photos.length + (photos.length === 1 ? " photo" : " photos") + " and " + members.length + (members.length === 1 ? " member." : " members.") +
             (res[0].photos.length ? " Photos deleted on purpose are listed too, so they start unticked." : "") :
             "Every photo and member in it is already in the club. You can still bring back any comments or votes that are missing.");
@@ -1174,11 +1145,147 @@
     Backup.restore(inbox, restoring.backup, ids, codes, restoring.have, function (m) { setStatus(st, m); }).then(function (done) {
       galleryInfo = null; restoring = null; $("restore-plan").hidden = true;
       setStatus(st, "Done. Restored " + done.photos + (done.photos === 1 ? " photo" : " photos") + " and " + done.members + (done.members === 1 ? " member" : " members") +
-        (done.records ? ", and brought back " + done.records + (done.records === 1 ? " record" : " records") + " of comments, votes and sent photos." : ". No comments or votes were missing."));
+        (done.records ? ", and brought back " + done.records + (done.records === 1 ? " record" : " records") + " of comments, votes and sent photos." : ". No comments or votes were missing.") +
+        (done.files ? " " + done.files + (done.files === 1 ? " download" : " downloads") + " came back too." : ""));
     }).catch(function (e) {
       setStatus(st, e.message + (/daily limit/.test(e.message) ? " Choose the backup file again tomorrow to finish: what's already restored stays." : ""), true);
     }).then(function () { btn.disabled = false; });
   });
+
+  /* ---------- downloads ---------- */
+  // A preview for the Downloads page: images are made smaller; for a PDF, its first page
+  // (with Mozilla's pdf.js 3.11.174, kept in vendor/pdfjs on the site itself and loaded only when needed)
+  var PDFJS = "vendor/pdfjs/";
+  var chosenFile = null, chosenPreview = null;
+  function fileUrl(f, token, o) {   // like Club.fileUrl, but with the inbox address from Settings
+    o = o || {};
+    return cfg.inbox.replace(/\/+$/, "") + "/file/" + encodeURIComponent(f.id) + (o.thumb ? "/thumb" : "") + "?v=" + encodeURIComponent(String(f.added || "")) + (!f.pub && token ? "&t=" + encodeURIComponent(token) : "");
+  }
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    return new Promise(function (res, rej) {
+      var sc = document.createElement("script");
+      sc.src = PDFJS + "pdf.min.js";
+      sc.onload = function () {
+        if (!window.pdfjsLib) { rej(new Error("pdf.js didn't load")); return; }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js";
+        res(window.pdfjsLib);
+      };
+      sc.onerror = function () { rej(new Error("pdf.js didn't load")); };
+      document.head.appendChild(sc);
+    });
+  }
+  function firstPage(file) {
+    return Promise.all([loadPdfJs(), file.arrayBuffer()]).then(function (r) { return r[0].getDocument({ data: r[1] }).promise; })
+      .then(function (doc) { return doc.getPage(1); })
+      .then(function (page) {
+        var v = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: 900 / Math.max(v.width, v.height) });
+        var c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        var ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+        return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function () { return c; });
+      });
+  }
+  function makePreview(file, ext) {
+    var src = ext === "pdf" ? firstPage(file) : /^(png|jpe?g|webp)$/.test(ext) ? T.decodeImage(file) : Promise.reject(new Error("no preview"));
+    return src.then(function (img) { return T.encode(img, 600); });
+  }
+  function niceTitle(name) {
+    var t = name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  function chooseFile(file) {
+    var ext = String(file.name || "").toLowerCase().split(".").pop(), st = $("f-status");
+    setStatus(st, "");
+    if (!/^(pdf|png|jpe?g|webp|docx|xlsx|pptx|odt|ods|odp|zip)$/.test(ext)) { setStatus(st, "That kind of file can't be shared here. Use a PDF, an image (PNG, JPEG or WebP), a Word, Excel or PowerPoint file, or a ZIP file.", true); $("f-file").value = ""; return; }
+    if (file.size > 20 * 1024 * 1024) { setStatus(st, "That file is " + T.kb(file.size) + ". The limit is 20 MB: save a smaller version (for a PDF, choose a smaller file size when exporting) and try again.", true); $("f-file").value = ""; return; }
+    chosenFile = file; chosenPreview = null;
+    if (!$("f-title").value.trim()) $("f-title").value = niceTitle(file.name).slice(0, 80);
+    $("f-pick").hidden = true; $("f-chosen").hidden = false;
+    $("f-info").textContent = file.name + ", " + T.kb(file.size);
+    $("f-pv").innerHTML = '<span class="dl-type">' + esc(ext === "pdf" ? "PDF" : ext.toUpperCase()) + "</span>";
+    makePreview(file, ext).then(function (pv) {
+      if (chosenFile !== file) return;
+      chosenPreview = pv;
+      $("f-pv").innerHTML = '<img alt="" src="' + URL.createObjectURL(pv.blob) + '">';
+    }).catch(function () { /* no preview: the page shows the kind of file instead */ });
+  }
+  function resetFileForm() {
+    chosenFile = chosenPreview = null;
+    $("f-form").reset(); $("f-pick").hidden = false; $("f-chosen").hidden = true; $("f-pv").innerHTML = "";
+  }
+  $("f-file").addEventListener("change", function () { if (this.files[0]) chooseFile(this.files[0]); });
+  $("f-change").addEventListener("click", function () { $("f-file").value = ""; $("f-file").click(); });
+  $("f-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var st = $("f-status"), title = $("f-title").value.trim();
+    if (!inboxReady()) { setStatus(st, "Add the inbox address and admin password in Settings first.", true); return; }
+    if (!chosenFile) { setStatus(st, "Choose the file to share.", true); return; }
+    if (!title) { setStatus(st, "Add a title.", true); $("f-title").focus(); return; }
+    var f = new FormData(), pub = $("f-pub").checked;
+    f.append("file", chosenFile, chosenFile.name);
+    f.append("title", title); f.append("kind", $("f-kind").value); f.append("desc", $("f-desc").value.trim()); f.append("pub", pub ? "1" : "");
+    if (chosenPreview) { f.append("thumb", chosenPreview.blob, "preview." + chosenPreview.ext); f.append("tw", chosenPreview.w); f.append("th", chosenPreview.h); }
+    $("f-save").disabled = true;
+    setStatus(st, "Uploading" + (chosenFile.size > 3 * 1024 * 1024 ? " " + T.kb(chosenFile.size) + ". This can take a minute…" : "…"));
+    inbox("/admin/files", { form: f }).then(function (r) {
+      resetFileForm();
+      st.className = "status";
+      st.innerHTML = "Shared. “" + esc(r.file.title) + "” is on the " + (pub ? "home page and the " : "") + '<a href="' + fresh("downloads.html") + "#f-" + esc(r.file.id) + '">Downloads page</a>' +
+        (pub ? "." : ", for members only.");
+      loadFiles();
+    }).catch(function (e) { setStatus(st, /Not found/.test(e.message) ? "Update the inbox program in Cloudflare to share files." : e.message, true); })
+      .then(function () { $("f-save").disabled = false; });
+  });
+  function loadFiles() {
+    if (!inboxReady()) { $("f-empty").textContent = "Add the inbox address and admin password in Settings first."; return; }
+    $("f-empty").textContent = "Loading…";
+    inbox("/files").then(function (d) {
+      $("f-empty").textContent = d.files.length ? d.files.length + (d.files.length === 1 ? " file" : " files") + ", newest first. The home page shows the newest three." : "No files yet. Share one above.";
+      $("f-list").innerHTML = "";
+      d.files.forEach(function (f) { $("f-list").appendChild(fileRow(f, d)); });
+    }).catch(function (e) { $("f-empty").textContent = /Not found/.test(e.message) ? "Update the inbox program in Cloudflare to share files." : e.message; });
+  }
+  function fileRow(f, d) {
+    var li = document.createElement("li");
+    li.className = "f-row";
+    var page = siteUrl("downloads.html") + "#f-" + f.id;
+    function view() {
+      li.innerHTML = '<a class="dl-pic" target="_blank" rel="noopener" href="' + esc(fileUrl(f, d.token)) + '">' +
+        (f.tw ? '<img alt="" loading="lazy" src="' + esc(fileUrl(f, d.token, { thumb: true })) + '">' : '<span class="dl-type">' + esc(String(f.ext).toUpperCase()) + "</span>") + "</a>" +
+        "<div><b" + ml(f.title) + ">" + esc(f.title) + '</b><span class="meta">' + esc(f.kind + ", " + ClubDownloads.type(f) + ", " + ClubDownloads.size(f.size) + ", added " + new Date(f.added).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })) + "</span>" +
+        (f.desc ? '<span class="meta"' + ml(f.desc) + ">" + esc(f.desc) + "</span>" : "") +
+        '<span class="chip' + (f.pub ? " ok" : "") + '">' + (f.pub ? "Visitors can download it" : "Members only") + "</span>" +
+        '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button>' +
+        '<a class="btn btn-light btn-small" target="_blank" rel="noopener" href="' + esc(whatsapp(f.title + (f.desc ? "\n" + f.desc : "") + "\n\n" + page)) + '">Share on WhatsApp</a>' +
+        '<button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div><p class="status" aria-live="polite"></p></div>';
+      var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
+      li.querySelector('[data-a="edit"]').addEventListener("click", edit);
+      li.querySelector('[data-a="delete"]').addEventListener("click", function () {
+        row.innerHTML = '<span class="meta" style="flex-basis:100%">Delete “' + esc(f.title) + '”? It goes from the site and from Cloudflare.</span><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, delete</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button>';
+        row.querySelector('[data-a="no"]').addEventListener("click", view);
+        row.querySelector('[data-a="yes"]').addEventListener("click", function () {
+          inbox("/admin/files/" + encodeURIComponent(f.id), { method: "DELETE" }).then(loadFiles).catch(function (x) { setStatus(st, x.message, true); });
+        });
+      });
+    }
+    function edit() {
+      li.innerHTML = '<div class="f-edit"><label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(f.title) + '"></label>' +
+        '<label class="f">Kind<select class="e-kind">' + ClubDownloads.KINDS.map(function (k) { return "<option" + (k === f.kind ? " selected" : "") + ">" + esc(k) + "</option>"; }).join("") + "</select></label>" +
+        '<label class="f">Description <small>(optional)</small><textarea class="e-desc" maxlength="300">' + esc(f.desc || "") + "</textarea></label>" +
+        '<label class="tick consent"><input type="checkbox" class="e-fpub"' + (f.pub ? " checked" : "") + '> <span>Visitors can download it too</span></label>' +
+        '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="save">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div><p class="status" aria-live="polite"></p></div>';
+      var st = li.querySelector(".status");
+      li.querySelector('[data-a="cancel"]').addEventListener("click", view);
+      li.querySelector('[data-a="save"]').addEventListener("click", function () {
+        var b = { title: li.querySelector(".e-title").value.trim(), kind: li.querySelector(".e-kind").value, desc: li.querySelector(".e-desc").value.trim(), pub: li.querySelector(".e-fpub").checked };
+        if (!b.title) { setStatus(st, "Add a title.", true); return; }
+        inbox("/admin/files/" + encodeURIComponent(f.id), { method: "POST", json: b }).then(function (r) { f = r.file; view(); }).catch(function (x) { setStatus(st, x.message, true); });
+      });
+      li.querySelector(".e-title").focus();
+    }
+    view();
+    return li;
+  }
 
   /* ---------- events ---------- */
   var editingEvent = null, eventsCache = {};
@@ -1254,7 +1361,7 @@
       $("st-meter").firstElementChild.style.width = Math.max(pct, 1) + "%";
       $("st-meter").setAttribute("aria-label", pct + "% of the storage used");
       $("st-info").textContent = (r.measuring ? "Measuring older photos, " + r.measuring + " to go. So far: " : "") + mb(r.usedKB) + " of 1 GB used (" + pct + "%): " + r.photos + (r.photos === 1 ? " photo" : " photos") +
-        (r.pending ? " and " + r.pending + " waiting for approval" : "") + ". Room for about " + r.roomFor + " more at the current average of " + mb(r.avgKB) + " a photo." +
+        (r.pending ? " and " + r.pending + " waiting for approval" : "") + (r.files ? ", plus " + r.files + (r.files === 1 ? " download" : " downloads") + " (" + mb(r.filesKB) + ")" : "") + ". Room for about " + r.roomFor + " more at the current average of " + mb(r.avgKB) + " a photo." +
         (pct >= 95 ? " Nearly full: delete photos you don't need, or ask for help moving to Cloudflare R2." : pct >= 80 ? " Getting full: plan ahead (delete photos you don't need, or move to Cloudflare R2)." : "");
       if (r.measuring && round < 60) loadStorage(round + 1);
     }).catch(function (e) { $("st-info").textContent = /Not found/.test(e.message) ? "Update the inbox program in Cloudflare to see this." : e.message; });

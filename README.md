@@ -4,9 +4,10 @@ The website of the Photography Club of Samskara Germany e.V. (https://samskara-g
 
 ## How it fits together
 
-- **The website** is hosted free on GitHub Pages. It holds the pages, the monthly theme and the polls, but no photos. Visitors see the theme, polls, club information, the exhibition, and an invitation to sign in.
+- **The website** is hosted free on GitHub Pages. It holds the pages and the monthly theme, but no photos. Visitors see the theme, club information, the exhibition, events, downloads, and an invitation to sign in.
 - **The photo inbox** is a small free program on Cloudflare (`inbox/worker.js`). It keeps members' photos private until an admin decides, then keeps the approved photos in the gallery. It only hands photos to people signed in with an invite code (or the admin password), through links that stop working within a day. Photos in the exhibition are the exception: anyone can see those.
 - **The exhibition** (`exhibition.html`) is public. Admins choose its photos, but only photos whose photographer agreed: members tick a box when they share a photo, or an admin ticks it after asking them. On every visit, the home page shows visitors one exhibition photo at random (gently tilted, like a print), and everyone a few more below.
+- **Downloads** (`downloads.html`) are posters, cheat sheets, guides and forms the admins share on the admin page's **Downloads** tab: a PDF, image, Word, Excel or PowerPoint file, or a ZIP, up to 20 MB each, kept in the inbox. Each one is either for everyone or for members only. The home page shows the newest three. PDFs and images get a preview, made on the admin's phone (PDFs with Mozilla's pdf.js, kept in `vendor/pdfjs`).
 - **Series** are long-term projects members add photos to, starting with **Life in Germany**. Members choose a series when they share a photo. Each series has a section on the members' home page and a filter in the gallery and the exhibition. Admins add, rename or close series on the admin page's **Home page** tab.
 - **Members** sign in once on each phone with their invite code. They browse the gallery, comment, vote, and send photos on the Share a photo page (`submit.html`). Photos are resized on the phone first.
 - **Admins** use the admin page (`admin.html`) to approve or decline photos, edit or delete photos in the gallery, invite or remove members, choose Photos of the week, edit the home page and post photos directly. Approved photos appear in the gallery straight away.
@@ -43,7 +44,7 @@ The repository is public, but it holds no photos and no passwords: photos live i
 
 ### 2. Create a GitHub token for the admin page
 
-This lets the admin page change the home page (theme and polls) and connect the site to the inbox.
+This lets the admin page change the home page (the theme of the month) and connect the site to the inbox.
 
 1. On GitHub: your profile picture > **Settings** > **Developer settings** > **Personal access tokens** > **Fine-grained tokens** > **Generate new token**.
 2. Repository access: **Only select repositories**, and pick this site's repository.
@@ -83,7 +84,7 @@ The token and password are stored only in that phone's browser. Don't set the ad
 
 **Comments:** admin page > **Comments** lists the latest 60 comments, newest first, each with a **Delete** button.
 
-**Backup:** once a month, admin page > **Settings** > **Download backup**. It saves the gallery's photos with their details, members and their invite codes, comments and votes as one .zip file. Keep it somewhere private, because it contains the invite codes. Once the gallery has hundreds of photos, do this on a computer.
+**Backup:** once a month, admin page > **Settings** > **Download backup**. It saves the gallery's photos with their details, members and their invite codes, comments, votes and the downloads as one .zip file. Keep it somewhere private, because it contains the invite codes. Once the gallery has hundreds of photos, do this on a computer.
 
 **Restore:** admin page > **Settings** > **Restore from a backup** > choose the backup file. The page lists the photos and members that are missing now; tick the ones to bring back. Their comments, votes and sent-photo history come back with them. Nothing already in the club is changed or deleted, and codes replaced with **New code** never come back. Into an empty inbox (say, after setting up a new Cloudflare account), everything is ticked. Cloudflare's free plan allows roughly 200 restored photos a day, so a big gallery takes a few days: choose the file again the next day and it carries on.
 
@@ -93,7 +94,8 @@ The token and password are stored only in that phone's browser. Don't set the ad
 
 ## Edit the rest
 
-- **Theme of the month and polls:** admin page > **Home page**. Choose whether the theme is for this month or next, change the text, pick a photo for each poll (members see it; visitors don't), and tap **Publish home page**. The theme also goes into the theme archive.
+- **Theme of the month:** admin page > **Home page**. Choose whether the theme is for this month or next, change the text (or take it from the plan), and tap **Publish home page**. The theme also goes into the theme archive.
+- **Downloads:** admin page > **Downloads**. Choose the file, give it a title and kind, tick **Visitors can download it too** if it's for everyone, and tap **Share the file**. Edit, share on WhatsApp or delete it in the list below.
 - **Series:** admin page > **Home page** > **Series**. Add a series, change its name or description, or untick **Open for new photos** to close it (its photos stay), then **Save series**.
 - **Impressum and privacy policy:** `impressum.html` and `datenschutz.html`. Replace the highlighted parts (`<span class="fill">…</span>`) with the real details.
 - **Other text:** each page is its own file (`index.html`, `about.html`, `gallery.html`, `submit.html`). On GitHub, open the file, click the pencil icon, change the words between the `>` and `<` marks, and click **Commit changes**. Leave the `<!-- ... -->` marker lines in `index.html` alone; the admin page uses them.
@@ -106,7 +108,7 @@ The token and password are stored only in that phone's browser. Don't set the ad
 
 ## Limits worth knowing
 
-**Cloudflare (free):** 1 GB of storage, 100,000 requests a day and 1,000 saved changes a day. The photos are kept here. Phone photos come out at about 0.5–1.2 MB each after resizing (large and thumbnail together), so 1 GB holds roughly 1,000 photos. Deleting photos frees the space again. An approved photo uses 9 saved changes, a comment 3 and a vote 1, so even a busy day of 50 photos, 60 comments and 75 votes stays under the daily limit. Each photo someone views is one request; phones keep photos for a day, so 25 members use only a few thousand a day.
+**Cloudflare (free):** 1 GB of storage, 100,000 requests a day and 1,000 saved changes a day. The photos are kept here. Phone photos come out at about 0.5–1.2 MB each after resizing (large and thumbnail together), so 1 GB holds roughly 1,000 photos. Deleting photos frees the space again. An approved photo uses 9 saved changes, a comment 3, a vote 2 and a shared file 3, so even a busy day of 50 photos, 60 comments and 75 votes stays under the daily limit. Downloads count towards the 1 GB too; the storage meter on the admin page includes them. Each photo someone views is one request; phones keep photos for a day, so 25 members use only a few thousand a day.
 
 **GitHub Pages (free):** the site itself is small. GitHub allows about 10 site rebuilds an hour, which only matters when you publish the home page several times in a row. GitHub Pages isn't meant for running a business, such as a shop. A club site is fine.
 
@@ -115,17 +117,18 @@ iPhones and iPads save photos as JPEG. Android and desktop browsers save WebP, w
 ## Files
 
 ```
-index.html             Home: theme of the month, polls, photos from the exhibition; for members also last week's top three, series and the newest photos
+index.html             Home: theme of the month, photos from the exhibition, events, the newest downloads; for members also last week's top three, series and the newest photos
 gallery.html           The members-only gallery: sign-in, category and series filters, photo viewer
 exhibition.html        The public exhibition
 archive.html           The theme archive, for members
 photographers.html     The photographers, for members
 events.html            Events: photo walks, workshops, exhibitions, meet-ups
+downloads.html         Downloads: posters, cheat sheets, guides and forms
 impressum.html         Impressum (legal notice)
 datenschutz.html       Privacy policy (Datenschutzerklärung)
 about.html             How the club works, feedback rules, joining, FAQ
 submit.html            Share a photo: members send photos for approval
-admin.html             Admin: approve photos, gallery, members, votes, comments, home page, post a photo, settings
+admin.html             Admin: approve photos, gallery, members, votes, comments, home page, events, downloads, post a photo, settings
 404.html               Shown for missing pages
 style.css              All styles
 club.js                Signing in, loading the gallery and exhibition from the inbox, and the rows of photos
@@ -135,11 +138,13 @@ exhibition.js          The exhibition page
 archive.js             The theme archive page
 photographers.js       The photographers page
 events.js              The events page, calendar files and links, used by the home and admin pages too
+downloads.js           The downloads list, used by the Downloads, home and admin pages
 home.js                The home page's photos
 theme.js               The light/dark switch
 photo-tools.js         Resizing and camera settings, used by submit.html and admin.html
 publish.js             Changes to the site on GitHub, used by admin.html
 backup.js              The admin page's Backup button
+vendor/pdfjs/          Mozilla's pdf.js 3.11.174 (Apache License 2.0), for PDF previews on the admin page
 config.js              The inbox address (written by the admin page)
 inbox/worker.js        The photo inbox and gallery, runs on Cloudflare
 inbox/SETUP.md         How to set up the photo inbox
