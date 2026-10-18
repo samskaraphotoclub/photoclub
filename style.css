@@ -81,16 +81,23 @@ p { margin: 0 0 1em; }
 .mode .sun, [data-theme="dark"] .mode .moon { display: none; }
 [data-theme="dark"] .mode .sun { display: block; }
 @media (max-width: 860px) { .top .wrap { gap: 10px; } .top nav a { padding: 0 9px; } }
-/* phones: the menu gets a row of its own, and the header scrolls away with the page */
-@media (max-width: 640px) {
+/* phones and small tablets: the menu gets a row of its own, and the header scrolls away with the page */
+@media (max-width: 760px) {
   .top { position: static; }
-  .top .join { display: none; }
   .top .wrap { flex-wrap: wrap; height: auto; padding-top: 8px; gap: 0 8px; }
   .top .brand { font-size: clamp(1.05rem, 5vw, 1.25rem); gap: 8px; min-height: 48px; }
   .top .brand .logo { width: 36px; height: 36px; }
-  .top nav { order: 3; flex-basis: 100%; justify-content: space-between; margin: 0 -8px; padding-bottom: 2px; }
+  .top nav { order: 3; flex-basis: 100%; gap: 4px; margin: 0 -8px; padding-bottom: 2px; }
   .top nav a { padding: 0 8px; min-height: 42px; }
   html { scroll-padding-top: 12px; }
+}
+@media (max-width: 520px) {
+  .top .join { display: none; }
+  .top nav { justify-content: space-between; gap: 0; }
+}
+@media (max-width: 380px) {   /* small phones: four menu items still fit on one line */
+  .top nav { margin: 0 -4px; }
+  .top nav a { padding: 0 4px; font-size: .94rem; }
 }
 
 footer { margin-top: clamp(64px, 9vw, 112px); background: var(--footer); border-top: 1px solid var(--rule); padding: 36px 0 calc(44px + env(safe-area-inset-bottom)); color: var(--on-red); font-size: .92rem; }
