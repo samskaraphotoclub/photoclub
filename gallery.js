@@ -153,8 +153,10 @@
     data.votes = data.votes || {};
     if (typeof d.votes === "number") { data.votes[id] = d.votes; Viewer.setVotes(id, d.votes); }
     var left = function (n) { return n + " of " + d.perWeek + " votes left this week"; };
-    if (!thisWeek || !d.member) { slot.innerHTML = ""; note.textContent = ""; note.hidden = true; return; }
+    if (!d.member) { slot.innerHTML = ""; note.textContent = ""; note.hidden = true; return; }
     note.hidden = false;
+    // photos from earlier weeks: say why there's no heart, so nobody thinks it's missing
+    if (!thisWeek) { slot.innerHTML = ""; note.className = "vote-note"; note.textContent = "Voting has closed for this photo. Each week's votes are for the photos added that week."; return; }
     if (d.own) { slot.innerHTML = ""; note.textContent = "Your photo, so you can't vote for it."; return; }
     slot.innerHTML = '<button class="vote-heart" type="button" aria-pressed="' + !!d.voted + '" aria-label="' + (d.voted ? "Take back your vote" : "Vote for this photo") + '">' + Viewer.HEART + "</button>";
     note.textContent = (d.voted ? "You voted for this photo. " : "Tap the heart to vote. ") + left(d.votesLeft) + ".";
