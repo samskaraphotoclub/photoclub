@@ -90,19 +90,19 @@
   <!-- ===================== Votes ===================== -->
   <section id="panel-votes" role="tabpanel" aria-labelledby="tab-votes" hidden>
     <section class="card" aria-labelledby="v-prev-h">
-      <h2 id="v-prev-h">Last week</h2>
+      <h2 id="v-prev-h">Last month</h2>
       <p class="muted" id="v-prev-info">Loading…</p>
       <ol class="list ranking" id="v-prev"></ol>
       <button class="btn btn-dark wide" type="button" id="potw" disabled>Show the top 3 on the home page</button>
       <p class="status" id="potw-status" aria-live="polite"></p>
-      <p class="note">Do this on Monday. The top photos replace Photos of the week on the home page, which only members see.</p>
-      <div class="row-btns"><a class="btn btn-light btn-small" id="wa-top" href="#" target="_blank" rel="noopener" hidden>Share last week's top three on WhatsApp</a></div>
+      <p class="note">Optional, once a month is over. The home page already shows last month's top three to members by itself; this also keeps them as Photos of the month.</p>
+      <div class="row-btns"><a class="btn btn-light btn-small" id="wa-top" href="#" target="_blank" rel="noopener" hidden>Share last month's top three on WhatsApp</a></div>
     </section>
     <section class="card" aria-labelledby="v-cur-h">
-      <h2 id="v-cur-h">This week so far</h2>
+      <h2 id="v-cur-h">This month so far</h2>
       <p class="muted" id="v-cur-info"></p>
       <ol class="list ranking" id="v-cur"></ol>
-      <p class="note">Members see each photo's number of votes on the photo. Only admins see this ranking and how many members voted; nobody sees who voted for what.</p>
+      <p class="note"><span id="v-rule">Each member has 5 votes a month for photos added that month, and can take a vote back to use it on another photo.</span> Members see each photo's number of votes on the photo. Only admins see this ranking and how many members voted; nobody sees who voted for what.</p>
     </section>
   </section>
 
@@ -770,7 +770,7 @@
   $("copy-invite").addEventListener("click", function () { copy(lastInvite, $("m-status")); });
 
   /* ---------- votes ---------- */
-  var galleryInfo = null, galleryData = null, lastWeek = null;
+  var galleryInfo = null, galleryData = null, lastMonth = null;
   function thumbUrl(d, p) {
     return cfg.inbox.replace(/\/+$/, "") + "/img/" + encodeURIComponent(p.id) + "/thumb?v=" + encodeURIComponent(p.v || "") + "&t=" + encodeURIComponent(d.token);
   }
@@ -782,9 +782,8 @@
       return map;
     });
   }
-  function weekLabel(w) { return "week " + parseInt(String(w).split("-W")[1], 10); }
   function showRanking(list, info, data, map, empty) {
-    info.textContent = data.ranking.length ? data.voters + (data.voters === 1 ? " member" : " members") + " voted in " + weekLabel(data.week) + "." : empty;
+    info.textContent = data.ranking.length ? data.voters + (data.voters === 1 ? " member" : " members") + " voted in " + monthName(data.month) + "." : empty;
     list.innerHTML = data.ranking.slice(0, 10).map(function (x, i) {
       var g = map[x.photo];
       return '<li class="rank">' + (g && g.src ? '<img src="' + esc(g.src) + '" alt="" width="72" height="48">' : "<span></span>") +
@@ -796,14 +795,18 @@
     if (!inboxReady()) { $("v-prev-info").textContent = "Add the inbox address and admin password in Settings first."; return; }
     $("v-prev-info").textContent = "Loading…"; setStatus($("potw-status"), "");
     Promise.all([loadGallery(), inbox("/admin/votes")]).then(function (res) {
-      var map = res[0], cur = res[1];
-      showRanking($("v-cur"), $("v-cur-info"), cur, map, "No votes yet this week.");
-      return inbox("/admin/votes?week=" + cur.previous).then(function (prev) {
-        lastWeek = { data: prev, map: map };
-        showRanking($("v-prev"), $("v-prev-info"), prev, map, "Nobody voted last week.");
+      var map = res[0], cur = res[1], n = galleryData && galleryData.perMonth;
+      if (n) $("v-rule").textContent = "Each member has " + n + (n === 1 ? " vote" : " votes") + " a month for photos added that month, and can take a vote back to use it on another photo.";
+      $("v-cur-h").textContent = cur.month ? monthName(cur.month) + " so far" : "This month so far";
+      showRanking($("v-cur"), $("v-cur-info"), cur, map, "No votes yet this month.");
+      if (!cur.month) throw new Error("Update the inbox program in Cloudflare: votes are now monthly.");
+      return inbox("/admin/votes?month=" + cur.previous).then(function (prev) {
+        lastMonth = { data: prev, map: map };
+        $("v-prev-h").textContent = monthName(prev.month);
+        showRanking($("v-prev"), $("v-prev-info"), prev, map, "Nobody voted in " + monthName(prev.month) + ".");
         var top = prev.ranking.filter(function (x) { return map[x.photo]; }).slice(0, 3);
         $("wa-top").hidden = !top.length;
-        $("wa-top").href = whatsapp("Last week's favourites in The Conscious Frame:\n" + top.map(function (x, i) { return (i + 1) + ". " + map[x.photo].title + " by " + map[x.photo].by; }).join("\n") +
+        $("wa-top").href = whatsapp(monthName(prev.month).split(" ")[0] + "'s favourites in The Conscious Frame:\n" + top.map(function (x, i) { return (i + 1) + ". " + map[x.photo].title + " by " + map[x.photo].by; }).join("\n") +
           "\n\nSee them on the club's home page: " + siteUrl("index.html"));
         $("potw").disabled = !top.length;
         $("potw").textContent = !top.length ? "No votes to show" : top.length === 1 ? "Show the top photo on the home page" : "Show the top " + top.length + " on the home page";
@@ -811,11 +814,11 @@
     }).catch(function (e) { $("v-prev-info").textContent = e.message; });
   }
   $("potw").addEventListener("click", function () {
-    if (!lastWeek) return;
-    var map = lastWeek.map;
-    var items = lastWeek.data.ranking.filter(function (x) { return map[x.photo]; }).slice(0, 3).map(function (x) { return { id: x.photo, votes: x.votes }; });
+    if (!lastMonth) return;
+    var map = lastMonth.map;
+    var items = lastMonth.data.ranking.filter(function (x) { return map[x.photo]; }).slice(0, 3).map(function (x) { return { id: x.photo, votes: x.votes }; });
     $("potw").disabled = true; setStatus($("potw-status"), "Saving…");
-    inbox("/admin/potw", { method: "POST", json: { week: lastWeek.data.week, items: items } }).then(function () {
+    inbox("/admin/potw", { method: "POST", json: { month: lastMonth.data.month, items: items } }).then(function () {
       var s = $("potw-status"); s.className = "status";
       s.innerHTML = 'Done. Members see them on the home page now. <a href="index.html">View the home page</a>';
     }).catch(function (e) { setStatus($("potw-status"), e.message, true); })

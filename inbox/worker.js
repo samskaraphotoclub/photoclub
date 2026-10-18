@@ -2,7 +2,7 @@
  * The Conscious Frame – photo inbox and members-only gallery
  * A small Cloudflare Worker that keeps members' photos private until an admin approves them,
  * keeps the approved photos in the club's gallery (shown only to members), and stores
- * members' comments and weekly votes. Photos an admin puts in the exhibition (only with the
+ * members' comments and monthly votes. Photos an admin puts in the exhibition (only with the
  * photographer's permission) can be seen by anyone, on the site's Exhibition page. Also keeps the
  * club's downloads: posters, cheat sheets and guides the admins share, for everyone or only members.
  *
@@ -12,8 +12,8 @@
  *   ALLOWED_ORIGIN  variable, the site's address, e.g. https://yourname.github.io
  * Optional variables:
  *   WEEKLY_LIMIT    photos each member can send per 7 days (default 5)
- *   VOTES_PER_WEEK  votes each member can give per week (default 3)
- *   TIMEZONE        the club's time zone, for when weeks start (default Europe/Berlin)
+ *   VOTES_PER_MONTH votes each member can give per month (default 5)
+ *   TIMEZONE        the club's time zone, for when weeks and months start (default Europe/Berlin)
  */
 
 const MAX_FULL = 3 * 1024 * 1024;      // bytes, large version (the site resizes to ~200–450 KB)
@@ -27,7 +27,7 @@ const RECENT_COMMENTS = 60;            // kept for the admin's Comments tab
 const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";   // no 0/O or 1/I
 const CATEGORIES = ["Landscape", "Nature", "Travel", "Street", "Architecture", "Night", "Abstract"];
 const GALLERY = "gallery";             // the approved photos, newest first, kept as one list
-const POTW = "potw";                   // Photos of the week, chosen by an admin on Mondays
+const POTW = "potw";                   // Photos of the month, chosen by an admin when a month is over
 const LINK_HOURS = 12;                 // photo links work for 12 to 24 hours, then the page gets new ones
 const SERIES = "series";               // long-term series, like Life in Germany
 const DEFAULT_SERIES = [{ id: "life-in-germany", name: "Life in Germany", open: true,
@@ -44,7 +44,7 @@ const EVENTS = "events";               // photo walks, workshops, exhibitions; s
 const EVENT_KINDS = ["Photo walk", "Workshop", "Exhibition", "Meet-up", "Other"];
 const SIZES = "sizes";                 // sizes of photos added before sizes were kept, for the storage meter
 const STORAGE_KB = 1024 * 1024;        // Cloudflare's free plan: 1 GB
-const TOTALS = "vote-totals";          // each photo's votes from weeks that are over; this week's are in tally:WEEK
+const TOTALS = "vote-totals";          // each photo's votes from months that are over (and from when votes were weekly); this month's are in tally:MONTH
 const FILES = "files";                 // the club's downloads, newest first; each file is in file:ID, its preview in fthumb:ID
 const FILE_KINDS = ["Poster", "Cheat sheet", "Guide", "Form", "Other"];
 const MAX_FILE = 20 * 1024 * 1024;     // bytes, one download (Cloudflare keeps up to 25 MB in one item)
@@ -302,12 +302,12 @@ async function photoInfo(request, env, rawId) {
   const who = await viewer(request, env);
   const id = photoId(rawId);
   const comments = (await env.INBOX.get("c:" + id, "json")) || [];
-  const week = weekId(Date.now(), env), perWeek = votesPerWeek(env);
-  const out = { photo: id, week, perWeek, comments: comments.map((c) => publicComment(c)), votes: (await voteCounts(env, Date.now()))[id] || 0 };
+  const month = monthId(Date.now(), env), perMonth = votesPerMonth(env);
+  const out = { photo: id, month, perMonth, perWeek: perMonth, comments: comments.map((c) => publicComment(c)), votes: (await voteCounts(env, Date.now()))[id] || 0 };
   if (who.code) {
-    const [mine, owner] = await Promise.all([env.INBOX.get("v:" + week + ":" + who.code, "json"), env.INBOX.get("owner:" + id)]);
+    const [mine, owner] = await Promise.all([env.INBOX.get("v:" + month + ":" + who.code, "json"), env.INBOX.get("owner:" + id)]);
     const votes = mine || [];
-    Object.assign(out, { member: who.name, voted: votes.includes(id), votesLeft: Math.max(0, perWeek - votes.length), own: !!owner && who.codes.includes(owner) });
+    Object.assign(out, { member: who.name, voted: votes.includes(id), votesLeft: Math.max(0, perMonth - votes.length), own: !!owner && who.codes.includes(owner) });
     out.comments = comments.map((c) => publicComment(c, who.codes));
     if (comments.length) {   // which comments this member has already reported
       const reports = (await env.INBOX.get(REPORTS, "json")) || [];
@@ -330,77 +330,93 @@ async function viewer(request, env) {
   throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
 }
 
-// The whole gallery, Photos of the week and a photo link key that works for 12 to 24 hours.
+// The whole gallery, Photos of the month and a photo link key that works for 12 to 24 hours.
 async function gallery(request, env) {
   const who = await viewer(request, env);
   const now = Date.now();
-  const [list, potw, token, top, series, archived, people] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastWeeksTop(env, now),
+  const [list, potw, token, top, series, archived, people] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastMonthsTop(env, now),
     seriesRaw(env), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE)]);
   const themes = (archived || []).filter((m) => m.month && m.theme).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
   const cur = monthId(now, env), entry = [nextMonth(cur), cur, previousMonth(cur)].map((mo) => themes.find((t) => t.month === mo)).filter(Boolean)[0] || null;
-  const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), weekStart: weekStart(now, env), week: weekId(now, env),
-                 perWeek: votesPerWeek(env), token, top, themes, entry, votes: await voteCounts(env, now) };
+  // monthStart: photos added since then can get votes (older pages call it weekStart and perWeek, from when votes were weekly)
+  const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), monthStart: cur + "-01", weekStart: cur + "-01", month: cur,
+                 perMonth: votesPerMonth(env), perWeek: votesPerMonth(env), token, top, themes, entry, votes: await voteCounts(env, now) };
   // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick
   const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + ',"series":' + series +
     ',"people":' + (people || "{}") + "}";
   return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
-// Last week's most-voted photos, best first: [{ id, votes }]. Last week's votes can't change any more,
-// so this is worked out once, on the first visit of the week, and kept (one storage write a week).
-// This week's votes stay secret until the week is over.
-async function lastWeeksTop(env, now) {
-  const week = weekId(now - 7 * 864e5, env), key = "top:" + week;
+// Last month's most-voted photos, best first: { month, items: [{ id, votes }] }. Last month's votes can't change any more,
+// so this is worked out once, on the first visit of the month, and kept (one storage write a month).
+async function lastMonthsTop(env, now) {
+  const month = previousMonth(monthId(now, env)), key = "top:" + month;
   const kept = await env.INBOX.get(key, "json");
-  if (kept) return { week, items: kept.items };
-  const tally = {};
-  for (const k of await listAll(env, "v:" + week + ":")) for (const id of (k.metadata && k.metadata.votes) || []) tally[id] = (tally[id] || 0) + 1;
-  const items = Object.entries(tally).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 10);
-  await env.INBOX.put(key, JSON.stringify({ items }), { expirationTtl: 30 * 86400 });
-  await addFinishedWeeks(env, now);
-  return { week, items };
+  if (kept) return { month, items: kept.items };
+  const keys = await listAll(env, "v:");
+  const items = ranked(tallyByMonth(keys)[month] || {}).slice(0, 10);
+  await env.INBOX.put(key, JSON.stringify({ items }), { expirationTtl: 40 * 86400 });
+  await addFinishedPeriods(env, now, null, keys);
+  return { month, items };
+}
+function ranked(tally) {
+  return Object.entries(tally).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id));
+}
+// Each month's votes per photo, from members' vote records (v:MONTH:CODE). Months from before votes became
+// monthly add up their weekly records (v:WEEK:CODE) for the weeks that start in them. A month with monthly
+// records counts only those.
+function tallyByMonth(keys) {
+  const monthly = {}, weekly = {};
+  for (const k of keys) {
+    const p = k.name.split(":")[1], votes = (k.metadata && k.metadata.votes) || [];
+    const t = /^\d{4}-\d{2}$/.test(p) ? (monthly[p] ||= {}) : /^\d{4}-W\d{2}$/.test(p) ? (weekly[mondayOf(p).slice(0, 7)] ||= {}) : null;
+    if (t) for (const id of votes) t[id] = (t[id] || 0) + 1;
+  }
+  return Object.assign(weekly, monthly);
 }
 
 /* ------------------------------------------------------------------ vote counts */
 // Every photo shows how many votes it has, as they come in (who voted for what stays secret).
-// This week's counts are recounted from members' votes after each vote; weeks that are over are added to the totals once.
+// This month's counts are recounted from members' votes after each vote; months that are over are added to the totals once.
 async function voteCounts(env, now) {
-  const [totals, tally] = await Promise.all([voteTotals(env, now), env.INBOX.get("tally:" + weekId(now, env), "json")]);
+  const [totals, tally] = await Promise.all([voteTotals(env, now), env.INBOX.get("tally:" + monthId(now, env), "json")]);
   const out = Object.assign({}, totals.totals);
   for (const [id, n] of Object.entries(tally || {})) out[id] = (out[id] || 0) + n;
   return out;
 }
 async function voteTotals(env, now) {
   const kept = await env.INBOX.get(TOTALS, "json");
-  if (kept) return kept;
-  return addFinishedWeeks(env, now, { weeks: [], totals: {} });     // the first time: from all the votes still kept (up to 120 days)
+  if (kept && kept.monthly) return kept;
+  // the first time (from all the votes still kept), or totals from when votes were weekly: those weeks are all over now
+  return addFinishedPeriods(env, now, Object.assign(kept || { weeks: [], totals: {} }, { monthly: true }));
 }
-async function addFinishedWeeks(env, now, start) {
-  const totals = start || (await voteTotals(env, now)), current = weekId(now, env), done = new Set(totals.weeks);
+async function addFinishedPeriods(env, now, start, keys) {
+  const totals = start || (await voteTotals(env, now)), current = monthId(now, env), done = new Set(totals.weeks);
   let added = false;
-  for (const k of await listAll(env, "v:")) {
-    const week = k.name.split(":")[1];
-    if (!/^\d{4}-W\d{2}$/.test(week) || week >= current || done.has(week)) continue;
-    if (!totals.weeks.includes(week)) totals.weeks.push(week);
+  for (const k of keys || (await listAll(env, "v:"))) {
+    const p = k.name.split(":")[1];
+    const over = /^\d{4}-W\d{2}$/.test(p) || (/^\d{4}-\d{2}$/.test(p) && p < current);   // weekly votes ended when votes became monthly
+    if (!over || done.has(p)) continue;
+    if (!totals.weeks.includes(p)) totals.weeks.push(p);
     for (const id of (k.metadata && k.metadata.votes) || []) totals.totals[id] = (totals.totals[id] || 0) + 1;
     added = true;
   }
   if (added || start) {
-    totals.weeks = totals.weeks.sort().slice(-40);
+    totals.weeks = totals.weeks.sort().slice(-120);        // the months and weeks already added (their records expire long before)
     await env.INBOX.put(TOTALS, JSON.stringify(totals));
   }
   return totals;
 }
-// this week's count for every photo, from members' vote records; fresh = the record just saved (lists can lag a moment)
-async function recountWeek(env, week, fresh) {
+// this month's count for every photo, from members' vote records; fresh = the record just saved (lists can lag a moment)
+async function recountMonth(env, month, fresh) {
   const tally = {};
   let seen = false;
-  for (const k of await listAll(env, "v:" + week + ":")) {
+  for (const k of await listAll(env, "v:" + month + ":")) {
     const votes = k.name === fresh.key ? (seen = true, fresh.votes) : (k.metadata && k.metadata.votes) || [];
     for (const id of votes) tally[id] = (tally[id] || 0) + 1;
   }
   if (!seen) for (const id of fresh.votes) tally[id] = (tally[id] || 0) + 1;
-  await env.INBOX.put("tally:" + week, JSON.stringify(tally), { expirationTtl: 14 * 86400 });
+  await env.INBOX.put("tally:" + month, JSON.stringify(tally), { expirationTtl: 45 * 86400 });
   return tally;
 }
 
@@ -472,7 +488,7 @@ async function saveSeries(request, env) {
 
 /* ------------------------------------------------------------------ the theme archive */
 // Every month's theme (saved when an admin publishes the home page) and the photos with the most votes that month.
-// Votes stay weekly: a month's favourites add up the votes of the weeks that start in it, counted once its last week is over.
+// A month's favourites are counted once the month is over (months from when votes were weekly add up the weeks that start in them).
 async function archive(request, env) {
   await viewer(request, env);
   const now = Date.now();
@@ -495,26 +511,20 @@ async function archiveMonths(env, now) {
 }
 // Adds the most-voted photos to months whose weeks are all over. Writes only when something changed.
 async function countFinishedMonths(env, months, now, always) {
-  const done = weekStart(now, env).slice(0, 7);          // months before the one this week started in are finished
-  const vote = (k) => { const week = k.name.split(":")[1]; return /^\d{4}-W\d{2}$/.test(week) ? mondayOf(week).slice(0, 7) : ""; };
+  const done = monthId(now, env);                        // months before this one are finished
   const prev = previousMonth(done);
   let changed = !!always;
   if (always || !months.some((m) => m.month === prev && m.counted)) {
-    const tally = {}, perPhoto = {};
-    for (const k of await listAll(env, "v:")) {
-      const month = vote(k), votes = (k.metadata && k.metadata.votes) || [];
-      for (const id of votes) perPhoto[id] = (perPhoto[id] || 0) + 1;     // every photo's votes, for the theme entries
-      if (!month || month >= done || (!always && month !== prev)) continue;
-      const t = tally[month] || (tally[month] = {});
-      for (const id of votes) t[id] = (t[id] || 0) + 1;
-    }
+    const keys = await listAll(env, "v:"), byMonth = tallyByMonth(keys), perPhoto = {}, tally = {};
+    for (const k of keys) for (const id of (k.metadata && k.metadata.votes) || []) perPhoto[id] = (perPhoto[id] || 0) + 1;   // every photo's votes, for the theme entries
+    for (const [month, t] of Object.entries(byMonth)) if (month < done && (always || month === prev)) tally[month] = t;
     const gallery = (await env.INBOX.get(GALLERY, "json")) || [];
     const counted = always ? Object.keys(tally).concat(prev in tally ? [] : [prev]) : [prev];
     for (const month of counted) {
       let m = months.find((x) => x.month === month);
       if (!m) { m = { month }; months.push(m); }
       if (m.counted) continue;
-      const top = Object.entries(tally[month] || {}).map(([id, votes]) => ({ id, votes })).sort((a, b) => b.votes - a.votes || a.id.localeCompare(b.id)).slice(0, 3);
+      const top = ranked(tally[month] || {}).slice(0, 3);
       if (top.length) m.top = top;
       // the theme's most-voted entries
       const best = gallery.filter((p) => p.theme === month && perPhoto[p.id]).map((p) => ({ id: p.id, votes: perPhoto[p.id] }))
@@ -608,18 +618,22 @@ async function vote(request, env) {
   const m = await member(request, env);
   const body = await request.json().catch(() => ({}));
   const id = photoId(body.photo);
-  const week = weekId(Date.now(), env), perWeek = votesPerWeek(env), key = "v:" + week + ":" + m.code;
+  const now = Date.now(), month = monthId(now, env), perMonth = votesPerMonth(env), key = "v:" + month + ":" + m.code;
   const votes = (await env.INBOX.get(key, "json")) || [];
-  if (votes.includes(id)) votes.splice(votes.indexOf(id), 1);          // voting again takes the vote back
+  if (votes.includes(id)) votes.splice(votes.indexOf(id), 1);          // voting again takes the vote back, to use on another photo
   else {
-    if (m.codes.includes(await env.INBOX.get("owner:" + id))) throw fail(403, "You can't vote for your own photo.");
-    if (votes.length >= perWeek) throw fail(409, "You've used your " + perWeek + " votes this week. Take one back to vote for this photo.");
+    const [owner, list] = await Promise.all([env.INBOX.get("owner:" + id), env.INBOX.get(GALLERY, "json")]);
+    if (m.codes.includes(owner)) throw fail(403, "You can't vote for your own photo.");
+    const p = (list || []).find((x) => x.id === id);
+    if (!p) throw fail(404, "This photo isn't in the gallery any more.");
+    if (!String(p.added || "").startsWith(month)) throw fail(409, "Voting has closed for this photo. Each month's votes are for the photos added that month.");
+    if (votes.length >= perMonth) throw fail(409, "You've used your " + perMonth + " votes this month. Take one back to vote for this photo.");
     votes.push(id);
   }
   // the votes also go in the key's metadata, so the admin's standings need only one list request
-  await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 120 * 86400 });
-  const tally = await recountWeek(env, week, { key, votes }), totals = await voteTotals(env, Date.now());
-  return json({ voted: votes.includes(id), votesLeft: perWeek - votes.length, perWeek, week, votes: (totals.totals[id] || 0) + (tally[id] || 0) });
+  await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 150 * 86400 });
+  const tally = await recountMonth(env, month, { key, votes }), totals = await voteTotals(env, now);
+  return json({ voted: votes.includes(id), votesLeft: perMonth - votes.length, perMonth, perWeek: perMonth, month, votes: (totals.totals[id] || 0) + (tally[id] || 0) });
 }
 
 async function addComment(request, env) {
@@ -697,22 +711,17 @@ async function removeComment(env, rawId, cid, codes) {
   return json({ ok: true });
 }
 
+// A month's ranking for the admin page, with how many members voted (never who voted for what)
 async function standings(url, env) {
   const now = Date.now();
-  const current = weekId(now, env), previous = weekId(now - 7 * 864e5, env);
-  const week = url.searchParams.get("week") || current;
-  if (!/^\d{4}-W\d{2}$/.test(week)) throw fail(400, "Unknown week.");
-  const keys = await listAll(env, "v:" + week + ":");
-  const tally = {};
-  let voters = 0;
-  for (const k of keys) {
-    const v = (k.metadata && k.metadata.votes) || [];
-    if (v.length) voters++;
-    for (const id of v) tally[id] = (tally[id] || 0) + 1;
-  }
-  const ranking = Object.entries(tally).map(([photo, votes]) => ({ photo, votes }))
-    .sort((a, b) => b.votes - a.votes || a.photo.localeCompare(b.photo));
-  return json({ week, current, previous, voters, ranking });
+  const current = monthId(now, env), previous = previousMonth(current);
+  const month = url.searchParams.get("month") || current;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail(400, "Unknown month.");
+  let keys = await listAll(env, "v:" + month + ":");
+  if (!keys.length) keys = (await listAll(env, "v:")).filter((k) => { const w = k.name.split(":")[1]; return /^\d{4}-W\d{2}$/.test(w) && mondayOf(w).startsWith(month); });   // from when votes were weekly
+  const voters = new Set(keys.filter((k) => ((k.metadata && k.metadata.votes) || []).length).map((k) => k.name.split(":")[2])).size;
+  const ranking = ranked(tallyByMonth(keys)[month] || {}).map((x) => ({ photo: x.id, votes: x.votes }));
+  return json({ month, current, previous, voters, ranking });
 }
 
 function publicComment(c, codes) {
@@ -837,18 +846,18 @@ async function deletePhoto(env, rawId) {
   return json({ ok: true });
 }
 
-// Photos of the week: up to three photos from last week's vote, shown on the home page to members.
+// Photos of the month: up to three photos from last month's vote, shown on the home page to members.
 async function setPotw(request, env) {
   const body = await request.json().catch(() => ({}));
-  const week = String(body.week || "");
-  if (!/^\d{4}-W\d{2}$/.test(week)) throw fail(400, "Unknown week.");
+  const month = String(body.month || "");
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail(400, "Unknown month.");
   const list = (await env.INBOX.get(GALLERY, "json")) || [];
   const ids = new Set(list.map((e) => e.id));
   const items = (Array.isArray(body.items) ? body.items : []).slice(0, 3)
     .map((x) => ({ id: photoId(x.id), votes: Math.max(0, parseInt(x.votes, 10) || 0) }))
     .filter((x) => ids.has(x.id));
   if (!items.length) throw fail(400, "None of those photos are in the gallery.");
-  const potw = { week, items, at: Date.now() };
+  const potw = { month, items, at: Date.now() };   // Photos of the month
   await env.INBOX.put(POTW, JSON.stringify(potw));
   return json({ ok: true, potw });
 }
@@ -878,16 +887,16 @@ async function newCode(env, raw) {
   const old = normalize(raw);
   const m = await env.INBOX.get("member:" + old, "json");
   if (!m) throw fail(404, "That member isn't in the club any more. Refresh the list.");
-  const code = randomString(12), now = Date.now(), week = weekId(now, env);
+  const code = randomString(12), now = Date.now(), month = monthId(now, env);
   const prev = (m.prev || []).concat(old).slice(-10);
   const rec = { name: m.name, created: m.created, renewed: now, prev };
   if (m.bio) rec.bio = m.bio;
   await env.INBOX.put("member:" + code, JSON.stringify(rec), { metadata: { name: m.name, created: m.created } });
-  const [own, votes] = await Promise.all([env.INBOX.get("own:" + old), env.INBOX.getWithMetadata("v:" + week + ":" + old)]);
+  const [own, votes] = await Promise.all([env.INBOX.get("own:" + old), env.INBOX.getWithMetadata("v:" + month + ":" + old)]);
   if (own) await env.INBOX.put("own:" + code, own);
-  if (votes.value) await env.INBOX.put("v:" + week + ":" + code, votes.value, { metadata: votes.metadata, expirationTtl: 120 * 86400 });
+  if (votes.value) await env.INBOX.put("v:" + month + ":" + code, votes.value, { metadata: votes.metadata, expirationTtl: 150 * 86400 });
   for (const p of prev) await env.INBOX.put("moved:" + p, code);     // photos they sent earlier, still waiting, follow them
-  await Promise.all(["member:" + old, "own:" + old, "v:" + week + ":" + old].map((k) => env.INBOX.delete(k)));
+  await Promise.all(["member:" + old, "own:" + old, "v:" + month + ":" + old].map((k) => env.INBOX.delete(k)));
   return json({ code, name: m.name, created: m.created });
 }
 
@@ -954,11 +963,11 @@ async function restoreRecords(request, env) {
       await env.INBOX.put(prefix + name, v);
       added++;
     } else if (prefix === "v:") {
-      const m = rest.match(/^(\d{4}-W\d{2}):([0-9A-Z]{8,32})$/);
+      const m = rest.match(/^(\d{4}-W\d{2}|\d{4}-(?:0[1-9]|1[0-2])):([0-9A-Z]{8,32})$/);   // monthly votes, or weekly ones from before
       if (!m || !Array.isArray(v)) throw fail(400, "The backup has a vote that can't be read.");
       if (await env.INBOX.get(key)) { skipped++; continue; }
       const votes = v.map((x) => photoId(x)).slice(0, 10);
-      await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 120 * 86400 });
+      await env.INBOX.put(key, JSON.stringify(votes), { metadata: { votes }, expirationTtl: 150 * 86400 });
       added++;
     } else if (key === PEOPLE) {
       if (!v || typeof v !== "object" || Array.isArray(v)) throw fail(400, "The backup's photographer lines can't be read.");
@@ -1009,8 +1018,9 @@ async function restoreRecords(request, env) {
       merged++;
     } else if (key === POTW) {
       if (await env.INBOX.get(POTW)) { skipped++; continue; }
-      if (!v || !/^\d{4}-W\d{2}$/.test(v.week) || !Array.isArray(v.items)) throw fail(400, "The backup's Photos of the week can't be read.");
-      await env.INBOX.put(POTW, JSON.stringify({ week: v.week, items: v.items.slice(0, 3).map((x) => ({ id: photoId(x.id), votes: +x.votes || 0 })), at: +v.at || Date.now() }));
+      const period = v && (/^\d{4}-\d{2}$/.test(v.month) ? { month: v.month } : /^\d{4}-W\d{2}$/.test(v.week) ? { week: v.week } : null);
+      if (!period || !Array.isArray(v.items)) throw fail(400, "The backup's Photos of the month can't be read.");
+      await env.INBOX.put(POTW, JSON.stringify({ ...period, items: v.items.slice(0, 3).map((x) => ({ id: photoId(x.id), votes: +x.votes || 0 })), at: +v.at || Date.now() }));
       added++;
     } else throw fail(400, "The backup has a record the inbox doesn't know.");
   }
@@ -1286,38 +1296,22 @@ function photoId(x) {
   return v;
 }
 function weeklyLimit(env) { const n = parseInt(env.WEEKLY_LIMIT, 10); return n > 0 ? n : 5; }
-function votesPerWeek(env) { const n = parseInt(env.VOTES_PER_WEEK, 10); return n > 0 ? n : 3; }
+function votesPerMonth(env) { const n = parseInt(env.VOTES_PER_MONTH, 10); return n > 0 ? n : 5; }
 // the club's calendar date, YYYY-MM-DD
 function clubDate(ms, env) {
   try {
     return new Intl.DateTimeFormat("en-CA", { timeZone: env.TIMEZONE || "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
   } catch { return new Date(ms).toISOString().slice(0, 10); }
 }
-// ISO week in the club's time zone, e.g. 2026-W42 (weeks start on Monday)
-function weekId(ms, env) {
-  const [y, m, d] = clubDate(ms, env).split("-").map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d));
-  t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7) + 3);           // the Thursday of this week
-  const jan4 = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
-  const week = 1 + Math.round(((t - jan4) / 864e5 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
-  return t.getUTCFullYear() + "-W" + String(week).padStart(2, "0");
-}
 // the month in the club's time zone, e.g. 2026-10; the month after or before one
 function monthId(ms, env) { return clubDate(ms, env).slice(0, 7); }
 function nextMonth(m) { const [y, n] = m.split("-").map(Number); return n === 12 ? (y + 1) + "-01" : y + "-" + String(n + 1).padStart(2, "0"); }
 function previousMonth(m) { const [y, n] = m.split("-").map(Number); return n === 1 ? (y - 1) + "-12" : y + "-" + String(n - 1).padStart(2, "0"); }
-// the Monday of an ISO week, e.g. 2026-W42 -> 2026-10-12
+// the Monday of an ISO week, e.g. 2026-W42 -> 2026-10-12 (for vote records from when votes were weekly)
 function mondayOf(week) {
   const [y, w] = week.split("-W").map(Number), jan4 = new Date(Date.UTC(y, 0, 4));
   jan4.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + (w - 1) * 7);
   return jan4.toISOString().slice(0, 10);
-}
-// the Monday of this week in the club's time zone, YYYY-MM-DD
-function weekStart(ms, env) {
-  const [y, m, d] = clubDate(ms, env).split("-").map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d));
-  t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
-  return t.toISOString().slice(0, 10);
 }
 // a photo's name in links, from its title: "Autumn in Dresden" -> autumn-in-dresden
 function slugify(s) {

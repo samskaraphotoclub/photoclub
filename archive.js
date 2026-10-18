@@ -49,7 +49,7 @@
               '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a><figcaption><b' + ml(p.title) + ">" + (i + 1) + ". " + esc(p.title) + "</b> <span" + ml(p.by) + ">" + esc(p.by) + "</span>" +
               (x.votes ? ", " + x.votes + (x.votes === 1 ? " vote" : " votes") : "") + "</figcaption></figure>";
           }).join("") + "</div>"
-          : current ? '<p class="muted">The month\'s most-voted photos appear here once it\'s over. <a href="gallery.html#this-week">Vote for this week\'s photos</a></p>'
+          : current ? '<p class="muted">The month\'s most-voted photos appear here once it\'s over. <a href="gallery.html#this-month">Vote for this month\'s photos</a></p>'
           : later ? "" : '<p class="muted">No votes that month.</p>';
         return '<article class="week">' + head + theme + count + body + "</article>";
       }).join("");

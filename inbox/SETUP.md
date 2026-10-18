@@ -1,6 +1,6 @@
 # Setting up the photo inbox
 
-The photo inbox is a small program that runs on Cloudflare's free plan. It keeps photos that members send private until an admin approves or declines them, keeps the approved photos in the members-only gallery, and stores members' comments and weekly votes. Only people with an invite code can see the gallery, send photos, comment or vote, and only the admin password can see waiting photos and vote counts.
+The photo inbox is a small program that runs on Cloudflare's free plan. It keeps photos that members send private until an admin approves or declines them, keeps the approved photos in the members-only gallery, and stores members' comments and monthly votes. Only people with an invite code can see the gallery, send photos, comment or vote, and only the admin password can see waiting photos and vote counts.
 
 **Already set up the inbox before the gallery became members-only?** Repeat point 3 of step 3 with the new `worker.js` (Edit code, replace everything, Deploy). Your members, comments and votes stay as they are.
 
@@ -36,8 +36,8 @@ Open the Worker, then **Settings** > **Variables and Secrets** > **Add**:
 | `ADMIN_PASSWORD` | Secret | A long password, at least 12 characters. Share it only with club admins. |
 | `ALLOWED_ORIGIN` | Text | Your site's address without anything after the domain, for example `https://yourname.github.io` |
 | `WEEKLY_LIMIT` | Text | Optional. How many photos each member can send per 7 days. Default 5. |
-| `VOTES_PER_WEEK` | Text | Optional. How many votes each member can give per week. Default 3. |
-| `TIMEZONE` | Text | Optional. When voting weeks start, for example `Europe/Berlin` (the default) or `Europe/London`. |
+| `VOTES_PER_MONTH` | Text | Optional. How many votes each member can give per month. Default 5. (An old `VOTES_PER_WEEK` setting is no longer used.) |
+| `TIMEZONE` | Text | Optional. When voting months start, for example `Europe/Berlin` (the default) or `Europe/London`. |
 
 Save and deploy.
 

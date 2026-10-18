@@ -123,7 +123,7 @@ var Backup = (function () {
         "downloads/                The files on the Downloads page, with their previews (NAME-preview)\r\n" +
         "photos.csv                The list of photos, to open in a spreadsheet\r\n" +
         "gallery.json              The gallery as the inbox keeps it (titles, photographers, camera settings, dates)\r\n" +
-        "photos-of-the-week.json   The current Photos of the week\r\n" +
+        "photos-of-the-week.json   The current Photos of the month\r\n" +
         "data.json                 Members and their invite codes, comments, votes, who sent which photo, series, the theme archive,\r\n" +
         "                          photographers' lines about themselves, events and who signed up, the list of downloads\r\n\r\n" +
         d.photos.length + " photos, " + records["member:"].length + " members.\r\n";

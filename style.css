@@ -441,7 +441,7 @@ label.f small, p.f small { font-weight: 400; color: var(--muted); }
 
 /* ------------------------------------------------------------------ votes and comments in the photo viewer */
 .chips label[hidden] { display: none; }
-.gallery:has(#c-week:checked) .tile:not(.this-week) { display: none; }
+.gallery:has(#c-month:checked) .tile:not(.this-month) { display: none; }
 .talk { margin-top: 22px; padding-top: 4px; }
 .talk h3 { font: 600 1rem var(--sans); margin: 18px 0 10px; letter-spacing: 0; }
 .vote-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0; font-size: .92rem; }

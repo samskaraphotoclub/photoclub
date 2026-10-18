@@ -1,7 +1,7 @@
 /* The Conscious Frame – the members-only gallery.
    Members sign in with their invite code; the photos then load from the club's inbox.
    Filters for categories and series, and under each photo in the viewer, members' comments
-   (with a Report button) and votes for this week's photos. Needs config.js, club.js and viewer.js. */
+   (with a Report button) and votes for this month's photos. Needs config.js, club.js and viewer.js. */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
@@ -57,9 +57,9 @@
       $("g-status").textContent = byName ? "No photos from " + byName + " in the gallery yet." : themeMonth ? "No entries for this theme yet." : "No photos yet. Share the first one on the Share a photo page.";
       $("g-name").textContent = d.name;
       $("g-who").hidden = false; $("g-photos").hidden = false;
-      var fresh = list.filter(function (p) { return Club.thisWeek(d, p); }).length;
-      $("l-week").hidden = !fresh;
-      if (location.hash === "#this-week" && fresh) $("c-week").checked = true;
+      var fresh = list.filter(function (p) { return Club.thisMonth(d, p); }).length;
+      $("l-month").hidden = !fresh;
+      if ((location.hash === "#this-month" || location.hash === "#this-week") && fresh) $("c-month").checked = true;
       var s = location.hash.match(/^#series-([a-z0-9-]+)$/), chip = s && $("c-s-" + s[1]);
       if (chip) { chip.checked = true; chip.scrollIntoView({ block: "nearest", inline: "center" }); }
       Club.layout();
@@ -98,14 +98,14 @@
     var lines = (theme ? '<p class="in-series">Entry for the monthly theme <a href="gallery.html?theme=' + esc(p.theme) + '"><b' + Club.ml(theme) + ">" + esc(theme) + "</b></a></p>" : "") +
       (p.fb === "share" ? '<p class="fb-note">Just sharing: no critique needed. Say what you enjoy about it.</p>' : '<p class="fb-note">Feedback welcome: start with what works, then your suggestion.</p>');
     return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
-      cls: cats + (Club.thisWeek(data, p) ? " this-week" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") + (p.fb === "share" ? "" : " fb-on"),
+      cls: cats + (Club.thisMonth(data, p) ? " this-month" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") + (p.fb === "share" ? "" : " fb-on"),
       series: series, lines: lines, byHref: "gallery.html?by=" + encodeURIComponent(p.by), votes: (data.votes && data.votes[p.id]) || 0,
       extra: p.pub ? '<p class="note">Also in the club\'s public <a href="exhibition.html#p-' + esc(p.id) + '">exhibition</a>, where anyone can see it.</p>' : ""
     });
   }
 
   // Filter chips for the current monthly theme's entries and each series with photos, right after "All",
-  // and "Feedback welcome" before "This week" (filtering is plain CSS, like the categories)
+  // and "Feedback welcome" before "This month" (filtering is plain CSS, like the categories)
   function seriesChips(d, list) {
     document.querySelectorAll(".chips .extra-chip").forEach(function (el) { el.remove(); });
     var style = $("series-filters") || document.head.appendChild(Object.assign(document.createElement("style"), { id: "series-filters" }));
@@ -115,7 +115,7 @@
     if (d.entry && !themeMonth && list.some(function (p) { return p.theme === d.entry.month; })) html += chip("c-e", "Theme: " + d.entry.title, "e-" + d.entry.month);
     (d.series || []).forEach(function (s) { if (list.some(function (p) { return Club.seriesOf(p).indexOf(s.id) >= 0; })) html += chip("c-s-" + s.id, s.name, "s-" + s.id); });
     $("c-all").nextElementSibling.insertAdjacentHTML("afterend", html);
-    if (list.some(function (p) { return p.fb !== "share"; }) && list.some(function (p) { return p.fb === "share"; })) $("c-week").insertAdjacentHTML("beforebegin", chip("c-fb", "Feedback welcome", "fb-on"));
+    if (list.some(function (p) { return p.fb !== "share"; }) && list.some(function (p) { return p.fb === "share"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-fb", "Feedback welcome", "fb-on"));
     style.textContent = rules.join("\n");
   }
 
@@ -141,22 +141,22 @@
   }
   function load(v, box) {
     var id = v.id.slice(2), tile = v.closest(".tile");
-    var thisWeek = !!(tile && tile.classList.contains("this-week"));
+    var thisWeek = !!(tile && tile.classList.contains("this-month"));   // (open for votes this month)
     return Club.call("/photo/" + id).then(function (d) { draw(box, id, d, thisWeek); })
       .catch(function (e) { if (e.status === 401) { Club.signOut(); showGate(e.message); return; } box.innerHTML = '<p class="muted">' + esc(e.message) + "</p>"; });
   }
 
-  // the heart beside the title: vote for this week's photos (not your own); the count on the photo updates
+  // the heart beside the title: vote for this month's photos (not your own); the count on the photo updates
   function voteControls(v, id, d, thisWeek) {
     var slot = v.querySelector(".vote-slot"), note = v.querySelector(".vote-note");
     if (!slot) return;
     data.votes = data.votes || {};
     if (typeof d.votes === "number") { data.votes[id] = d.votes; Viewer.setVotes(id, d.votes); }
-    var left = function (n) { return n + " of " + d.perWeek + " votes left this week"; };
+    var left = function (n) { return n + " of " + (d.perMonth || d.perWeek) + " votes left this month"; };
     if (!d.member) { slot.innerHTML = ""; note.textContent = ""; note.hidden = true; return; }
     note.hidden = false;
-    // photos from earlier weeks: say why there's no heart, so nobody thinks it's missing
-    if (!thisWeek) { slot.innerHTML = ""; note.className = "vote-note"; note.textContent = "Voting has closed for this photo. Each week's votes are for the photos added that week."; return; }
+    // photos from earlier months: say why there's no heart, so nobody thinks it's missing
+    if (!thisWeek) { slot.innerHTML = ""; note.className = "vote-note"; note.textContent = "Voting has closed for this photo. Each month's votes are for the photos added that month."; return; }
     if (d.own) { slot.innerHTML = ""; note.textContent = "Your photo, so you can't vote for it."; return; }
     slot.innerHTML = '<button class="vote-heart" type="button" aria-pressed="' + !!d.voted + '" aria-label="' + (d.voted ? "Take back your vote" : "Vote for this photo") + '">' + Viewer.HEART + "</button>";
     note.textContent = (d.voted ? "You voted for this photo. " : "Tap the heart to vote. ") + left(d.votesLeft) + ".";

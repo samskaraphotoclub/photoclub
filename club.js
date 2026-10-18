@@ -27,7 +27,7 @@ var Club = (function () {
       }, function () { throw new Error("Couldn't reach the club. Check your internet connection and try again."); });
   }
 
-  // The whole gallery: photos (newest first), Photos of the week, this week's dates and the photo link key.
+  // The whole gallery: photos (newest first), Photos of the month, this month's dates and the photo link key.
   var loading = null;
   function gallery() {
     if (!loading) {
@@ -106,7 +106,8 @@ var Club = (function () {
     var s = (list || []).filter(function (x) { return x.id === id; })[0];
     return s ? s.name : "";
   }
-  function thisWeek(d, p) { return !!p.added && p.added >= d.weekStart && p.added <= d.today; }
+  // added this month, so members can vote for it (votes are monthly)
+  function thisMonth(d, p) { return !!p.added && p.added >= (d.monthStart || d.weekStart) && p.added <= d.today; }
 
   function signIn(typed) {
     var c = String(typed || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
@@ -115,7 +116,7 @@ var Club = (function () {
   }
   function signOut() { setCode(""); loading = null; }
 
-  return { ready: ready, code: code, esc: esc, call: call, gallery: gallery, photoUrl: photoUrl, thisWeek: thisWeek, signIn: signIn, signOut: signOut,
+  return { ready: ready, code: code, esc: esc, call: call, gallery: gallery, photoUrl: photoUrl, thisMonth: thisMonth, thisWeek: thisMonth, signIn: signIn, signOut: signOut,
            exhibition: exhibition, publicUrl: publicUrl, ml: ml, shuffle: shuffle, seriesName: seriesName, layout: layout,
            cats: cats, seriesOf: seriesOf, catClass: catClass, fileUrl: fileUrl };
 })();

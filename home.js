@@ -1,6 +1,6 @@
 /* The Conscious Frame – the home page's photos.
    Everyone: a few photos from the public exhibition, picked at random on each visit. Visitors also get one of
-   them as the large photo. Members instead see last week's top three as a fan of prints, Photos of the week,
+   them as the large photo. Members instead see last month's top three as a fan of prints, Photos of the month,
    the long-term series and the newest photos, loaded from the club's inbox. Everyone sees the next
    events and the newest downloads. Needs config.js and club.js (and events.js, downloads.js). */
 (function () {
@@ -79,12 +79,11 @@
     }
     var potw = ((d.potw && d.potw.items) || []).map(function (x) { var p = d.byId[x.id]; return p ? { p: p, votes: x.votes } : null; }).filter(Boolean);
 
-    // The fan: last week's three most-voted photos (still in the gallery), else Photos of the week, else the newest.
-    // This week's votes stay secret until the week is over.
+    // The fan: last month's three most-voted photos (still in the gallery), else Photos of the month, else the newest.
     var top = ((d.top && d.top.items) || []).filter(function (x) { return d.byId[x.id]; }).slice(0, 3).map(function (x) { return d.byId[x.id]; });
     var fan = top.length ? top : potw.length ? potw.map(function (x) { return x.p; }) : d.photos.slice(0, 3);
-    var why = top.length ? (fan.length > 1 ? "Most votes last week. In front: " : "Most votes last week: ")
-            : potw.length ? "Photos of the week. In front: " : fan.length > 1 ? "Newest in the gallery. In front: " : "Newest in the gallery: ";
+    var why = top.length ? (fan.length > 1 ? "Most votes last month. In front: " : "Most votes last month: ")
+            : potw.length ? "Photos of the month. In front: " : fan.length > 1 ? "Newest in the gallery. In front: " : "Newest in the gallery: ";
     if (fan.length) {
       $("hero-fan").innerHTML = '<div class="stage">' + fan.map(function (p, i) {
         return '<a class="p' + (i + 1) + '" href="gallery.html#p-' + esc(p.id) + '" style="--ar:' + ar(p) + '" aria-label="' + esc((i + 1) + ". " + p.title + " by " + p.by) + '">' +
@@ -97,7 +96,7 @@
       $("hero-card").querySelector(".actions").innerHTML = '<a class="btn btn-dark" href="submit.html">Share a photo</a>';
     }
 
-    // Photos of the week, unless the fan already shows the same photos
+    // Photos of the month, unless the fan already shows the same photos
     var inFan = fan.map(function (p) { return p.id; });
     if (potw.length && !potw.every(function (x) { return inFan.indexOf(x.p.id) >= 0; })) {
       $("potw").innerHTML = potw.map(function (x) {
