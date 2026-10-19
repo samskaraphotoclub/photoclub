@@ -126,7 +126,8 @@ events.html            Events: photo walks, workshops, exhibitions, meet-ups
 downloads.html         Downloads: posters, cheat sheets, guides and forms
 impressum.html         Impressum (legal notice)
 datenschutz.html       Privacy policy (Datenschutzerklärung)
-about.html             How the club works, feedback rules, joining, FAQ
+about.html             Who we are, joining, questions
+working.html           Working: how the club works (themes, hearts, downloads, events, exhibition), series, feedback rules, your photos
 submit.html            Share a photo: members send photos for approval
 admin.html             Admin: approve photos, gallery, members, hearts, comments, home page, events, downloads, post a photo, settings
 404.html               Shown for missing pages
