@@ -191,9 +191,53 @@
     }, 30000);
   }
 
+  // On your own photo: correct the description and camera settings. The photo keeps its hearts and comments.
+  function ownEdit(v, id, d) {
+    var old = v.querySelector(".own-edit");
+    if (old) old.remove();
+    var p = data && data.byId[id], box = v.querySelector(".info .details");
+    if (!d.own || !p || !box) return;
+    var wrap = document.createElement("div");
+    wrap.className = "own-edit";
+    box.insertAdjacentElement("afterend", wrap);
+    function closed(msg) {
+      wrap.innerHTML = '<button class="btn btn-light btn-small" type="button">Edit details</button><p class="status" aria-live="polite"></p>';
+      if (msg) setStatus(wrap.querySelector(".status"), msg);
+      wrap.querySelector("button").addEventListener("click", open);
+    }
+    function field(k, label, ph) { return '<div><label class="f" for="ed-' + k + "-" + id + '">' + label + '</label><input type="text" id="ed-' + k + "-" + id + '" maxlength="30" placeholder="' + ph + '" value="' + esc(p[k] || "") + '"></div>'; }
+    function open() {
+      wrap.innerHTML = '<form class="edit-form" novalidate><label class="f" for="ed-desc-' + id + '">Description</label>' +
+        '<textarea id="ed-desc-' + id + '" maxlength="400"' + ml(p.desc) + ">" + esc(p.desc || "") + "</textarea>" +
+        '<div class="two">' + field("lens", "Lens", "35 mm") + field("ap", "Aperture", "f/8") + field("sh", "Shutter", "1/250 s") + field("iso", "ISO", "100") + "</div>" +
+        '<p class="note">Its hearts and comments stay. To change the photo itself or its title, ask a club admin.</p>' +
+        '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
+        '<p class="status" aria-live="polite"></p></form>';
+      var form = wrap.querySelector("form"), st = form.querySelector(".status");
+      form.querySelector('[data-a="cancel"]').addEventListener("click", function () { closed(); });
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var body = { desc: form.querySelector("#ed-desc-" + id).value };
+        ["lens", "ap", "sh", "iso"].forEach(function (k) { body[k] = form.querySelector("#ed-" + k + "-" + id).value; });
+        form.querySelector('[type="submit"]').disabled = true; setStatus(st, "Saving…");
+        Club.call("/photo/" + id + "/details", { method: "POST", json: body }).then(function (r) {
+          ["desc", "lens", "ap", "sh", "iso"].forEach(function (k) { if (r.photo[k]) p[k] = r.photo[k]; else delete p[k]; });
+          Viewer.setDetails(id, p);
+          closed("Saved. The photo keeps its hearts and comments.");
+        }).catch(function (e) {
+          setStatus(st, e.status === 404 && /Not found/.test(e.message) ? "Editing details works once the club's inbox has been updated." : e.message, true);
+          form.querySelector('[type="submit"]').disabled = false;
+        });
+      });
+      form.querySelector("textarea").focus();
+    }
+    closed();
+  }
+
   function draw(box, id, d) {
     var member = !!d.member, html = "";
     voteControls(box.closest(".viewer"), id, d);
+    ownEdit(box.closest(".viewer"), id, d);
     watch(box.closest(".viewer"), id);
     html += "<h3>Comments" + (d.comments.length ? " (" + d.comments.length + ")" : "") + "</h3>";
     html += d.comments.length

@@ -10,13 +10,18 @@ var Viewer = (function () {
      o.votes: its number of hearts (shown on the photo), which also makes room for the heart button beside the title. */
   var HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 4.3 13a4.9 4.9 0 0 1 0-7 4.9 4.9 0 0 1 7 0l.7.7.7-.7a4.9 4.9 0 0 1 7 0 4.9 4.9 0 0 1 0 7Z"/></svg>';
   function badge(n, cls) { return '<span class="' + cls + '"' + (n ? "" : " hidden") + ' aria-label="' + n + (n === 1 ? " heart" : " hearts") + '">' + HEART + "<b>" + (n | 0) + "</b></span>"; }
+  // the description and camera settings
+  function details(p) {
+    var rows = [["Lens", p.lens], ["Aperture", p.ap], ["Shutter", p.sh], ["ISO", p.iso]].filter(function (r) { return r[1]; })
+      .map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("");
+    return (p.desc ? '<p class="desc"' + ml(p.desc) + ">" + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "");
+  }
+  function setDetails(id, p) { var box = document.querySelector("#p-" + id + " .details"); if (box) box.innerHTML = details(p); }
   function tile(p, thumb, full, o) {
     o = o || {};
     var id = esc(p.id), title = esc(p.title), ar = (p.tw > 0 && p.th > 0 ? p.tw / p.th : 1.5).toFixed(3);
     var series = Array.isArray(o.series) ? o.series : o.series ? [o.series] : [], voting = o.votes !== undefined;
     var by = o.byHref ? '<a class="by-link" href="' + esc(o.byHref) + '"' + ml(p.by) + ">" + esc(p.by) + "</a>" : "<span" + ml(p.by) + ">" + esc(p.by) + "</span>";
-    var rows = [["Lens", p.lens], ["Aperture", p.ap], ["Shutter", p.sh], ["ISO", p.iso]].filter(function (r) { return r[1]; })
-      .map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("");
     return '<figure class="tile' + (o.cls ? " " + o.cls : "") + '" id="t-' + id + '" style="--ar:' + ar + '">' +
       '<a href="#p-' + id + '"><img src="' + esc(thumb) + '" alt="' + title + '" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy">' + (voting ? badge(o.votes, "tile-votes") : "") + "</a>" +
       "<figcaption><b" + ml(p.title) + ">" + title + "</b>" + by + "</figcaption>" +
@@ -28,7 +33,7 @@ var Viewer = (function () {
           '<div class="info">' + (voting ? '<div class="title-row"><h2' + ml(p.title) + ">" + title + '</h2><div class="vote-slot"></div></div><p class="vote-note" aria-live="polite"></p>' : "<h2" + ml(p.title) + ">" + title + "</h2>") +
             '<p class="by">' + by + ", " + esc(Club.cats(p).join(", ")) + "</p>" +
             (series.length ? '<p class="in-series">Part of the series ' + series.map(function (n) { return "<b" + ml(n) + ">" + esc(n) + "</b>"; }).join(" and ") + "</p>" : "") + (o.lines || "") +
-            (p.desc ? '<p class="desc"' + ml(p.desc) + ">" + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "") + (o.extra || "") + "</div>" +
+            '<div class="details">' + details(p) + "</div>" + (o.extra || "") + "</div>" +
         "</div>" +
       "</div></figure>";
   }
@@ -96,5 +101,5 @@ var Viewer = (function () {
       b.hidden = !n; b.querySelector("b").textContent = n; b.setAttribute("aria-label", n + (n === 1 ? " heart" : " hearts"));
     });
   }
-  return { tile: tile, init: init, sync: sync, addSteps: addSteps, current: current, setVotes: setVotes, HEART: HEART };
+  return { tile: tile, init: init, sync: sync, addSteps: addSteps, current: current, setVotes: setVotes, setDetails: setDetails, HEART: HEART };
 })();

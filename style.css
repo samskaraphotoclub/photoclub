@@ -239,6 +239,13 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
 .viewer h2 { padding-right: 44px; }
 .viewer .by { color: var(--muted); }
 .viewer .desc { font-family: var(--serif); font-size: 1.08rem; }
+/* on your own photo: Edit details (description and camera settings) */
+.own-edit { margin-top: 16px; }
+.own-edit .status:empty { display: none; }
+.edit-form input[type=text], .edit-form textarea { width: 100%; min-height: 44px; padding: 10px 12px; font: 16px var(--sans); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+.edit-form textarea { min-height: 96px; resize: vertical; }
+.edit-form .note { margin-top: 10px; }
 /* votes: the heart beside the title, and the count on the photo and its thumbnail */
 .viewer .title-row { display: flex; align-items: flex-start; gap: 12px; padding-right: 44px; }
 .viewer .title-row h2 { flex: 1; min-width: 0; padding-right: 0; }

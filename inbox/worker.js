@@ -101,6 +101,7 @@ async function route(request, env) {
   if (parts[0] === "report" && method === "POST") return report(request, env);
   if (parts[0] === "img" && method === "GET" && parts[1] && (parts[2] === "full" || parts[2] === "thumb")) return servePhoto(url, env, parts[1], parts[2]);
   if (parts[0] === "photo" && method === "GET" && parts[1]) return photoInfo(request, env, parts[1]);
+  if (parts[0] === "photo" && method === "POST" && parts[1] && parts[2] === "details") return editOwnPhoto(request, env, parts[1]);
   if (parts[0] === "files" && method === "GET" && !parts[1]) return listFiles(request, env);
   if (parts[0] === "file" && method === "GET" && parts[1] && (!parts[2] || parts[2] === "thumb")) return serveFile(url, env, parts[1], parts[2] === "thumb");
   if (parts[0] === "vote" && method === "POST") return vote(request, env);
@@ -886,7 +887,7 @@ async function editPhoto(request, env, rawId) {
   if (body.title != null) x.title = clean(body.title, 80, "title", true);
   if (body.by != null) x.by = clean(body.by, 60, "photographer's name", true);
   if (body.cats != null || body.cat != null) setCats(x, categories(body.cats != null ? body.cats : body.cat));
-  if (body.desc != null) { x.desc = clean(body.desc, 400, "description"); if (!x.desc) delete x.desc; }
+  photoDetails(x, body);
   if (body.series != null) setSeries(x, await checkSeries(env, body.series));
   if (body.theme != null) { x.theme = checkMonth(body.theme); if (!x.theme) delete x.theme; }
   if (body.fb != null) { if (body.fb === "share") x.fb = "share"; else delete x.fb; }
@@ -897,6 +898,33 @@ async function editPhoto(request, env, rawId) {
   } else if (body.pub === false) delete x.pub;
   await env.INBOX.put(GALLERY, JSON.stringify(list));
   return json({ ok: true, photo: x });
+}
+
+// The description and camera settings: given ones are changed, empty ones removed, missing ones kept
+function photoDetails(x, body) {
+  for (const [k, max, label] of [["desc", 400, "description"], ["lens", 30, "lens"], ["ap", 30, "aperture"], ["sh", 30, "shutter speed"], ["iso", 30, "ISO"]]) {
+    if (body[k] == null) continue;
+    const v = clean(body[k], max, label);
+    if (v) x[k] = v; else delete x[k];
+  }
+}
+// The photographer corrects their own photo's description and camera settings. The photo keeps its name,
+// so its hearts, comments and place in the gallery stay as they are.
+async function editOwnPhoto(request, env, rawId) {
+  const m = await member(request, env);
+  const id = photoId(rawId);
+  const owner = await env.INBOX.get("owner:" + id);
+  if (!owner || !m.codes.includes(owner)) throw fail(403, "Only the photographer can change a photo's details. Ask a club admin if something needs fixing.");
+  const body = await request.json().catch(() => ({}));
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  const x = list.find((e) => e.id === id);
+  if (!x) throw fail(404, "This photo isn't in the gallery any more.");
+  photoDetails(x, body);
+  x.edited = Date.now();
+  await env.INBOX.put(GALLERY, JSON.stringify(list));
+  const out = { id };
+  for (const k of ["desc", "lens", "ap", "sh", "iso"]) out[k] = x[k] || "";
+  return json({ ok: true, photo: out });
 }
 
 // Removes a photo from the gallery for good, with its comments.
