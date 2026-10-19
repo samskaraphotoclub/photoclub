@@ -94,6 +94,18 @@ var Backup = (function () {
         return nextFile();
       }, function (e) { if (!/Not found/.test(e.message)) throw e; downloads = []; });   // older inboxes have no downloads
     }).then(function () {
+      // members' pictures, for the photographer pages
+      var people = d.people || {}, names = Object.keys(people).filter(function (n) { return people[n] && people[n].av; }), n = 0;
+      function nextPic() {
+        if (n >= names.length) return Promise.resolve();
+        var id = people[names[n++]].av;
+        onStatus("Getting picture " + n + " of " + names.length + "…");
+        return inbox("/avatar/" + encodeURIComponent(id) + "?t=" + encodeURIComponent(d.token), { blob: true }).then(function (b) {
+          return b.arrayBuffer().then(function (buf) { files.push({ name: "pictures/" + id + (b.type === "image/jpeg" ? ".jpg" : ".webp"), data: new Uint8Array(buf) }); });
+        }, function () { /* a picture that's gone is left out */ }).then(nextPic);
+      }
+      return nextPic();
+    }).then(function () {
       var n = 0;
       function nextPhoto() {
         if (n >= d.photos.length) return Promise.resolve();
@@ -121,6 +133,7 @@ var Backup = (function () {
         "Keep this file private: it contains members' invite codes.\r\n\r\n" +
         "photos/                   Every photo in the gallery: NAME.webp or NAME.jpg (large) and NAME-sm (thumbnail)\r\n" +
         "downloads/                The files on the Downloads page, with their previews (NAME-preview)\r\n" +
+        "pictures/                 Members' pictures for the photographer pages\r\n" +
         "photos.csv                The list of photos, to open in a spreadsheet\r\n" +
         "gallery.json              The gallery as the inbox keeps it (titles, photographers, camera settings, dates)\r\n" +
         "photos-of-the-week.json   The current Photos of the month\r\n" +
@@ -171,7 +184,7 @@ var Backup = (function () {
     var json = function (name) { var f = files[pre + name]; return f ? JSON.parse(dec.decode(f)) : null; };
     var data = json("data.json") || {};
     return { made: data.made || "", gallery: json("gallery.json") || [], potw: json("photos-of-the-week.json"), data: data,
-             photoFile: function (name) { return files[pre + "photos/" + name]; }, downloadFile: function (name) { return files[pre + "downloads/" + name]; } };
+             photoFile: function (name) { return files[pre + "photos/" + name]; }, downloadFile: function (name) { return files[pre + "downloads/" + name]; }, pictureFile: function (name) { return files[pre + "pictures/" + name]; } };
   }
   /* Restores the chosen photos and members, then adds back comments, votes and the other records for
      everything that's in the club afterwards. inbox(path, opts) is the admin page's inbox call.
@@ -245,6 +258,20 @@ var Backup = (function () {
         return inbox("/admin/files", { form: f }).then(function (r) { if (!r.already) done.files++; }).then(nextFile);
       }
       return nextFile();
+    }).then(function () {
+      // members' pictures (the inbox keeps a member's current picture if they already have one)
+      var people = data.people || {}, names = Object.keys(people).filter(function (n) { return people[n] && people[n].av; }), n = 0;
+      function nextPic() {
+        if (n >= names.length) return Promise.resolve();
+        var name = names[n++], id = people[name].av, webp = b.pictureFile(id + ".webp"), jpg = !webp && b.pictureFile(id + ".jpg");
+        if (!webp && !jpg) return nextPic();
+        onStatus("Restoring pictures…");
+        var f = new FormData();
+        f.append("id", id); f.append("name", name);
+        f.append("picture", new Blob([webp || jpg], { type: webp ? "image/webp" : "image/jpeg" }), "picture");
+        return inbox("/admin/restore/picture", { form: f }).catch(function () { /* an older inbox: pictures stay out */ }).then(nextPic);
+      }
+      return nextPic();
     }).then(function () { return done; });
   }
 

@@ -63,6 +63,15 @@ var Club = (function () {
     if (o.dl) q.push("dl=1");
     return INBOX + "/file/" + encodeURIComponent(f.id) + (o.thumb ? "/thumb" : "") + "?" + q.join("&");
   }
+  // A photographer's round icon: their picture if they added one (members only), else their initials.
+  // d: the gallery (people and the photo key); cls: "big" for page headings.
+  function avatar(d, name, cls) {
+    var person = ((d && d.people) || {})[name] || {};
+    var initials = String(name || "?").trim().split(/\s+/).slice(0, 2).map(function (w) { return Array.from(w)[0] || ""; }).join("").toUpperCase();
+    return '<span class="avatar' + (cls ? " " + cls : "") + (person.av ? " has-pic" : "") + '" aria-hidden="true">' +
+      (person.av && d.token ? '<img src="' + esc(INBOX + "/avatar/" + encodeURIComponent(person.av) + "?t=" + encodeURIComponent(d.token)) + '" alt="" loading="lazy">' : "<span" + ml(name) + ">" + esc(initials) + "</span>") + "</span>";
+  }
+  function pictureUrl(id, token) { return INBOX + "/avatar/" + encodeURIComponent(id) + "?t=" + encodeURIComponent(token); }
   // lang="ml" on Malayalam text: phones then use a Malayalam font, line spacing and line breaking
   function ml(s) { return /[\u0D00-\u0D7F]/.test(s || "") ? ' lang="ml"' : ""; }
   function shuffle(a) {
@@ -118,5 +127,5 @@ var Club = (function () {
 
   return { ready: ready, code: code, esc: esc, call: call, gallery: gallery, photoUrl: photoUrl, thisMonth: thisMonth, thisWeek: thisMonth, signIn: signIn, signOut: signOut,
            exhibition: exhibition, publicUrl: publicUrl, ml: ml, shuffle: shuffle, seriesName: seriesName, layout: layout,
-           cats: cats, seriesOf: seriesOf, catClass: catClass, fileUrl: fileUrl };
+           cats: cats, seriesOf: seriesOf, catClass: catClass, fileUrl: fileUrl, avatar: avatar, pictureUrl: pictureUrl };
 })();

@@ -39,7 +39,8 @@ const SERIES_ADDED = { 2: ["from-the-dining-table"] }, SERIES_VERSION = "2", SER
 const ARCHIVE = "archive";             // each month's theme and most-voted photos, for the theme archive
 const REPORTS = "reports";             // comments members have reported to the admins
 const REPORTS_PER_DAY = 10;            // per member
-const PEOPLE = "people";               // members' lines about themselves, by name, for their photographer pages
+const PEOPLE = "people";               // members' lines about themselves and their pictures, by name, for their photographer pages
+const MAX_PICTURE = 200 * 1024;        // bytes, a member's picture (the phone makes it about 20–40 KB); kept in avatar:ID
 const EVENTS = "events";               // photo walks, workshops, exhibitions; sign-ups are kept in rsvp:EVENT
 const EVENT_KINDS = ["Photo walk", "Workshop", "Exhibition", "Meet-up", "Other"];
 const SIZES = "sizes";                 // sizes of photos added before sizes were kept, for the storage meter
@@ -89,6 +90,8 @@ async function route(request, env) {
   if (parts[0] === "" && method === "GET") return json({ ok: true, service: "photo inbox" });
   if (parts[0] === "me" && method === "GET") return me(request, env);
   if (parts[0] === "me" && method === "POST" && parts[1] === "profile") return saveProfile(request, env);
+  if (parts[0] === "me" && method === "POST" && parts[1] === "picture") return savePicture(request, env);
+  if (parts[0] === "avatar" && method === "GET" && parts[1]) return servePicture(url, env, parts[1]);
   if (parts[0] === "events" && method === "GET" && !parts[1]) return listEvents(url, request, env);
   if (parts[0] === "events" && method === "POST" && parts[1] && parts[2] === "rsvp") return rsvp(request, env, parts[1]);
   if (parts[0] === "submit" && method === "POST") return submit(request, env);
@@ -128,6 +131,7 @@ async function route(request, env) {
     if (what === "members" && method === "DELETE" && a) return removeMember(env, a);
     if (what === "members" && method === "POST" && a && b === "new-code") return newCode(env, a);
     if (what === "members" && method === "POST" && a && b === "bio") return adminBio(request, env, a);
+    if (what === "members" && method === "POST" && a && b === "picture") return adminRemovePicture(env, a);
     if (what === "events" && method === "POST" && !a) return saveEvent(request, env);
     if (what === "events" && method === "DELETE" && a) return deleteEvent(env, a);
     if (what === "files" && method === "POST" && !a) return addFile(request, env);
@@ -137,6 +141,7 @@ async function route(request, env) {
     if (what === "export" && method === "GET") return exportPart(url, env);
     if (what === "restore" && a === "records" && method === "POST") return restoreRecords(request, env);
     if (what === "restore" && a === "photo" && method === "POST") return restorePhoto(request, env);
+    if (what === "restore" && a === "picture" && method === "POST") return restorePicture(request, env);
     if (what === "votes" && method === "GET") return standings(url, env);
     if (what === "comments" && method === "GET") return json({ comments: (await env.INBOX.get("recent-comments", "json")) || [] });
     if (what === "comment" && a === "delete" && method === "POST") {
@@ -160,7 +165,9 @@ async function me(request, env) {
   const m = await member(request, env);
   const own = (await env.INBOX.get("own:" + m.code, "json")) || [];
   const series = (await seriesList(env)).filter((s) => s.open).map((s) => ({ id: s.id, name: s.name }));
-  return json({ name: m.name, photos: own, weeklyLimit: weeklyLimit(env), series, theme: await entryTheme(env, Date.now()), bio: m.bio || "" });
+  const person = ((await env.INBOX.get(PEOPLE, "json")) || {})[m.name] || {};
+  return json({ name: m.name, photos: own, weeklyLimit: weeklyLimit(env), series, theme: await entryTheme(env, Date.now()), bio: m.bio || "",
+                picture: person.av || "", token: person.av ? await photoToken(env, Date.now()) : "" });
 }
 
 // A member's line about themselves, shown to members on their photographer page
@@ -182,15 +189,63 @@ async function setBio(env, code, bio) {
   if (!rec) return false;
   if (bio) rec.bio = bio; else delete rec.bio;
   await env.INBOX.put("member:" + code, JSON.stringify(rec), { metadata: { name: rec.name, created: rec.created } });
-  await setPerson(env, rec.name, bio, rec.created);
+  await setPerson(env, rec.name, { bio, since: rec.created });
   return true;
 }
-async function setPerson(env, name, bio, since) {
+// changes a member's entry on the photographer pages: { bio, since, av } (left out: kept; "": removed)
+async function setPerson(env, name, change) {
   const people = (await env.INBOX.get(PEOPLE, "json")) || {};
-  if (bio) people[name] = { bio, since };
+  const p = Object.assign({}, people[name] || {});
+  for (const k of ["bio", "since", "av"]) if (change[k] !== undefined) { if (change[k]) p[k] = change[k]; else delete p[k]; }
+  if (p.bio || p.av) people[name] = p;
   else if (people[name]) delete people[name];
   else return;
   await env.INBOX.put(PEOPLE, JSON.stringify(people));
+}
+
+// A member's picture, shown as a small round icon to members on the Photographers page and their own page.
+// The phone crops and resizes it first. Each new picture gets a new name, so phones don't keep showing the old one.
+async function savePicture(request, env) {
+  const m = await member(request, env);
+  const form = await readForm(request);
+  if (form.get("remove") === "1") { await dropPicture(env, m.name); return json({ ok: true, picture: "" }); }
+  const file = form.get("picture");
+  const bytes = await image(file, MAX_PICTURE, "picture");
+  const id = randomString(12).toLowerCase(), old = (((await env.INBOX.get(PEOPLE, "json")) || {})[m.name] || {}).av;
+  await env.INBOX.put("avatar:" + id, bytes, { metadata: { type: file.type } });
+  await setPerson(env, m.name, { av: id, since: m.created });
+  if (old) await env.INBOX.delete("avatar:" + old);
+  return json({ ok: true, picture: id, token: await photoToken(env, Date.now()) });
+}
+async function dropPicture(env, name) {
+  const old = (((await env.INBOX.get(PEOPLE, "json")) || {})[name] || {}).av;
+  if (old) await env.INBOX.delete("avatar:" + old);
+  await setPerson(env, name, { av: "" });
+}
+async function adminRemovePicture(env, raw) {
+  const rec = await env.INBOX.get("member:" + normalize(raw), "json");
+  if (!rec) throw fail(404, "That member isn't in the club any more. Refresh the list.");
+  await dropPicture(env, rec.name);
+  return json({ ok: true });
+}
+async function servePicture(url, env, id) {
+  if (!/^[a-z0-9]{6,20}$/.test(id)) throw fail(404, "Not found.");
+  if (!(await checkPhotoToken(env, url.searchParams.get("t")))) throw fail(403, "Pictures are for club members.");
+  const { value, metadata } = await env.INBOX.getWithMetadata("avatar:" + id, { type: "stream" });
+  if (!value) throw fail(404, "That picture isn't there any more.");
+  return new Response(value, { headers: { "Content-Type": (metadata && metadata.type) || "image/webp", "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" } });
+}
+// a picture from a backup: kept under its old name, unless the member already has one
+async function restorePicture(request, env) {
+  const form = await readForm(request);
+  const id = String(form.get("id") || ""), name = clean(form.get("name"), 60, "name", true);
+  if (!/^[a-z0-9]{6,20}$/.test(id)) throw fail(400, "The backup has a picture that can't be read.");
+  const people = (await env.INBOX.get(PEOPLE, "json")) || {};
+  if (people[name] && people[name].av) return json({ ok: true, already: true });
+  const file = form.get("picture");
+  await env.INBOX.put("avatar:" + id, await image(file, MAX_PICTURE, "picture"), { metadata: { type: file.type } });
+  await setPerson(env, name, { av: id });
+  return json({ ok: true });
 }
 
 // The theme members can enter now: the newest one published, from last month to next month (as on the home page)
@@ -879,9 +934,9 @@ async function setPotw(request, env) {
 async function listMembers(env) {
   const [keys, people] = await Promise.all([listAll(env, "member:"), env.INBOX.get(PEOPLE, "json")]);
   const members = keys.map((k) => ({ code: k.name.slice(7), ...(k.metadata || {}) }));
-  for (const m of members) if (people && people[m.name]) m.bio = people[m.name].bio;
+  for (const m of members) if (people && people[m.name]) { m.bio = people[m.name].bio; m.picture = people[m.name].av; }
   members.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  return json({ members });
+  return json({ members, token: members.some((m) => m.picture) ? await photoToken(env, Date.now()) : "" });
 }
 
 async function addMember(request, env) {
@@ -1002,7 +1057,7 @@ async function restoreRecords(request, env) {
       if (!v || typeof v !== "object" || Array.isArray(v)) throw fail(400, "The backup's photographer lines can't be read.");
       const people = (await env.INBOX.get(PEOPLE, "json")) || {};
       let n = 0;
-      for (const [name, x] of Object.entries(v).slice(0, 2000)) if (!people[name] && x && typeof x.bio === "string") { people[clean(name, 60, "name", true)] = { bio: clean(x.bio, 200, "line"), since: +x.since || 0 }; n++; }
+      for (const [name, x] of Object.entries(v).slice(0, 2000)) if (!(people[name] && people[name].bio) && x && typeof x.bio === "string" && x.bio) { const nm = clean(name, 60, "name", true); people[nm] = Object.assign({}, people[nm], { bio: clean(x.bio, 200, "line"), since: +x.since || 0 }); n++; }   // (pictures come back separately)
       if (!n) { skipped++; continue; }
       await env.INBOX.put(PEOPLE, JSON.stringify(people));
       merged++;
@@ -1091,7 +1146,7 @@ async function restorePhoto(request, env) {
 
 async function removeMember(env, code) {
   const rec = await env.INBOX.get("member:" + normalize(code), "json");
-  if (rec && rec.bio) await setPerson(env, rec.name, "", rec.created);
+  if (rec) { await dropPicture(env, rec.name); if (rec.bio) await setPerson(env, rec.name, { bio: "" }); }
   await env.INBOX.delete("member:" + normalize(code));
   return json({ ok: true });
 }

@@ -82,7 +82,7 @@ p { margin: 0 0 1em; }
 [data-theme="dark"] .mode .sun { display: block; }
 @media (max-width: 1100px) { .top .wrap { gap: 8px; } .top nav { gap: 0; } .top nav a { padding: 0 8px; } }
 /* phones and tablets: the menu gets a row of its own, and the header scrolls away with the page */
-@media (max-width: 960px) {
+@media (max-width: 1010px) {
   .top { position: static; }
   .top .wrap { flex-wrap: wrap; height: auto; padding-top: 8px; gap: 0 8px; }
   .top .brand { font-size: clamp(1.05rem, 5vw, 1.25rem); gap: 8px; min-height: 48px; }
@@ -92,12 +92,13 @@ p { margin: 0 0 1em; }
   html { scroll-padding-top: 12px; }
 }
 @media (max-width: 520px) { .top .join { display: none; } }
-/* phones: the six menu items in two rows of three */
-@media (max-width: 600px) {
-  .top nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 4px; margin: 0 -6px; padding-bottom: 4px; }
-  .top nav a { justify-content: center; min-height: 40px; padding: 0 4px; }
+/* phones: the seven menu items in two rows */
+@media (max-width: 680px) {
+  .top nav { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: 0 2px; margin: 0 -6px; padding-bottom: 4px; }
+  .top nav a { justify-content: center; min-height: 40px; padding: 0 6px; }
 }
-@media (max-width: 360px) { .top nav a { font-size: .92rem; } }
+@media (max-width: 400px) { .top nav a { padding: 0 4px; font-size: .95rem; } }
+@media (max-width: 360px) { .top nav { margin: 0 -4px; } .top nav a { padding: 0 3px; font-size: .88rem; } }
 
 footer { margin-top: clamp(64px, 9vw, 112px); background: var(--footer); border-top: 1px solid var(--rule); padding: 36px 0 calc(44px + env(safe-area-inset-bottom)); color: var(--on-red); font-size: .92rem; }
 footer a { color: #fff; }
@@ -551,6 +552,17 @@ h1:lang(ml), h2:lang(ml), h3:lang(ml) { line-height: 1.4; }
 .person .head { margin-bottom: 8px; }
 .person h2 { font-size: clamp(1.4rem, 3vw, 1.8rem); margin: 0; }
 .person h2 a { text-decoration: none; }
+/* a photographer's round icon: their picture, or their initials */
+.avatar { display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; overflow: hidden;
+  background: var(--shade); color: var(--muted); font: 600 .95rem/1 var(--sans); letter-spacing: .02em; vertical-align: middle; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar.big { width: 64px; height: 64px; font-size: 1.3rem; }
+.named { display: flex; align-items: center; gap: 12px; }
+.named a { display: inline-flex; align-items: center; gap: 12px; }
+h1.named { gap: 16px; }
+.pic-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 4px; }
+.pic-row .row-btns { margin-top: 0; }
+.list li .m-pic { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
 .person-bio { max-width: 60ch; margin: 0 0 14px; font-family: var(--serif); font-size: 1.08rem; }
 .g-meta { color: var(--muted); font-size: .95rem; margin-top: 4px; }
 a.by-link { color: inherit; text-decoration: none; }

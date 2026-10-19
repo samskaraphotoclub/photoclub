@@ -75,12 +75,12 @@
   function heading(d, list) {
     if (byName) {
       var person = (d.people || {})[byName], mine = byName === d.name;
-      $("g-title").textContent = byName; $("g-title").setAttribute("lang", Club.ml(byName) ? "ml" : "en");
+      $("g-title").innerHTML = Club.avatar(d, byName, "big") + "<span>" + esc(byName) + "</span>"; $("g-title").classList.add("named"); $("g-title").setAttribute("lang", Club.ml(byName) ? "ml" : "en");
       document.title = byName + " – The Conscious Frame";
       $("g-intro").textContent = person && person.bio ? person.bio : mine ? "Add a line about yourself on the Share a photo page; members see it here." : "";
       $("g-intro").setAttribute("lang", person && Club.ml(person.bio) ? "ml" : "en");
       $("g-intro").hidden = !$("g-intro").textContent;
-      $("g-meta").innerHTML = list.length + (list.length === 1 ? " photo" : " photos") + ' · <a href="photographers.html">All photographers</a>' + (mine ? ' · <a href="submit.html#about-you">Edit your line</a>' : "");
+      $("g-meta").innerHTML = list.length + (list.length === 1 ? " photo" : " photos") + ' · <a href="photographers.html">All photographers</a>' + (mine ? ' · <a href="submit.html#about-you">Edit your picture and line</a>' : "");
       $("g-meta").hidden = false;
     } else if (themeMonth) {
       var title = themeTitle(d, themeMonth);

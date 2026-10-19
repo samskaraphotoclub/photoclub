@@ -18,7 +18,7 @@
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
-    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="events.html">Events</a><a href="archive.html">Archive</a><a href="working.html">Working</a><a href="about.html">About</a></nav>
+    <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="events.html">Events</a><a href="archive.html">Archive</a><a href="downloads.html">Downloads</a><a href="working.html">Working</a><a href="about.html">About</a></nav>
     <button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button>
   </div>
 </header>
@@ -47,6 +47,15 @@
 
     <form class="card" id="about-you" novalidate>
       <h2>About you</h2>
+      <p class="f" id="pic-l">Your picture <small>(optional; a small round icon next to your name on the <a href="photographers.html">Photographers</a> page, for members only)</small></p>
+      <div class="pic-row">
+        <span class="avatar big" id="my-pic" aria-hidden="true"></span>
+        <div class="row-btns">
+          <label class="btn btn-light btn-small pick-file" id="pic-pick">Choose a picture<input type="file" id="pic-file" accept="image/*" aria-labelledby="pic-l"></label>
+          <button class="btn btn-light btn-small" type="button" id="pic-remove" hidden>Remove picture</button>
+        </div>
+      </div>
+      <p class="status" id="pic-status" aria-live="polite"></p>
       <label class="f" for="bio">A line about yourself <small>(optional; members see it on your <a id="my-page" href="photographers.html">photographer page</a>)</small></label>
       <textarea id="bio" maxlength="200" placeholder="For example: Nurse in Cologne since 2019. I photograph streets, trains and people waiting."></textarea>
       <div class="row-btns"><button class="btn btn-light btn-small" type="submit" id="bio-save">Save</button></div>
@@ -169,6 +178,7 @@
       $("member-name").textContent = d.name;
       $("limit-note").textContent = "You can send up to " + d.weeklyLimit + " photos a week.";
       $("bio").value = d.bio || "";
+      showPicture(d.name, d.picture ? Club_pictureUrl(d.picture, d.token) : "");
       $("my-page").href = "gallery.html?by=" + encodeURIComponent(d.name);
       theme = d.theme;
       $("entry-box").hidden = !theme;
@@ -194,6 +204,48 @@
   });
   $("signout").addEventListener("click", function () {
     remember(""); code = ""; $("code").value = ""; setStatus($("signin-status"), ""); showSignin();
+  });
+
+  /* ---------- your picture: cropped to a square and made small on the phone, then saved ---------- */
+  function Club_pictureUrl(id, token) { return INBOX + "/avatar/" + encodeURIComponent(id) + "?t=" + encodeURIComponent(token); }
+  function showPicture(name, src) {
+    var initials = String(name || "?").trim().split(/\s+/).slice(0, 2).map(function (w) { return Array.from(w)[0] || ""; }).join("").toUpperCase();
+    $("my-pic").innerHTML = src ? '<img alt="" src="' + esc(src) + '">' : "<span>" + esc(initials) + "</span>";
+    $("my-pic").classList.toggle("has-pic", !!src);
+    $("pic-remove").hidden = !src;
+    $("pic-pick").firstChild.textContent = src ? "Change picture" : "Choose a picture";
+  }
+  function squarePicture(file) {
+    return PhotoTools.decodeImage(file).then(function (img) {
+      var side = Math.min(img.width, img.height), c = document.createElement("canvas");
+      c.width = c.height = Math.min(320, side);
+      var ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, c.width, c.height);   // the middle of the photo
+      var blob = function (type, q) { return new Promise(function (res) { c.toBlob(res, type, q); }); };
+      return blob("image/webp", 0.85).then(function (b) { return b && b.type === "image/webp" ? b : blob("image/jpeg", 0.85); });
+    });
+  }
+  function sendPicture(form) {
+    return fetch(INBOX + "/me/picture", { method: "POST", headers: { Authorization: "Bearer " + code }, body: form })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(r.status === 404 ? "Pictures can be added once the club's inbox has been updated." : d.error || "Couldn't save it (" + r.status + "). Try again."); return d; }); },
+            function () { throw new Error("Couldn't reach the club's inbox. Check your internet connection and try again."); });
+  }
+  $("pic-file").addEventListener("change", function () {
+    var file = this.files[0], st = $("pic-status");
+    if (!file) return;
+    setStatus(st, "Saving your picture…");
+    squarePicture(file).then(function (b) {
+      if (!b) throw new Error("This phone couldn't make the picture smaller. Try another photo.");
+      var f = new FormData(); f.append("picture", b, "picture." + (b.type === "image/webp" ? "webp" : "jpg"));
+      return sendPicture(f).then(function () { showPicture($("member-name").textContent, URL.createObjectURL(b)); setStatus(st, "Saved. Members see it next to your name on the Photographers page."); });
+    }).catch(function (e) { setStatus(st, e.message, true); });
+    this.value = "";
+  });
+  $("pic-remove").addEventListener("click", function () {
+    var st = $("pic-status"), f = new FormData(); f.append("remove", "1");
+    $("pic-remove").disabled = true; setStatus(st, "Removing…");
+    sendPicture(f).then(function () { showPicture($("member-name").textContent, ""); setStatus(st, "Removed."); })
+      .catch(function (e) { setStatus(st, e.message, true); }).then(function () { $("pic-remove").disabled = false; });
   });
 
   /* ---------- your line about yourself ---------- */

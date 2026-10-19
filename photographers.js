@@ -1,5 +1,5 @@
 /* The Conscious Frame – the photographers, for members: everyone who has shared photos, with their
-   line about themselves and their latest photos. Each name opens their page (gallery.html?by=NAME).
+   picture (or initials), their line about themselves and their latest photos. Each name opens their page (gallery.html?by=NAME).
    Needs config.js and club.js. */
 (function () {
   "use strict";
@@ -29,9 +29,11 @@
       d.photos.forEach(function (p) { if (!byName[p.by]) { byName[p.by] = []; order.push(p.by); } byName[p.by].push(p); });   // newest photo first
       $("people").innerHTML = order.map(function (name) {
         var photos = byName[name], bio = ((d.people || {})[name] || {}).bio || "", href = "gallery.html?by=" + encodeURIComponent(name);
-        return '<article class="person"><div class="head"><h2' + ml(name) + '><a href="' + esc(href) + '">' + esc(name) + "</a></h2>" +
+        var mine = name === d.name, pic = ((d.people || {})[name] || {}).av;
+        return '<article class="person"><div class="head"><h2 class="named"><a href="' + esc(href) + '">' + Club.avatar(d, name) + "<span" + ml(name) + ">" + esc(name) + "</span></a></h2>" +
           '<a href="' + esc(href) + '">' + (photos.length === 1 ? "1 photo" : "All " + photos.length + " photos") + "</a></div>" +
-          (bio ? '<p class="person-bio"' + ml(bio) + ">" + esc(bio) + "</p>" : name === d.name ? '<p class="person-bio muted">You haven\'t written a line about yourself yet. <a href="submit.html#about-you">Add one</a></p>' : "") +
+          (bio ? '<p class="person-bio"' + ml(bio) + ">" + esc(bio) + "</p>" : "") +
+          (mine && (!bio || !pic) ? '<p class="person-bio muted">' + (!bio && !pic ? "Add a picture of yourself and a line about you" : !pic ? "Add a picture of yourself" : "Add a line about yourself") + ' on the <a href="submit.html#about-you">Share a photo</a> page.</p>' : "") +
           '<div class="just strip">' + photos.slice(0, 6).map(function (p) {
             return '<a href="' + esc(href) + "#p-" + esc(p.id) + '" style="--ar:' + (p.tw / p.th || 1.5).toFixed(3) + '" aria-label="' + esc(p.title) + '"><img src="' + esc(Club.photoUrl(d, p, "thumb")) +
               '" alt="" width="' + (p.tw | 0) + '" height="' + (p.th | 0) + '" loading="lazy"></a>';
