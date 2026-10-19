@@ -69,7 +69,8 @@ p { margin: 0 0 1em; }
 .top .brand { color: var(--ink); }
 .brand .name { line-height: 1.02; }
 .brand .name span { white-space: nowrap; }
-.top nav { display: flex; gap: 2px; }
+.top nav { display: flex; align-items: center; gap: 2px; }
+.top nav .mode { margin-left: 16px; }   /* the light/dark switch sits at the end of the menu */
 .top nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 999px; text-decoration: none; color: var(--muted); font-weight: 500; }
 .top nav a:hover { color: var(--ink); }
 .top nav a[aria-current] { color: var(--accent); background: var(--shade); }
@@ -80,7 +81,7 @@ p { margin: 0 0 1em; }
 .mode svg { width: 20px; height: 20px; fill: currentColor; }
 .mode .sun, [data-theme="dark"] .mode .moon { display: none; }
 [data-theme="dark"] .mode .sun { display: block; }
-@media (max-width: 1100px) { .top .wrap { gap: 8px; } .top nav { gap: 0; } .top nav a { padding: 0 8px; } }
+@media (max-width: 1100px) { .top .wrap { gap: 8px; } .top nav { gap: 0; } .top nav a { padding: 0 8px; } .top nav .mode { margin-left: 8px; } }
 /* phones and tablets: the menu gets a row of its own, and the header scrolls away with the page */
 @media (max-width: 1010px) {
   .top { position: static; }
@@ -89,14 +90,18 @@ p { margin: 0 0 1em; }
   .top .brand .logo { width: 36px; height: 36px; }
   .top nav { order: 3; flex-basis: 100%; gap: 4px; margin: 0 -8px; padding-bottom: 2px; }
   .top nav a { padding: 0 8px; min-height: 42px; }
+  .top nav .mode { margin: 0 8px 0 auto; }
   html { scroll-padding-top: 12px; }
 }
-@media (max-width: 520px) { .top .join { display: none; } }
-/* phones: the seven menu items in two rows */
+/* phones: the seven menu items and the light/dark switch in two rows of four; the club name and Share a photo share the top row
+   (the name goes onto two lines when the row is narrow) */
 @media (max-width: 680px) {
+  .top .brand { flex: 1 1 0; margin-right: 0; }
   .top nav { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: 0 2px; margin: 0 -6px; padding-bottom: 4px; }
   .top nav a { justify-content: center; min-height: 40px; padding: 0 6px; }
+  .top nav .mode { margin: 0; justify-self: center; width: 40px; height: 40px; }
 }
+@media (max-width: 380px) { .top .join { padding: 0 12px; font-size: .85rem; } }
 @media (max-width: 400px) { .top nav a { padding: 0 4px; font-size: .95rem; } }
 @media (max-width: 360px) { .top nav { margin: 0 -4px; } .top nav a { padding: 0 3px; font-size: .88rem; } }
 
