@@ -49,7 +49,14 @@
     $("gate").hidden = true; $("g-status").hidden = false; $("g-status").textContent = "Loading the photos…";
     Club.gallery().then(function (d) {
       data = d;
-      var list = byName ? d.photos.filter(function (p) { return p.by === byName; }) : themeMonth ? d.photos.filter(function (p) { return p.theme === themeMonth; }) : d.photos;
+      // a link with a photographer's earlier name (they've changed it since, perhaps only its capitals): their page under the name they have now
+      if (byName && !d.photos.some(function (p) { return p.by === byName; })) {
+        var key = function (n) { return String(n || "").toLowerCase().replace(/[\s.,'’_-]+/g, ""); }, k = key(byName), was = d.was || {};
+        var same = d.photos.filter(function (p) { return key(p.by) === k; })[0], earlier = Object.keys(was).filter(function (w) { return key(w) === k; })[0];
+        var now = same ? same.by : earlier ? was[earlier] : "";
+        if (now) { byName = now; try { history.replaceState(null, "", "gallery.html?by=" + encodeURIComponent(byName) + location.hash); } catch (e) {} }
+      }
+      var list = byName ?d.photos.filter(function (p) { return p.by === byName; }) : themeMonth ? d.photos.filter(function (p) { return p.theme === themeMonth; }) : d.photos;
       heading(d, list);
       seriesChips(d, list);
       $("grid").innerHTML = list.map(tile).join("");

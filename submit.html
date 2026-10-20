@@ -46,6 +46,13 @@
 
     <form class="card" id="about-you" novalidate>
       <h2>About you</h2>
+      <div id="name-box" hidden>
+        <label class="f" for="my-name">Your name <small>(shown with your photos, comments and event sign-ups)</small></label>
+        <input type="text" id="my-name" maxlength="60" autocomplete="name" enterkeyhint="done">
+        <div class="row-btns"><button class="btn btn-light btn-small" type="button" id="name-save" disabled>Change name</button></div>
+        <p class="note" id="name-note"></p>
+        <p class="status" id="name-status" aria-live="polite"></p>
+      </div>
       <p class="f" id="pic-l">Your picture <small>(optional; a small round icon next to your name on the <a href="photographers.html">Photographers</a> page, for members only)</small></p>
       <div class="pic-row">
         <span class="avatar big" id="my-pic" aria-hidden="true"></span>
@@ -175,6 +182,7 @@
     return call("/me").then(function (d) {
       remember(code);
       $("member-name").textContent = d.name;
+      showName(d);
       $("limit-note").textContent = "You can send up to " + d.weeklyLimit + " photos a week.";
       $("bio").value = d.bio || "";
       showPicture(d.name, d.picture ? Club_pictureUrl(d.picture, d.token) : "");
@@ -203,6 +211,36 @@
   });
   $("signout").addEventListener("click", function () {
     remember(""); code = ""; $("code").value = ""; setStatus($("signin-status"), ""); showSignin();
+  });
+
+  /* ---------- your name: one nobody else in the club has, changed at most once a month ---------- */
+  var myName = "";
+  function showName(d) {
+    myName = d.name;
+    $("name-box").hidden = !d.id;                // an inbox from before members could change their name
+    $("my-name").value = d.name;
+    $("name-save").disabled = true;
+    $("name-note").textContent = d.renameFrom
+      ? "You changed your name recently. You can change it again from " + longDay(d.renameFrom) + " (fixing capitals or spaces works any time)."
+      : "Nobody else in the club can have the same name. You can change it once a month; your photos, comments and hearts stay yours.";
+  }
+  function longDay(day) { try { return new Date(day + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" }); } catch (e) { return day; } }
+  $("my-name").addEventListener("input", function () { $("name-save").disabled = !this.value.trim() || this.value.trim().replace(/\s+/g, " ") === myName; setStatus($("name-status"), ""); });
+  $("my-name").addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); if (!$("name-save").disabled) $("name-save").click(); } });
+  $("name-save").addEventListener("click", function () {
+    var st = $("name-status"), name = $("my-name").value.trim().replace(/\s+/g, " ");
+    $("name-save").disabled = true; setStatus(st, "Saving…");
+    fetch(INBOX + "/me/name", { method: "POST", headers: { Authorization: "Bearer " + code, "Content-Type": "application/json" }, body: JSON.stringify({ name: name }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(r.status === 404 ? "Changing your name works once the club's inbox has been updated." : d.error || "Couldn't save it (" + r.status + "). Try again."); return d; }); },
+            function () { throw new Error("Couldn't reach the club's inbox. Check your internet connection and try again."); })
+      .then(function (d) {
+        $("member-name").textContent = d.name;
+        $("my-page").href = "gallery.html?by=" + encodeURIComponent(d.name);
+        if (!$("my-pic").classList.contains("has-pic")) showPicture(d.name, "");
+        showName({ id: true, name: d.name, renameFrom: d.renameFrom });
+        setStatus(st, "Saved. Your photos and comments now show “" + d.name + "”.");
+      })
+      .catch(function (e) { $("name-save").disabled = false; setStatus(st, e.message, true); });
   });
 
   /* ---------- your picture: cropped to a square and made small on the phone, then saved ---------- */

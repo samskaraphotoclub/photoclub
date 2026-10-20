@@ -39,7 +39,13 @@ const SERIES_ADDED = { 2: ["from-the-dining-table"] }, SERIES_VERSION = "2", SER
 const ARCHIVE = "archive";             // each month's theme and most-voted photos, for the theme archive
 const REPORTS = "reports";             // comments members have reported to the admins
 const REPORTS_PER_DAY = 10;            // per member
-const PEOPLE = "people";               // members' lines about themselves and their pictures, by name, for their photographer pages
+const PEOPLE = "people";               // members' lines about themselves and their pictures, by member ID, for their photographer pages
+// Every member has a permanent ID (in member:CODE as "id"), which stays when they change their name or get a new code.
+// Photos, comments and event sign-ups carry it, so each shows the member's current name.
+const MEMBER_IDS = "member-ids";       // { v, done, m: { ID: { n: name, was: [earlier names], gone: 1 } }, c: { CODE: ID } }; never sent to pages (it has invite codes)
+const ID_RE = /^[a-z0-9]{10}$/;
+const RENAME_DAYS = 30;                // members can change their own name once in this many days (admins any time)
+const RESERVED_NAMES = ["admin", "admins", "administrator", "clubadmin", "theadmin", "theadmins", "moderator", "theconsciousframe", "consciousframe", "samskara", "samskaragermany", "samskaragermanyev"];
 const MAX_PICTURE = 200 * 1024;        // bytes, a member's picture (the phone makes it about 20–40 KB); kept in avatar:ID
 const EVENTS = "events";               // photo walks, workshops, exhibitions; sign-ups are kept in rsvp:EVENT
 const EVENT_KINDS = ["Photo walk", "Workshop", "Exhibition", "Meet-up", "Other"];
@@ -91,6 +97,7 @@ async function route(request, env) {
   if (parts[0] === "me" && method === "GET") return me(request, env);
   if (parts[0] === "me" && method === "POST" && parts[1] === "profile") return saveProfile(request, env);
   if (parts[0] === "me" && method === "POST" && parts[1] === "picture") return savePicture(request, env);
+  if (parts[0] === "me" && method === "POST" && parts[1] === "name") return renameSelf(request, env);
   if (parts[0] === "avatar" && method === "GET" && parts[1]) return servePicture(url, env, parts[1]);
   if (parts[0] === "events" && method === "GET" && !parts[1]) return listEvents(url, request, env);
   if (parts[0] === "events" && method === "POST" && parts[1] && parts[2] === "rsvp") return rsvp(request, env, parts[1]);
@@ -125,7 +132,7 @@ async function route(request, env) {
     if (what === "potw" && method === "POST") return setPotw(request, env);
     if (what === "theme" && method === "POST") return saveTheme(request, env);
     if (what === "series" && method === "POST") return saveSeries(request, env);
-    if (what === "reports" && method === "GET" && !a) return json({ reports: ((await env.INBOX.get(REPORTS, "json")) || []).map(adminReport) });
+    if (what === "reports" && method === "GET" && !a) return adminReports(env);
     if (what === "reports" && a === "dismiss" && method === "POST") return dismissReport(request, env);
     if (what === "members" && method === "GET" && !a) return listMembers(env);
     if (what === "members" && method === "POST" && !a) return addMember(request, env);
@@ -133,6 +140,8 @@ async function route(request, env) {
     if (what === "members" && method === "POST" && a && b === "new-code") return newCode(env, a);
     if (what === "members" && method === "POST" && a && b === "bio") return adminBio(request, env, a);
     if (what === "members" && method === "POST" && a && b === "picture") return adminRemovePicture(env, a);
+    if (what === "members" && method === "POST" && a && b === "name") return adminRename(request, env, a);
+    if (what === "members" && method === "POST" && a && b === "delete-all") return deleteEverything(env, a);
     if (what === "events" && method === "POST" && !a) return saveEvent(request, env);
     if (what === "events" && method === "DELETE" && a) return deleteEvent(env, a);
     if (what === "files" && method === "POST" && !a) return addFile(request, env);
@@ -144,7 +153,7 @@ async function route(request, env) {
     if (what === "restore" && a === "photo" && method === "POST") return restorePhoto(request, env);
     if (what === "restore" && a === "picture" && method === "POST") return restorePicture(request, env);
     if (what === "votes" && method === "GET") return standings(url, env);
-    if (what === "comments" && method === "GET") return json({ comments: (await env.INBOX.get("recent-comments", "json")) || [] });
+    if (what === "comments" && method === "GET") return recentComments(env);
     if (what === "comment" && a === "delete" && method === "POST") {
       const body = await request.json().catch(() => ({}));
       return removeComment(env, body.photo, body.cid, null);
@@ -157,8 +166,9 @@ async function route(request, env) {
 async function member(request, env) {
   const code = normalize(bearer(request));
   if (!code) throw fail(401, "Enter your invite code.");
-  const m = await env.INBOX.get("member:" + code, "json");
-  if (!m) throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
+  let m = await env.INBOX.get("member:" + code, "json");
+  if (!m || m.del) throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");   // (del: being deleted)
+  m = await ensureId(env, code, m);
   return { code, ...m, codes: [code].concat(m.prev || []) };
 }
 
@@ -166,9 +176,226 @@ async function me(request, env) {
   const m = await member(request, env);
   const own = (await env.INBOX.get("own:" + m.code, "json")) || [];
   const series = (await seriesList(env)).filter((s) => s.open).map((s) => ({ id: s.id, name: s.name }));
-  const person = ((await env.INBOX.get(PEOPLE, "json")) || {})[m.name] || {};
-  return json({ name: m.name, photos: own, weeklyLimit: weeklyLimit(env), series, theme: await entryTheme(env, Date.now()), bio: m.bio || "",
+  const people = (await env.INBOX.get(PEOPLE, "json")) || {}, person = people[m.id] || {};
+  return json({ name: m.name, id: m.id, renameFrom: renameFrom(m, env), photos: own, weeklyLimit: weeklyLimit(env), series, theme: await entryTheme(env, Date.now()), bio: m.bio || person.bio || "",
                 picture: person.av || "", token: person.av ? await photoToken(env, Date.now()) : "" });
+}
+
+/* ------------------------------------------------------------------ member IDs and names */
+// Saves a member's record. The list of members (each record's metadata) has their name, ID, earlier codes and
+// latest earlier names too, so the admin page and the list of who is who needn't open every record.
+async function saveMember(env, code, rec) {
+  const md = { name: rec.name, created: rec.created };
+  if (rec.id) md.id = rec.id;
+  if (rec.prev && rec.prev.length) md.prev = rec.prev;
+  if (rec.was && rec.was.length) md.was = rec.was.slice(0, 2);
+  if (rec.del) md.del = 1;
+  const size = () => new TextEncoder().encode(JSON.stringify(md)).length;   // Cloudflare keeps up to 1,024 bytes
+  if (size() > 1000 && md.was) md.was = md.was.slice(0, 1);
+  if (size() > 1000) delete md.was;
+  await env.INBOX.put("member:" + code, JSON.stringify(rec), { metadata: md });
+}
+function newMemberId() { return randomString(10).toLowerCase(); }
+// Members from before IDs get one made from their first code, so it comes out the same however often it's worked out
+async function legacyId(code) {
+  const b = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("conscious-frame member " + code)));
+  return Array.from(b.slice(0, 10), (x) => CODE_ALPHABET[x % CODE_ALPHABET.length]).join("").toLowerCase();
+}
+async function ensureId(env, code, rec) {
+  if (ID_RE.test(rec.id || "")) return rec;
+  await memberIndex(env);                                        // the first request after the update gives everyone their ID
+  const again = await env.INBOX.get("member:" + code, "json");
+  if (again && ID_RE.test(again.id || "")) return again;
+  rec.id = await legacyId((rec.prev && rec.prev[0]) || code);    // (a very big club whose turn hasn't come yet)
+  await saveMember(env, code, rec);
+  await indexMember(env, code, rec);
+  return rec;
+}
+
+// Who is who, for the inbox only: each member's ID, name and earlier names, and the invite codes they've had
+// (comments and sign-ups from before IDs only have the code). Made from the member records the first time,
+// and again after a restore; members who left keep their entry (gone), so photos and comments kept keep their name.
+async function memberIndex(env) {
+  const kept = await env.INBOX.get(MEMBER_IDS, "json");
+  if (kept && kept.v === 1 && kept.done) return kept;
+  return buildIndex(env, kept);
+}
+async function buildIndex(env, kept) {
+  const index = { v: 1, done: true, m: {}, c: {} };
+  if (kept && kept.m) for (const [id, x] of Object.entries(kept.m)) if (x && x.gone) index.m[id] = x;
+  if (kept && kept.c) for (const [code, id] of Object.entries(kept.c)) if (index.m[id]) index.c[code] = id;
+  let opened = 0;
+  for (const k of await listAll(env, "member:")) {
+    const code = k.name.slice(7);
+    let x = k.metadata || {};
+    if (!ID_RE.test(x.id || "")) {
+      if (opened >= 300) { index.done = false; continue; }       // a very big club: the rest on the next request
+      const rec = await env.INBOX.get(k.name, "json"); opened++;
+      if (!rec) continue;
+      if (!ID_RE.test(rec.id || "")) rec.id = await legacyId((rec.prev && rec.prev[0]) || code);
+      await saveMember(env, code, rec);
+      x = rec;
+    }
+    index.m[x.id] = entryFor(code, x);
+    for (const c of [code].concat(x.prev || [])) index.c[c] = x.id;
+  }
+  await linkGallery(env, index);
+  await linkPeople(env, index);
+  await linkNotes(env, index);
+  await env.INBOX.put(MEMBER_IDS, JSON.stringify(index));
+  return index;
+}
+function entryFor(code, rec) {   // k: their code now
+  const e = { n: rec.name, k: code };
+  if (rec.was && rec.was.length) e.was = rec.was.slice(0, 5);
+  return e;
+}
+// adds or updates one member in the list of who is who
+async function indexMember(env, code, rec) {
+  const index = await memberIndex(env);
+  index.m[rec.id] = entryFor(code, rec);
+  for (const c of [code].concat(rec.prev || [])) index.c[c] = rec.id;
+  await env.INBOX.put(MEMBER_IDS, JSON.stringify(index));
+  return index;
+}
+// Photos and photographer lines from before IDs get their member's ID, found by name
+// (if two members have the same name, by who sent the photo)
+async function linkGallery(env, index) {
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  let changed = false;
+  for (const p of list) {
+    if (p.uid) continue;
+    let ids = idsNamed(index, p.by);
+    if (ids.length > 1) { const owner = await env.INBOX.get("owner:" + p.id); ids = ids.filter((id) => owner && index.c[owner] === id); }
+    if (ids.length === 1) { p.uid = ids[0]; changed = true; }
+  }
+  if (changed) await env.INBOX.put(GALLERY, JSON.stringify(list));
+}
+async function linkPeople(env, index) {
+  const people = (await env.INBOX.get(PEOPLE, "json")) || {};
+  let changed = false;
+  for (const [k, x] of Object.entries(people)) {
+    if (index.m[k]) continue;
+    const ids = idsNamed(index, k);
+    if (ids.length !== 1) continue;
+    people[ids[0]] = Object.assign({}, x, people[ids[0]]);
+    delete people[k]; changed = true;
+  }
+  if (changed) await env.INBOX.put(PEOPLE, JSON.stringify(people));
+}
+// The admins' lists of recent and reported comments, from before IDs: who wrote each one, from the comment itself
+async function linkNotes(env, index) {
+  const [recent, reports] = await Promise.all([env.INBOX.get("recent-comments", "json"), env.INBOX.get(REPORTS, "json")]);
+  const photos = [...new Set((recent || []).concat(reports || []).filter((r) => !r.uid && r.photo).map((r) => r.photo))].slice(0, 150);
+  const comments = {};
+  for (const id of photos) comments[id] = (await env.INBOX.get("c:" + id, "json")) || [];
+  const author = (r) => { const c = (comments[r.photo] || []).find((x) => x.cid === r.cid); return c ? idOf(index, c) : ""; };
+  let a = false, b = false;
+  for (const r of recent || []) if (!r.uid) { const u = author(r); if (u) { r.uid = u; a = true; } }
+  for (const r of reports || []) {
+    if (!r.uid) { const u = author(r); if (u) { r.uid = u; b = true; } }
+    for (const x of r.by || []) if (!x.uid && index.c[x.code]) { x.uid = index.c[x.code]; b = true; }
+  }
+  if (a) await env.INBOX.put("recent-comments", JSON.stringify(recent));
+  if (b) await env.INBOX.put(REPORTS, JSON.stringify(reports));
+}
+// The name to show for something a member did: from their ID (or the code it was done with), else the name kept with it
+function nameIn(index, x) {
+  const id = idOf(index, x);
+  return (id && index.m[id] && index.m[id].n) || x.name || "";
+}
+function idOf(index, x) { return (x.uid && index.m[x.uid]) ? x.uid : index.c[x.code] || x.uid || ""; }
+function idsNamed(index, name) {   // members in the club with this name
+  const key = nameKey(name);
+  return Object.keys(index.m).filter((id) => !index.m[id].gone && nameKey(index.m[id].n) === key);
+}
+// a people key from a backup (a member's ID, or a name from before IDs) as it should be kept now
+function personKey(index, k) {
+  if (index.m[k]) return k;
+  const ids = idsNamed(index, k);
+  return ids.length === 1 ? ids[0] : k;
+}
+
+// "Mara K." and "mara k" are the same name; so are names that differ only in spaces, dots, dashes or emoji
+function nameKey(s) { return String(s || "").normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}\p{Cf}]+/gu, ""); }
+function memberName(v, empty) {
+  const name = String(v == null ? "" : v).normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim().replace(/\s+/g, " ");
+  if (!name) throw fail(400, empty);
+  if (name.length > 60) throw fail(400, "That name is too long (60 characters at most).");
+  if (!/\p{L}/u.test(name) || nameKey(name).length < 2) throw fail(400, "A name needs at least two letters.");
+  return name;
+}
+// The name of the member already using this one (ignoring capitals, spaces and dots), or "".
+// Checks the list of members and the list of who is who, as a member just added may take a minute to show in the first.
+async function nameClash(env, name, selfCode) {
+  const key = nameKey(name);
+  const [keys, index] = await Promise.all([listAll(env, "member:"), memberIndex(env)]);
+  const self = selfCode ? index.c[selfCode] : "";
+  for (const k of keys) {
+    const md = k.metadata || {};
+    if (k.name.slice(7) === selfCode || md.del || (self && md.id === self)) continue;
+    if (nameKey(md.name) === key) return md.name;
+  }
+  for (const [id, x] of Object.entries(index.m)) if (id !== self && !x.gone && nameKey(x.n) === key) return x.n;
+  return "";
+}
+// The day a member may change their name again ("" if they can now)
+function renameFrom(rec, env) {
+  const until = (rec.renamed || 0) + RENAME_DAYS * 864e5;
+  return rec.renamed && Date.now() < until ? clubDate(until, env) : "";
+}
+
+// A member changes their own name: one nobody else in the club uses, once a month
+// (only changing capitals or spaces, like "mara" to "Mara", doesn't count)
+async function renameSelf(request, env) {
+  const m = await member(request, env);
+  const body = await request.json().catch(() => ({}));
+  const name = memberName(body.name, "Enter your name.");
+  let rec = await env.INBOX.get("member:" + m.code, "json");
+  if (!rec || rec.del) throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
+  if (name === rec.name) return json({ ok: true, name, renameFrom: renameFrom(rec, env) });
+  const small = nameKey(name) === nameKey(rec.name);
+  if (!small) {
+    if (RESERVED_NAMES.includes(nameKey(name))) throw fail(400, "That name is kept for the club itself. Choose another one.");
+    const from = renameFrom(rec, env);
+    if (from) throw fail(429, "You changed your name on " + niceDay(clubDate(rec.renamed, env)) + ". You can change it again from " + niceDay(from) + ".");
+    const clash = await nameClash(env, name, m.code);
+    if (clash) throw fail(409, "Someone in the club is already called " + clash + ". Choose another name: adding your surname or an initial usually works.");
+    rec.renamed = Date.now();
+  }
+  rec = await renameMember(env, m.code, rec, name);
+  return json({ ok: true, name, renameFrom: renameFrom(rec, env) });
+}
+// An admin changes a member's name: any time, as long as nobody else uses it
+async function adminRename(request, env, raw) {
+  const code = normalize(raw);
+  let rec = await env.INBOX.get("member:" + code, "json");
+  if (!rec || rec.del) throw fail(404, "That member isn't in the club any more. Refresh the list.");
+  const body = await request.json().catch(() => ({}));
+  const name = memberName(body.name, "Enter the member's name.");
+  if (name !== rec.name) {
+    const clash = nameKey(name) === nameKey(rec.name) ? "" : await nameClash(env, name, code);
+    if (clash) throw fail(409, "There's already a member called " + clash + ". Use another name, for example with their surname or an initial.");
+    rec = await renameMember(env, code, rec, name);
+  }
+  return json({ ok: true, code, name, was: rec.was || [] });
+}
+// The new name goes on their photos in the gallery first (so if today's saving limit has run out, nothing has changed),
+// then in their record and the list of who is who. Comments, sign-ups and their photographer page follow by themselves.
+async function renameMember(env, code, rec, name) {
+  rec = await ensureId(env, code, rec);
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  let n = 0;
+  for (const p of list) if (p.uid === rec.id && p.by !== name) { p.by = name; n++; }
+  if (n) await env.INBOX.put(GALLERY, JSON.stringify(list));
+  // earlier names, newest first (fixing capitals or spaces doesn't make one)
+  const was = (rec.was || []).filter((w) => nameKey(w) !== nameKey(name));
+  rec.was = (nameKey(rec.name) !== nameKey(name) ? [rec.name].concat(was) : was).slice(0, 5);
+  if (!rec.was.length) delete rec.was;
+  rec.name = name;
+  await saveMember(env, code, rec);
+  await indexMember(env, code, rec);
+  return rec;
 }
 
 // A member's line about themselves, shown to members on their photographer page
@@ -186,20 +413,21 @@ async function adminBio(request, env, raw) {
   return json({ ok: true, bio });
 }
 async function setBio(env, code, bio) {
-  const rec = await env.INBOX.get("member:" + code, "json");
-  if (!rec) return false;
+  let rec = await env.INBOX.get("member:" + code, "json");
+  if (!rec || rec.del) return false;
+  rec = await ensureId(env, code, rec);
   if (bio) rec.bio = bio; else delete rec.bio;
-  await env.INBOX.put("member:" + code, JSON.stringify(rec), { metadata: { name: rec.name, created: rec.created } });
-  await setPerson(env, rec.name, { bio, since: rec.created });
+  await saveMember(env, code, rec);
+  await setPerson(env, rec.id, { bio, since: rec.created });
   return true;
 }
-// changes a member's entry on the photographer pages: { bio, since, av } (left out: kept; "": removed)
-async function setPerson(env, name, change) {
+// changes a member's entry on the photographer pages, kept under their ID: { bio, since, av } (left out: kept; "": removed)
+async function setPerson(env, id, change) {
   const people = (await env.INBOX.get(PEOPLE, "json")) || {};
-  const p = Object.assign({}, people[name] || {});
+  const p = Object.assign({}, people[id] || {});
   for (const k of ["bio", "since", "av"]) if (change[k] !== undefined) { if (change[k]) p[k] = change[k]; else delete p[k]; }
-  if (p.bio || p.av) people[name] = p;
-  else if (people[name]) delete people[name];
+  if (p.bio || p.av) people[id] = p;
+  else if (people[id]) delete people[id];
   else return;
   await env.INBOX.put(PEOPLE, JSON.stringify(people));
 }
@@ -209,24 +437,26 @@ async function setPerson(env, name, change) {
 async function savePicture(request, env) {
   const m = await member(request, env);
   const form = await readForm(request);
-  if (form.get("remove") === "1") { await dropPicture(env, m.name); return json({ ok: true, picture: "" }); }
+  if (form.get("remove") === "1") { await dropPicture(env, m.id); return json({ ok: true, picture: "" }); }
   const file = form.get("picture");
   const bytes = await image(file, MAX_PICTURE, "picture");
-  const id = randomString(12).toLowerCase(), old = (((await env.INBOX.get(PEOPLE, "json")) || {})[m.name] || {}).av;
+  const id = randomString(12).toLowerCase(), old = (((await env.INBOX.get(PEOPLE, "json")) || {})[m.id] || {}).av;
   await env.INBOX.put("avatar:" + id, bytes, { metadata: { type: file.type } });
-  await setPerson(env, m.name, { av: id, since: m.created });
+  await setPerson(env, m.id, { av: id, since: m.created });
   if (old) await env.INBOX.delete("avatar:" + old);
   return json({ ok: true, picture: id, token: await photoToken(env, Date.now()) });
 }
-async function dropPicture(env, name) {
-  const old = (((await env.INBOX.get(PEOPLE, "json")) || {})[name] || {}).av;
+async function dropPicture(env, id) {
+  const old = (((await env.INBOX.get(PEOPLE, "json")) || {})[id] || {}).av;
   if (old) await env.INBOX.delete("avatar:" + old);
-  await setPerson(env, name, { av: "" });
+  await setPerson(env, id, { av: "" });
 }
 async function adminRemovePicture(env, raw) {
-  const rec = await env.INBOX.get("member:" + normalize(raw), "json");
+  const code = normalize(raw);
+  let rec = await env.INBOX.get("member:" + code, "json");
   if (!rec) throw fail(404, "That member isn't in the club any more. Refresh the list.");
-  await dropPicture(env, rec.name);
+  rec = await ensureId(env, code, rec);
+  await dropPicture(env, rec.id);
   return json({ ok: true });
 }
 async function servePicture(url, env, id) {
@@ -237,15 +467,16 @@ async function servePicture(url, env, id) {
   return new Response(value, { headers: { "Content-Type": (metadata && metadata.type) || "image/webp", "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" } });
 }
 // a picture from a backup: kept under its old name, unless the member already has one
+// ("name" is the member's ID, or their name in backups from before IDs)
 async function restorePicture(request, env) {
   const form = await readForm(request);
-  const id = String(form.get("id") || ""), name = clean(form.get("name"), 60, "name", true);
+  const id = String(form.get("id") || ""), key = personKey(await memberIndex(env), clean(form.get("name"), 60, "name", true));
   if (!/^[a-z0-9]{6,20}$/.test(id)) throw fail(400, "The backup has a picture that can't be read.");
   const people = (await env.INBOX.get(PEOPLE, "json")) || {};
-  if (people[name] && people[name].av) return json({ ok: true, already: true });
+  if (people[key] && people[key].av) return json({ ok: true, already: true });
   const file = form.get("picture");
   await env.INBOX.put("avatar:" + id, await image(file, MAX_PICTURE, "picture"), { metadata: { type: file.type } });
-  await setPerson(env, name, { av: id });
+  await setPerson(env, key, { av: id });
   return json({ ok: true });
 }
 
@@ -332,7 +563,7 @@ async function submit(request, env) {
   if (recent >= limit) throw fail(429, "You've sent " + limit + " photos in the last 7 days, which is the club's limit. Try again in a few days.");
 
   const sid = now.toString(36) + "-" + randomString(6).toLowerCase();
-  const meta = { sid, code: m.code, name: m.name, ...p, ext, sent: now };
+  const meta = { sid, code: m.code, uid: m.id, name: m.name, ...p, ext, sent: now };
   await env.INBOX.put("img:" + sid + ":full", fullBytes, { metadata: { type: full.type } });
   await env.INBOX.put("img:" + sid + ":thumb", thumbBytes, { metadata: { type: thumb.type } });
   await env.INBOX.put("sub:" + sid, JSON.stringify(meta), { metadata: { code: m.code, sent: now } });
@@ -359,13 +590,13 @@ async function image(file, max, label) {
 async function photoInfo(request, env, rawId) {
   const who = await viewer(request, env);
   const id = photoId(rawId);
-  const comments = (await env.INBOX.get("c:" + id, "json")) || [];
-  const out = { photo: id, comments: comments.map((c) => publicComment(c)), votes: (await heartCounts(env))[id] || 0, perDay: heartsPerDay(env) };
+  const [comments, index] = await Promise.all([env.INBOX.get("c:" + id, "json").then((x) => x || []), memberIndex(env)]);
+  const out = { photo: id, comments: comments.map((c) => publicComment(c, null, index)), votes: (await heartCounts(env))[id] || 0, perDay: heartsPerDay(env) };
   if (who.code) {
     const [recs, owner] = await Promise.all([Promise.all(who.codes.map((c) => env.INBOX.get("h:" + c, "json"))), env.INBOX.get("owner:" + id)]);
     const day = recs.map((r) => r && r[id]).find(Boolean) || null;    // the day this member gave it a heart
     Object.assign(out, { member: who.name, voted: !!day, day, canUndo: !!day && day === clubDate(Date.now(), env), own: !!owner && who.codes.includes(owner) });
-    out.comments = comments.map((c) => publicComment(c, who.codes));
+    out.comments = comments.map((c) => publicComment(c, who.codes, index));
     if (comments.length) {   // which comments this member has already reported
       const reports = (await env.INBOX.get(REPORTS, "json")) || [];
       const mine = new Set(reports.filter((r) => r.photo === id && r.by.some((b) => who.codes.includes(b.code))).map((r) => r.cid));
@@ -381,8 +612,8 @@ async function viewer(request, env) {
   const given = bearer(request);
   if (!given) throw fail(401, "Sign in with your invite code to see the gallery.");
   const code = normalize(given);
-  const m = code ? await env.INBOX.get("member:" + code, "json") : null;
-  if (m) return { code, name: m.name, codes: [code].concat(m.prev || []) };
+  let m = code ? await env.INBOX.get("member:" + code, "json") : null;
+  if (m && !m.del) { m = await ensureId(env, code, m); return { code, id: m.id, name: m.name, codes: [code].concat(m.prev || []) }; }
   if (await isAdmin(given, env)) return { admin: true, name: "Admin" };
   throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
 }
@@ -391,16 +622,23 @@ async function viewer(request, env) {
 async function gallery(request, env) {
   const who = await viewer(request, env);
   const now = Date.now();
+  const index = await memberIndex(env);                // (the first time after the update, this gives photos their photographer's ID)
   const [list, potw, token, top, series, archived, people] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastMonthsTop(env, now),
-    seriesRaw(env), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE)]);
+    seriesRaw(env), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE, "json")]);
   const themes = (archived || []).filter((m) => m.month && m.theme).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
   const cur = monthId(now, env), entry = [nextMonth(cur), cur, previousMonth(cur)].map((mo) => themes.find((t) => t.month === mo)).filter(Boolean)[0] || null;
   // monthStart: for the "This month" filter (older pages call it weekStart); votes: each photo's number of hearts
   const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), monthStart: cur + "-01", weekStart: cur + "-01", month: cur,
                  perDay: heartsPerDay(env), token, top, themes, entry, votes: await heartCounts(env) };
-  // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick
+  // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick.
+  // people: each photographer's line and picture by their current name; was: earlier names, so old links to their page still work
+  const byName = {}, was = {};
+  for (const [k, x] of Object.entries(people || {})) if (!index.m[k]) byName[k] = x;          // (from before IDs, not matched to a member)
+  for (const [k, x] of Object.entries(people || {})) if (index.m[k] && !index.m[k].gone) byName[index.m[k].n] = x;
+  const inUse = new Set(Object.values(index.m).filter((x) => !x.gone).map((x) => nameKey(x.n)));
+  for (const x of Object.values(index.m)) if (!x.gone) for (const w of x.was || []) if (!inUse.has(nameKey(w)) && !(w in was)) was[w] = x.n;
   const body = JSON.stringify(head).slice(0, -1) + ',"photos":' + (list || "[]") + ',"potw":' + (potw || "null") + ',"series":' + series +
-    ',"people":' + (people || "{}") + "}";
+    ',"people":' + JSON.stringify(byName) + ',"was":' + JSON.stringify(was) + "}";
   return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
@@ -667,12 +905,12 @@ async function addToGallery(env, p, files) {
   let id = base, n = 2;
   while (taken.has(id)) id = base.slice(0, 70) + "-" + n++;
   const now = Date.now();
-  const entry = { id, title: p.title, by: p.by, cat: p.cat, cats: p.cats, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
+  const entry = { id, title: p.title, by: p.by, uid: ID_RE.test(p.uid || "") ? p.uid : "", cat: p.cat, cats: p.cats, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
                   ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: p.added == null ? clubDate(now, env) : p.added, at: now, v: now.toString(36),
                   series: p.series, pubOk: !!p.pubOk, pub: !!(p.pub && p.pubOk), theme: p.theme, fb: p.fb === "share" ? "share" : "",
                   kb: Math.round((files.full.byteLength + files.thumb.byteLength) / 1024) };
   if (p.sub) entry.sub = p.sub;
-  for (const k of ["desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "fb", "cats"]) if (!entry[k]) delete entry[k];
+  for (const k of ["uid", "desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "fb", "cats"]) if (!entry[k]) delete entry[k];
   if (Array.isArray(entry.series) && !entry.series.length) delete entry.series;
   await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
   await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
@@ -695,8 +933,9 @@ async function vote(request, env) {
     delete rec[id];
   } else {
     const [owner, list] = await Promise.all([env.INBOX.get("owner:" + id), env.INBOX.get(GALLERY, "json")]);
-    if (m.codes.includes(owner)) throw fail(403, "You can't give your own photo a heart.");
-    if (!(list || []).some((x) => x.id === id)) throw fail(404, "This photo isn't in the gallery any more.");
+    const x = (list || []).find((p) => p.id === id);
+    if (m.codes.includes(owner) || (x && x.uid && x.uid === m.id)) throw fail(403, "You can't give your own photo a heart.");
+    if (!x) throw fail(404, "This photo isn't in the gallery any more.");
     const perDay = heartsPerDay(env), given = recs.reduce((n, r) => n + Object.values(r || {}).filter((d) => d === today).length, 0);
     if (given >= perDay) throw fail(429, "You've given " + perDay + " hearts today. You can give more tomorrow.");
     rec[id] = today;
@@ -719,17 +958,17 @@ async function addComment(request, env) {
   if (today >= COMMENTS_PER_DAY) throw fail(429, "You've posted " + COMMENTS_PER_DAY + " comments today, which is the club's daily limit. Try again tomorrow.");
   const list = (await env.INBOX.get("c:" + id, "json")) || [];
   if (list.length >= MAX_COMMENTS_PER_PHOTO) throw fail(409, "This photo has reached the comment limit.");
-  const c = { cid: Date.now().toString(36) + "-" + randomString(4).toLowerCase(), code: m.code, name: m.name, text, at: Date.now() };
+  const c = { cid: Date.now().toString(36) + "-" + randomString(4).toLowerCase(), code: m.code, uid: m.id, name: m.name, text, at: Date.now() };
   list.push(c);
   try { await env.INBOX.put("c:" + id, JSON.stringify(list)); }
   catch { throw fail(503, "Someone else commented at the same moment. Post your comment again."); }
   await env.INBOX.put(quota, String(today + 1), { expirationTtl: 2 * 86400 });
   try {
     const recent = (await env.INBOX.get("recent-comments", "json")) || [];
-    recent.unshift({ photo: id, cid: c.cid, name: c.name, text: cut(c.text, 300), at: c.at });   // whole letters, so smileys and Malayalam letters aren't cut in half
+    recent.unshift({ photo: id, cid: c.cid, uid: m.id, name: c.name, text: cut(c.text, 300), at: c.at });   // whole letters, so smileys and Malayalam letters aren't cut in half
     await env.INBOX.put("recent-comments", JSON.stringify(recent.slice(0, RECENT_COMMENTS)));
   } catch { /* the admin list is a convenience; the comment itself is saved */ }
-  return json({ comment: publicComment(c, m.codes) });
+  return json({ comment: publicComment(c, m.codes, { m: { [m.id]: { n: m.name } }, c: {} }) });
 }
 
 // A member reports a comment to the admins. The admins see who reported it and why; the person who wrote it doesn't.
@@ -746,14 +985,20 @@ async function report(request, env) {
   const quota = "rq:" + clubDate(Date.now(), env) + ":" + m.code;
   const today = parseInt((await env.INBOX.get(quota)) || "0", 10);
   if (today >= REPORTS_PER_DAY) throw fail(429, "You've reported " + REPORTS_PER_DAY + " comments today. If something needs the admins urgently, contact the club directly.");
-  if (!r) { r = { photo: id, cid, name: c.name, text: cut(c.text, 500), at: c.at, by: [] }; list.unshift(r); }
-  r.by = r.by.concat({ code: m.code, name: m.name, why: cut(String(body.why || "").trim().replace(/\s+/g, " "), 300), at: Date.now() }).slice(-20);
+  if (!r) { const index = await memberIndex(env); r = { photo: id, cid, uid: idOf(index, c), name: nameIn(index, c), text: cut(c.text, 500), at: c.at, by: [] }; list.unshift(r); }
+  r.by = r.by.concat({ code: m.code, uid: m.id, name: m.name, why: cut(String(body.why || "").trim().replace(/\s+/g, " "), 300), at: Date.now() }).slice(-20);
   await env.INBOX.put(REPORTS, JSON.stringify(list.slice(0, 100)));
   await env.INBOX.put(quota, String(today + 1), { expirationTtl: 2 * 86400 });
   return json({ ok: true });
 }
-function adminReport(r) {   // members' codes stay in the inbox
-  return { photo: r.photo, cid: r.cid, name: r.name, text: r.text, at: r.at, by: r.by.map((b) => ({ name: b.name, why: b.why, at: b.at })) };
+async function adminReports(env) {   // members' codes stay in the inbox
+  const [list, index] = await Promise.all([env.INBOX.get(REPORTS, "json"), memberIndex(env)]);
+  return json({ reports: (list || []).map((r) => ({ photo: r.photo, cid: r.cid, name: nameIn(index, r), text: r.text, at: r.at,
+    by: r.by.map((b) => ({ name: nameIn(index, b), why: b.why, at: b.at })) })) });
+}
+async function recentComments(env) {
+  const [list, index] = await Promise.all([env.INBOX.get("recent-comments", "json"), memberIndex(env)]);
+  return json({ comments: (list || []).map((r) => ({ photo: r.photo, cid: r.cid, name: nameIn(index, r), text: r.text, at: r.at })) });
 }
 async function dismissReport(request, env) {
   const body = await request.json().catch(() => ({}));
@@ -794,8 +1039,8 @@ async function standings(url, env) {
   return json({ month, current, previous, voters, ranking });
 }
 
-function publicComment(c, codes) {
-  const out = { cid: c.cid, name: c.name, text: c.text, at: c.at };   // member codes are never shown
+function publicComment(c, codes, index) {
+  const out = { cid: c.cid, name: index ? nameIn(index, c) : c.name, text: c.text, at: c.at };   // member codes are never shown
   if (codes && codes.includes(c.code)) out.mine = true;
   return out;
 }
@@ -814,8 +1059,9 @@ async function requireAdmin(request, env) {
 }
 
 async function pending(env) {
-  const keys = await listAll(env, "sub:");
+  const [keys, index] = await Promise.all([listAll(env, "sub:"), memberIndex(env)]);
   const subs = (await Promise.all(keys.map((k) => env.INBOX.get(k.name, "json")))).filter(Boolean);
+  for (const x of subs) x.name = nameIn(index, x);
   subs.sort((x, y) => x.sent - y.sent);
   return json({ photos: subs });
 }
@@ -834,8 +1080,11 @@ async function decide(request, env, sid) {
   if (!meta) return json({ ok: true, already: true });            // decided on another device a moment ago
   const update = { status: decision, decided: Date.now() };
   if (decision === "approved") {
+    // the photographer's name as it is now (they may have changed it since sending), and their ID
+    const index = await memberIndex(env);
+    meta.name = nameIn(index, meta);
     // the admin may have corrected the title, category or description
-    const p = { ...meta, by: meta.name, sub: sid,
+    const p = { ...meta, by: meta.name, uid: idOf(index, meta), sub: sid,
                 title: clean(body.title == null ? meta.title : body.title, 80, "title", true),
                 ...catsOf(body.cats != null || body.cat != null ? categories(body.cats != null ? body.cats : body.cat) : meta.cats || [meta.cat]),
                 desc: clean(body.desc == null ? meta.desc : body.desc, 400, "description"),
@@ -874,7 +1123,10 @@ async function post(request, env) {
   if (form.get("pub") === "1") p.pub = p.pubOk = true;      // the admin has the photographer's permission
   p.theme = checkMonth(form.get("theme"));
   if (form.get("fb") === "share") p.fb = "share";
+  const index = await memberIndex(env), ids = idsNamed(index, p.by);
+  if (ids.length === 1) { p.uid = ids[0]; p.by = index.m[ids[0]].n; }     // a member's photo: theirs, with their name as it's written
   const entry = await addToGallery(env, p, files);
+  if (entry.uid && index.m[entry.uid] && index.m[entry.uid].k && !(await env.INBOX.get("owner:" + entry.id))) await env.INBOX.put("owner:" + entry.id, index.m[entry.uid].k);
   return json({ ok: true, id: entry.id, photo: entry });
 }
 
@@ -885,7 +1137,14 @@ async function editPhoto(request, env, rawId) {
   const x = list.find((e) => e.id === id);
   if (!x) throw fail(404, "This photo isn't in the gallery any more.");
   if (body.title != null) x.title = clean(body.title, 80, "title", true);
-  if (body.by != null) x.by = clean(body.by, 60, "photographer's name", true);
+  let owner;                                           // the photo's new photographer, when it changes: their code, or "" for none
+  if (body.by != null) {
+    const by = clean(body.by, 60, "photographer's name", true), index = await memberIndex(env), ids = idsNamed(index, by);
+    if (ids.length === 1) {                            // a member: the photo becomes theirs (and follows their name)
+      x.by = index.m[ids[0]].n;
+      if (x.uid !== ids[0]) { x.uid = ids[0]; owner = index.m[ids[0]].k || ""; }
+    } else if (by !== x.by) { x.by = by; if (x.uid) { delete x.uid; owner = ""; } }
+  }
   if (body.cats != null || body.cat != null) setCats(x, categories(body.cats != null ? body.cats : body.cat));
   photoDetails(x, body);
   if (body.series != null) setSeries(x, await checkSeries(env, body.series));
@@ -897,6 +1156,7 @@ async function editPhoto(request, env, rawId) {
     x.pub = true;
   } else if (body.pub === false) delete x.pub;
   await env.INBOX.put(GALLERY, JSON.stringify(list));
+  if (owner !== undefined) await (owner ? env.INBOX.put("owner:" + id, owner) : env.INBOX.delete("owner:" + id));
   return json({ ok: true, photo: x });
 }
 
@@ -913,12 +1173,11 @@ function photoDetails(x, body) {
 async function editOwnPhoto(request, env, rawId) {
   const m = await member(request, env);
   const id = photoId(rawId);
-  const owner = await env.INBOX.get("owner:" + id);
-  if (!owner || !m.codes.includes(owner)) throw fail(403, "Only the photographer can change a photo's details. Ask a club admin if something needs fixing.");
-  const body = await request.json().catch(() => ({}));
-  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  const [owner, list] = await Promise.all([env.INBOX.get("owner:" + id), env.INBOX.get(GALLERY, "json").then((x) => x || [])]);
   const x = list.find((e) => e.id === id);
+  if (!(owner && m.codes.includes(owner)) && !(x && x.uid && x.uid === m.id)) throw fail(403, "Only the photographer can change a photo's details. Ask a club admin if something needs fixing.");
   if (!x) throw fail(404, "This photo isn't in the gallery any more.");
+  const body = await request.json().catch(() => ({}));
   photoDetails(x, body);
   x.edited = Date.now();
   await env.INBOX.put(GALLERY, JSON.stringify(list));
@@ -960,35 +1219,46 @@ async function setPotw(request, env) {
 }
 
 async function listMembers(env) {
+  const index = await memberIndex(env);
   const [keys, people] = await Promise.all([listAll(env, "member:"), env.INBOX.get(PEOPLE, "json")]);
-  const members = keys.map((k) => ({ code: k.name.slice(7), ...(k.metadata || {}) }));
-  for (const m of members) if (people && people[m.name]) { m.bio = people[m.name].bio; m.picture = people[m.name].av; }
+  const members = keys.map((k) => {
+    const md = k.metadata || {}, code = k.name.slice(7), id = md.id || index.c[code] || "", e = index.m[id];
+    const m = { code, id, name: (e && e.n) || md.name, created: md.created };   // (the list of who is who is up to date at once; the members list can take a minute)
+    const was = (e && e.was) || md.was;
+    if (was && was.length) m.was = was;
+    if (md.del) m.deleting = true;
+    const p = people && people[id];
+    if (p) { m.bio = p.bio; m.picture = p.av; }
+    return m;
+  });
   members.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   return json({ members, token: members.some((m) => m.picture) ? await photoToken(env, Date.now()) : "" });
 }
 
 async function addMember(request, env) {
   const body = await request.json().catch(() => ({}));
-  const name = String(body.name || "").trim().replace(/\s+/g, " ");
-  if (!name) throw fail(400, "Enter the member's name.");
-  if (name.length > 60) throw fail(400, "That name is too long (60 characters at most).");
+  const name = memberName(body.name, "Enter the member's name.");
+  const clash = await nameClash(env, name, "");
+  if (clash) throw fail(409, "There's already a member called " + clash + ". Add their surname or an initial, so members can tell them apart.");
   const code = randomString(12);
-  const m = { name, created: Date.now() };
-  await env.INBOX.put("member:" + code, JSON.stringify(m), { metadata: m });
-  return json({ code, ...m });
+  const rec = { name, created: Date.now(), id: newMemberId() };
+  await saveMember(env, code, rec);
+  await indexMember(env, code, rec);
+  return json({ code, id: rec.id, name, created: rec.created });
 }
 
 // A new invite code for a member, e.g. when theirs has been shared by mistake. The old code stops
 // working at once; their photos, comments, votes and sent-photo history stay theirs.
 async function newCode(env, raw) {
   const old = normalize(raw);
-  const m = await env.INBOX.get("member:" + old, "json");
-  if (!m) throw fail(404, "That member isn't in the club any more. Refresh the list.");
+  let m = await env.INBOX.get("member:" + old, "json");
+  if (!m || m.del) throw fail(404, "That member isn't in the club any more. Refresh the list.");
+  m = await ensureId(env, old, m);
   const code = randomString(12), now = Date.now(), index = await heartIndex(env);
   const prev = (m.prev || []).concat(old).slice(-10);
-  const rec = { name: m.name, created: m.created, renewed: now, prev };
-  if (m.bio) rec.bio = m.bio;
-  await env.INBOX.put("member:" + code, JSON.stringify(rec), { metadata: { name: m.name, created: m.created } });
+  const rec = Object.assign({}, m, { renewed: now, prev });              // keeps their ID, line and earlier names
+  await saveMember(env, code, rec);
+  await indexMember(env, code, rec);
   const [own, hearts] = await Promise.all([env.INBOX.get("own:" + old), env.INBOX.get("h:" + old)]);
   if (own) await env.INBOX.put("own:" + code, own);
   if (hearts) {                                                      // their hearts move to the new code
@@ -1038,13 +1308,18 @@ async function restoreRecords(request, env) {
       if ((await env.INBOX.get("member:" + rest)) || (await env.INBOX.get("moved:" + rest))) { skipped++; continue; }
       const m = { name: clean(v.name, 60, "name", true), created: +v.created || Date.now() };
       if (Array.isArray(v.prev)) m.prev = v.prev.filter((c) => CODE_RE.test(c)).slice(-10);
-      await env.INBOX.put("member:" + rest, JSON.stringify(m), { metadata: { name: m.name, created: m.created } });
+      m.id = ID_RE.test(v.id || "") ? v.id : await legacyId((m.prev && m.prev[0]) || rest);   // the same ID as before (backups from before IDs: worked out as before)
+      if (Array.isArray(v.was)) { const was = v.was.filter((w) => typeof w === "string" && w).map((w) => clean(w, 60, "name")).slice(0, 5); if (was.length) m.was = was; }
+      if (+v.renamed) m.renamed = +v.renamed;
+      if (typeof v.bio === "string" && v.bio) m.bio = clean(v.bio, 200, "line");
+      await saveMember(env, rest, m);
+      await indexMember(env, rest, m);
       added++;
     } else if (prefix === "c:") {
       const id = photoId(rest);
       const list = (await env.INBOX.get("c:" + id, "json")) || [], have = new Set(list.map((c) => c.cid));
       const extra = (Array.isArray(v) ? v : []).filter((c) => c && typeof c.cid === "string" && !have.has(c.cid) && typeof c.text === "string")
-        .map((c) => ({ cid: c.cid.slice(0, 40), code: String(c.code || "").slice(0, 32), name: String(c.name || "").slice(0, 60), text: c.text.slice(0, MAX_COMMENT), at: +c.at || 0 }));
+        .map((c) => Object.assign({ cid: c.cid.slice(0, 40), code: String(c.code || "").slice(0, 32), name: String(c.name || "").slice(0, 60), text: c.text.slice(0, MAX_COMMENT), at: +c.at || 0 }, ID_RE.test(c.uid || "") ? { uid: c.uid } : {}));
       if (!extra.length) { skipped++; continue; }
       const all = list.concat(extra).sort((x, y) => x.at - y.at).slice(-MAX_COMMENTS_PER_PHOTO);
       await env.INBOX.put("c:" + id, JSON.stringify(all));
@@ -1083,9 +1358,13 @@ async function restoreRecords(request, env) {
       hearts = true; added++;
     } else if (key === PEOPLE) {
       if (!v || typeof v !== "object" || Array.isArray(v)) throw fail(400, "The backup's photographer lines can't be read.");
-      const people = (await env.INBOX.get(PEOPLE, "json")) || {};
+      const people = (await env.INBOX.get(PEOPLE, "json")) || {}, index = await memberIndex(env);
       let n = 0;
-      for (const [name, x] of Object.entries(v).slice(0, 2000)) if (!(people[name] && people[name].bio) && x && typeof x.bio === "string" && x.bio) { const nm = clean(name, 60, "name", true); people[nm] = Object.assign({}, people[nm], { bio: clean(x.bio, 200, "line"), since: +x.since || 0 }); n++; }   // (pictures come back separately)
+      // kept under the member's ID (backups have each photographer by name, or by ID); pictures come back separately
+      for (const [name, x] of Object.entries(v).slice(0, 2000)) {
+        const k = personKey(index, clean(name, 60, "name", true));
+        if (!(people[k] && people[k].bio) && x && typeof x.bio === "string" && x.bio) { people[k] = Object.assign({}, people[k], { bio: clean(x.bio, 200, "line"), since: +x.since || 0 }); n++; }
+      }
       if (!n) { skipped++; continue; }
       await env.INBOX.put(PEOPLE, JSON.stringify(people));
       merged++;
@@ -1101,7 +1380,7 @@ async function restoreRecords(request, env) {
     } else if (prefix === "rsvp:") {
       if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(rest) || !Array.isArray(v)) throw fail(400, "The backup has a sign-up list that can't be read.");
       if (await env.INBOX.get(key)) { skipped++; continue; }
-      await env.INBOX.put(key, JSON.stringify(v.slice(0, 500).filter((x) => x && typeof x.name === "string").map((x) => ({ code: String(x.code || "").slice(0, 32), name: x.name.slice(0, 60), at: +x.at || 0 }))));
+      await env.INBOX.put(key, JSON.stringify(v.slice(0, 500).filter((x) => x && typeof x.name === "string").map((x) => Object.assign({ code: String(x.code || "").slice(0, 32), name: x.name.slice(0, 60), at: +x.at || 0 }, ID_RE.test(x.uid || "") ? { uid: x.uid } : {}))));
       added++;
     } else if (key === SERIES) {
       if (await env.INBOX.get(SERIES)) { skipped++; continue; }
@@ -1150,6 +1429,10 @@ async function restorePhoto(request, env) {
   const at = parseInt(form.get("at"), 10) || Date.now(), added = String(form.get("added") || "");
   const entry = { id, title: p.title, by: clean(form.get("by"), 60, "photographer's name", true), cat: p.cat, cats: p.cats, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
                   ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: /^\d{4}-\d{2}-\d{2}$/.test(added) ? added : "", at, v: Date.now().toString(36) };
+  // its photographer: the member's ID from the backup, or (backups from before IDs) the member with that name
+  const index = await memberIndex(env), uid = String(form.get("uid") || ""), named = idsNamed(index, entry.by);
+  if (ID_RE.test(uid)) entry.uid = uid; else if (named.length === 1) entry.uid = named[0];
+  if (entry.uid && index.m[entry.uid] && !index.m[entry.uid].gone) entry.by = index.m[entry.uid].n;
   const sub = String(form.get("sub") || "").replace(/[^a-z0-9-]/gi, "").slice(0, 40);
   if (sub) entry.sub = sub;
   const series = form.getAll("series").flatMap((x) => String(x).split(",")).map((x) => x.trim()).filter((x) => /^[a-z0-9][a-z0-9-]{0,49}$/.test(x));
@@ -1172,11 +1455,111 @@ async function restorePhoto(request, env) {
   return json({ ok: true, id, photo: entry });
 }
 
-async function removeMember(env, code) {
-  const rec = await env.INBOX.get("member:" + normalize(code), "json");
-  if (rec) { await dropPicture(env, rec.name); if (rec.bio) await setPerson(env, rec.name, { bio: "" }); }
-  await env.INBOX.delete("member:" + normalize(code));
+// Removes a member from the club: their code stops working, their picture and line go. Their photos and comments stay,
+// with the name they had (the list of who is who keeps them as gone).
+async function removeMember(env, raw) {
+  const code = normalize(raw);
+  let rec = await env.INBOX.get("member:" + code, "json");
+  if (rec) {
+    rec = await ensureId(env, code, rec);
+    await dropPerson(env, rec.id);
+    const index = await memberIndex(env);
+    index.m[rec.id] = { n: rec.name, gone: 1 };
+    for (const c of [code].concat(rec.prev || [])) index.c[c] = rec.id;
+    await env.INBOX.put(MEMBER_IDS, JSON.stringify(index));
+  }
+  await env.INBOX.delete("member:" + code);
   return json({ ok: true });
+}
+async function dropPerson(env, id) {   // a member's picture and line
+  const people = (await env.INBOX.get(PEOPLE, "json")) || {};
+  if (!people[id]) return;
+  if (people[id].av) await env.INBOX.delete("avatar:" + people[id].av);
+  delete people[id];
+  await env.INBOX.put(PEOPLE, JSON.stringify(people));
+}
+
+// Deletes a member and everything they shared: their photos (with the comments on them), their comments on other
+// photos, the hearts they gave, their event sign-ups, photos waiting for approval, picture and line. Their code stops
+// working at once. It can be a lot, so each call does part of it (a Worker may make 1,000 storage calls per request)
+// and the admin page calls again until it says done. If the day's saving limit runs out, pressing again tomorrow carries on.
+async function deleteEverything(env, raw) {
+  const code = normalize(raw);
+  let rec = await env.INBOX.get("member:" + code, "json");
+  if (!rec) return json({ ok: true, done: true, already: true });
+  rec = await ensureId(env, code, rec);
+  const id = rec.id, codes = [code].concat(rec.prev || []), has = (c) => !!c && codes.includes(c), theirs = (x) => (x.uid && x.uid === id) || has(x.code);
+  let budget = 600;                                        // storage calls this time, leaving room for the rest
+  const pause = async (left, extra) => { await saveMember(env, code, rec); return json({ ok: true, done: false, left, ...extra }); };
+  if (!rec.del) { rec.del = { at: Date.now() }; await saveMember(env, code, rec); budget--; }    // from now on their code doesn't work
+  const job = rec.del;
+
+  // their photos, with the comments on them: up to 100 at a time
+  const list = (await env.INBOX.get(GALLERY, "json")) || [];
+  const photos = list.filter((p) => p.uid === id), batch = photos.slice(0, 100);
+  if (batch.length) {
+    const gone = new Set(batch.map((p) => p.id));
+    await Promise.all(batch.flatMap((p) => ["pimg:" + p.id + ":full", "pimg:" + p.id + ":thumb", "owner:" + p.id, "c:" + p.id].map((k) => env.INBOX.delete(k))));
+    await env.INBOX.put(GALLERY, JSON.stringify(list.filter((p) => !gone.has(p.id))));
+    const potw = await env.INBOX.get(POTW, "json");
+    if (potw && potw.items && potw.items.some((x) => gone.has(x.id))) { potw.items = potw.items.filter((x) => !gone.has(x.id)); await env.INBOX.put(POTW, JSON.stringify(potw)); }
+    await dropReports(env, (r) => gone.has(r.photo));
+    budget -= batch.length * 4 + 6;
+    if (photos.length > batch.length) return pause("photos", { photos: photos.length - batch.length });
+  }
+  // photos still waiting for approval
+  if (!job.subs) {
+    const subs = (await listAll(env, "sub:")).filter((k) => has(k.metadata && k.metadata.code));
+    await Promise.all(subs.flatMap((k) => { const sid = k.name.slice(4); return [k.name, "img:" + sid + ":full", "img:" + sid + ":thumb"].map((x) => env.INBOX.delete(x)); }));
+    budget -= 1 + subs.length * 3; job.subs = 1;
+  }
+  // their comments on other photos: 100 photos' comments at a time
+  while (!job.comments) {
+    if (budget < 210) return pause("comments");
+    const page = await env.INBOX.list({ prefix: "c:", cursor: job.cursor || undefined, limit: 100 });
+    budget--;
+    for (const k of page.keys) {
+      const cs = (await env.INBOX.get(k.name, "json")) || [], rest = cs.filter((c) => !theirs(c));
+      budget--;
+      if (rest.length !== cs.length) { await (rest.length ? env.INBOX.put(k.name, JSON.stringify(rest)) : env.INBOX.delete(k.name)); budget--; }
+    }
+    if (page.list_complete) { job.comments = 1; delete job.cursor; } else job.cursor = page.cursor;
+  }
+  // the hearts they gave (and votes from before hearts)
+  if (!job.hearts) {
+    const index = await heartIndex(env);
+    if (budget < index.codes.length + 40) return pause("hearts");
+    const mine = index.codes.filter(has), votes = (await listAll(env, "v:")).filter((k) => has(k.name.split(":")[2]));
+    await Promise.all(mine.map((c) => env.INBOX.delete("h:" + c)).concat(votes.map((k) => env.INBOX.delete(k.name))));
+    if (mine.length) { index.codes = index.codes.filter((c) => !has(c)); await env.INBOX.put(HEARTERS, JSON.stringify(index)); await recountHearts(env, index); }
+    budget -= index.codes.length + mine.length + votes.length + 4; job.hearts = 1;
+  }
+  // event sign-ups
+  if (!job.rsvp) {
+    const keys = await listAll(env, "rsvp:");
+    if (budget < keys.length * 2 + 20) return pause("sign-ups");
+    for (const k of keys) {
+      const going = (await env.INBOX.get(k.name, "json")) || [], rest = going.filter((x) => !theirs(x));
+      if (rest.length !== going.length) await env.INBOX.put(k.name, JSON.stringify(rest));
+    }
+    job.rsvp = 1;
+  }
+  // the admins' lists, their picture and line, sent-photo history, earlier codes, and who they were
+  const [recent, reports] = await Promise.all([env.INBOX.get("recent-comments", "json"), env.INBOX.get(REPORTS, "json")]);
+  if (recent) await env.INBOX.put("recent-comments", JSON.stringify(recent.filter((r) => r.uid !== id)));
+  if (reports) {
+    const rest = [];
+    for (const r of reports) { if (r.uid === id) continue; r.by = (r.by || []).filter((b) => !theirs(b)); if (r.by.length) rest.push(r); }
+    await env.INBOX.put(REPORTS, JSON.stringify(rest));
+  }
+  await dropPerson(env, id);
+  await Promise.all(codes.map((c) => env.INBOX.delete("own:" + c)).concat((rec.prev || []).map((c) => env.INBOX.delete("moved:" + c))));
+  const index = await memberIndex(env);
+  delete index.m[id];
+  for (const [c, x] of Object.entries(index.c)) if (x === id) delete index.c[c];
+  await env.INBOX.put(MEMBER_IDS, JSON.stringify(index));
+  await env.INBOX.delete("member:" + code);
+  return json({ ok: true, done: true });
 }
 
 /* ------------------------------------------------------------------ events */
@@ -1190,10 +1573,10 @@ async function listEvents(url, request, env) {
   const upcoming = all.filter((e) => ends(e) >= today).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   const past = all.filter((e) => ends(e) < today).sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start)).slice(0, who && who.admin && url.searchParams.get("all") ? 500 : 12);
   if (who) {
-    const lists = await Promise.all(upcoming.concat(past).map((e) => env.INBOX.get("rsvp:" + e.id, "json")));
+    const [lists, index] = await Promise.all([Promise.all(upcoming.concat(past).map((e) => env.INBOX.get("rsvp:" + e.id, "json"))), memberIndex(env)]);
     upcoming.concat(past).forEach((e, i) => {
       const going = lists[i] || [];
-      e.going = going.map((x) => x.name);
+      e.going = going.map((x) => nameIn(index, x));
       if (who.codes) e.mine = going.some((x) => who.codes.includes(x.code));
     });
   }
@@ -1247,10 +1630,11 @@ async function rsvp(request, env, id) {
   if (i >= 0) going.splice(i, 1);
   else {
     if (e.max && going.length >= e.max) throw fail(409, "Sorry, this event is full.");
-    going.push({ code: m.code, name: m.name, at: Date.now() });
+    going.push({ code: m.code, uid: m.id, name: m.name, at: Date.now() });
   }
   await env.INBOX.put(key, JSON.stringify(going));
-  return json({ ok: true, mine: i < 0, going: going.map((x) => x.name) });
+  const index = await memberIndex(env);
+  return json({ ok: true, mine: i < 0, going: going.map((x) => nameIn(index, x)) });
 }
 
 /* ------------------------------------------------------------------ the storage meter */

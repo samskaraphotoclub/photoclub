@@ -81,6 +81,7 @@
     </form>
     <section class="card" aria-labelledby="m-h">
       <h2 id="m-h">Members <span class="muted" id="m-count"></span></h2>
+      <p class="status error" id="m-twice" hidden></p>
       <p class="muted" id="m-empty" hidden>No members yet. Invite someone above.</p>
       <ul class="list" id="m-list"></ul>
     </section>
@@ -228,7 +229,7 @@
       </div>
       <label class="f" for="title">Title</label>
       <input type="text" id="title" maxlength="80">
-      <label class="f" for="by">Photographer</label>
+      <label class="f" for="by">Photographer <small>(a member's name makes it their photo: it follows their name, and they can edit its details)</small></label>
       <input type="text" id="by" maxlength="60" autocomplete="name">
       <p class="f" id="cat-l">Category <small>(one or more)</small></p>
       <div class="pills" id="cat" role="group" aria-labelledby="cat-l"><label><input type="checkbox" value="Landscape"><span>Landscape</span></label><label><input type="checkbox" value="Nature"><span>Nature</span></label><label><input type="checkbox" value="Travel"><span>Travel</span></label><label><input type="checkbox" value="Street"><span>Street</span></label><label><input type="checkbox" value="Architecture"><span>Architecture</span></label><label><input type="checkbox" value="Night"><span>Night</span></label><label><input type="checkbox" value="Abstract"><span>Abstract</span></label></div>
@@ -585,7 +586,7 @@
       li.innerHTML = '<img src="' + esc(thumbUrl(d, p)) + '" alt="" width="72" height="48">' +
         '<form class="g-edit" novalidate>' +
         '<label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(p.title) + '"></label>' +
-        '<label class="f">Photographer<input type="text" class="e-by" maxlength="60" value="' + esc(p.by) + '"></label>' +
+        '<label class="f">Photographer <small>(a member\'s name links it to them)</small><input type="text" class="e-by" maxlength="60" value="' + esc(p.by) + '"></label>' +
         '<p class="f">Category <small>(one or more)</small></p>' + catPills(p) +
         '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
         ((d.series || []).length ? '<p class="f">Series</p>' + seriesPills(d.series, p) : "") +
@@ -700,20 +701,62 @@
     if (navigator.share) return navigator.share({ text: text }).catch(function (e) { if (!e || e.name !== "AbortError") copy(text, statusEl); });
     copy(text, statusEl);
   }
+  // "Mara K." and "mara k" count as the same name (as in the inbox)
+  function nameKey(n) { try { return String(n || "").normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}\p{Cf}]+/gu, ""); } catch (e) { return String(n || "").toLowerCase().replace(/[\s.,'’_-]+/g, ""); } }
+  function newInbox(e, what) { return e.message === "Not found." ? new Error(what + " works once the club's inbox has been updated (inbox/worker.js).") : e; }
   function loadMembers() {
     if (!inboxReady()) { $("m-list").innerHTML = ""; $("m-empty").hidden = false; $("m-empty").textContent = "Add the inbox address and admin password in Settings first."; return; }
     inbox("/admin/members").then(function (d) {
       $("m-count").textContent = d.members.length ? "(" + d.members.length + ")" : "";
       $("m-empty").hidden = d.members.length > 0; $("m-empty").textContent = "No members yet. Invite someone above.";
       $("m-list").innerHTML = "";
+      // members who have the same name (from before names had to be different): one of them should be renamed
+      var seen = {}, twice = [];
+      d.members.forEach(function (m) { var k = nameKey(m.name); if (seen[k] && twice.indexOf(m.name) < 0) twice.push(seen[k]); seen[k] = m.name; });
+      $("m-twice").hidden = !twice.length;
+      $("m-twice").textContent = twice.length ? "More than one member is called " + twice.map(function (n) { return "“" + n + "”"; }).join(", ") + ". Rename one of them, so members can tell them apart and their photos don't share a page." : "";
       d.members.forEach(function (m) {
         var li = document.createElement("li");
         li.innerHTML = (m.picture && d.token ? '<img class="m-pic" alt="" loading="lazy" src="' + esc(cfg.inbox.replace(/\/+$/, "") + "/avatar/" + encodeURIComponent(m.picture) + "?t=" + encodeURIComponent(d.token)) + '">' : "") +
-          "<b>" + esc(m.name) + '</b><span class="meta">Code ' + pretty(m.code) + ", added " + new Date(m.created).toLocaleDateString() + "</span>" +
+          "<b" + ml(m.name) + ">" + esc(m.name) + "</b>" + (m.was && m.was.length ? '<span class="meta">Formerly ' + m.was.map(function (w) { return "“" + esc(w) + "”"; }).join(", ") + "</span>" : "") +
+          '<span class="meta">Code ' + pretty(m.code) + ", added " + new Date(m.created).toLocaleDateString() + "</span>" +
           (m.bio ? '<span class="meta"' + ml(m.bio) + ">About them: “" + esc(m.bio) + "”</span>" : "") +
-          '<div class="row-btns">' + (m.bio ? '<button class="btn btn-light btn-small" type="button" data-a="bio">Remove their line</button>' : "") + (m.picture ? '<button class="btn btn-light btn-small" type="button" data-a="pic">Remove their picture</button>' : "") + '<button class="btn btn-light btn-small" type="button" data-a="send">Send invite again</button><button class="btn btn-light btn-small" type="button" data-a="renew">New code</button><button class="btn btn-light btn-small" type="button" data-a="remove">Remove</button></div><p class="status" aria-live="polite"></p>';
-        var st = li.querySelector(".status");
+          (m.deleting
+            ? '<span class="meta"><b>Being deleted.</b> Their code no longer works; some of what they shared may still be there.</span><div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="finish">Finish deleting</button></div>'
+            : '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="rename">Rename</button>' + (m.bio ? '<button class="btn btn-light btn-small" type="button" data-a="bio">Remove their line</button>' : "") + (m.picture ? '<button class="btn btn-light btn-small" type="button" data-a="pic">Remove their picture</button>' : "") + '<button class="btn btn-light btn-small" type="button" data-a="send">Send invite again</button><button class="btn btn-light btn-small" type="button" data-a="renew">New code</button><button class="btn btn-light btn-small" type="button" data-a="remove">Remove</button></div>') +
+          '<p class="status" aria-live="polite"></p>';
+        var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
+        // a box of questions in place of the buttons; done() puts the buttons back
+        function ask(html) {
+          var box = document.createElement("div");
+          box.className = "m-ask"; box.innerHTML = html;
+          row.hidden = true; li.insertBefore(box, st);
+          var done = function () { box.remove(); row.hidden = false; };
+          box.querySelectorAll('[data-a="no"]').forEach(function (b) { b.addEventListener("click", done); });
+          return { box: box, done: done, busy: function (on) { box.querySelectorAll("button, input").forEach(function (b) { b.disabled = on; }); } };
+        }
+        var finish = li.querySelector('[data-a="finish"]');
+        if (finish) { finish.addEventListener("click", function () { finish.disabled = true; deleteAll(m, st, function () { finish.disabled = false; }); }); $("m-list").appendChild(li); return; }
         li.querySelector('[data-a="send"]').addEventListener("click", function () { share(inviteText(m.name, m.code), st); });
+        li.querySelector('[data-a="rename"]').addEventListener("click", function () {
+          var q = ask('<label class="f" for="rn-' + m.code + '">New name for ' + esc(m.name) + '</label><input type="text" id="rn-' + m.code + '" maxlength="60" autocomplete="off">' +
+            '<p class="note">Their photos, comments and event sign-ups show the new name straight away. Nobody else in the club can have it. Members can also change their own name, once a month, on the Share a photo page.</p>' +
+            '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="yes">Save name</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>');
+          var input = q.box.querySelector("input");
+          input.value = m.name; input.focus(); input.select();
+          var save = function () {
+            var name = input.value.trim().replace(/\s+/g, " ");
+            if (!name) { setStatus(st, "Enter the new name.", true); return; }
+            if (name === m.name) { q.done(); return; }
+            q.busy(true); setStatus(st, "Saving…");
+            inbox("/admin/members/" + m.code + "/name", { method: "POST", json: { name: name } }).then(function (r) {
+              setStatus($("m-status"), m.name + " is now called " + r.name + ".");
+              loadMembers();
+            }).catch(function (e) { q.busy(false); setStatus(st, newInbox(e, "Renaming").message, true); });
+          };
+          q.box.querySelector('[data-a="yes"]').addEventListener("click", save);
+          input.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); save(); } });
+        });
         var bioBtn = li.querySelector('[data-a="bio"]');
         if (bioBtn) bioBtn.addEventListener("click", function () {
           bioBtn.disabled = true;
@@ -725,38 +768,57 @@
           inbox("/admin/members/" + m.code + "/picture", { method: "POST" }).then(loadMembers).catch(function (e) { picBtn.disabled = false; setStatus(st, e.message, true); });
         });
         li.querySelector('[data-a="renew"]').addEventListener("click", function () {
-          var box = document.createElement("div");
-          box.innerHTML = '<p class="meta" style="margin:10px 0 0">Give ' + esc(m.name) + ' a new invite code? Their current code stops working straight away, on every phone. Their photos, comments and votes stay theirs.</p>' +
-            '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, new code</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>';
-          var row = li.querySelector(".row-btns");
-          row.hidden = true; li.insertBefore(box, st);
-          box.querySelector('[data-a="no"]').addEventListener("click", function () { box.remove(); row.hidden = false; });
-          box.querySelector('[data-a="yes"]').addEventListener("click", function () {
-            box.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+          var q = ask('<p class="meta" style="margin:10px 0 0">Give ' + esc(m.name) + ' a new invite code? Their current code stops working straight away, on every phone. Their photos, comments and hearts stay theirs.</p>' +
+            '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, new code</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>');
+          q.box.querySelector('[data-a="yes"]').addEventListener("click", function () {
+            q.busy(true);
             inbox("/admin/members/" + m.code + "/new-code", { method: "POST" }).then(function (r) {
               lastInvite = inviteText(r.name, r.code);
               $("invite-text").value = lastInvite; $("invite").hidden = false;
               setStatus($("m-status"), "New code for " + r.name + ". Their old code no longer works. Send them this message:");
               $("add-member").scrollIntoView({ behavior: "smooth" });
               loadMembers();
-            }).catch(function (e) { box.remove(); row.hidden = false; setStatus(st, e.message, true); });
+            }).catch(function (e) { q.done(); setStatus(st, e.message, true); });
           });
         });
         li.querySelector('[data-a="remove"]').addEventListener("click", function () {
-          var box = document.createElement("div");
-          box.innerHTML = '<p class="meta" style="margin:10px 0 0">Remove ' + esc(m.name) + '? Their invite code stops working straight away. Their photos already in the gallery stay.</p>' +
-            '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, remove</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>';
-          var row = li.querySelector(".row-btns");
-          row.hidden = true; li.insertBefore(box, st);
-          box.querySelector('[data-a="no"]').addEventListener("click", function () { box.remove(); row.hidden = false; });
-          box.querySelector('[data-a="yes"]').addEventListener("click", function () {
-            box.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
-            inbox("/admin/members/" + m.code, { method: "DELETE" }).then(loadMembers).catch(function (e) { box.remove(); row.hidden = false; setStatus(st, e.message, true); });
+          var q = ask('<p class="meta" style="margin:10px 0 0">How should ' + esc(m.name) + ' leave the club? Either way, their invite code stops working straight away.</p>' +
+            '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="keep">Remove, keep their photos</button><button class="btn btn-light btn-small" type="button" data-a="all">Delete everything they shared</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>' +
+            '<p class="note"><b>Remove</b>: their photos and comments stay in the gallery, with their name; their picture and line go. <b>Delete everything</b>: also deletes their photos (with the comments on them), their comments, the hearts they gave and their event sign-ups. Use it when someone asks for their data to be deleted.</p>');
+          q.box.querySelector('[data-a="keep"]').addEventListener("click", function () {
+            q.busy(true);
+            inbox("/admin/members/" + m.code, { method: "DELETE" }).then(function () { setStatus($("m-status"), m.name + " has been removed. Their photos stay in the gallery."); loadMembers(); })
+              .catch(function (e) { q.done(); setStatus(st, e.message, true); });
+          });
+          q.box.querySelector('[data-a="all"]').addEventListener("click", function () {
+            q.done();
+            var q2 = ask('<p class="meta" style="margin:10px 0 0"><b>Delete ' + esc(m.name) + ' and everything they shared?</b> This can\'t be undone. If you might need any of it again, download a backup first (Settings).</p>' +
+              '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, delete everything</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>');
+            var yes = q2.box.querySelector('[data-a="yes"]');
+            yes.addEventListener("click", function () { q2.busy(true); deleteAll(m, st, function () { q2.busy(false); yes.textContent = "Carry on deleting"; }); });
           });
         });
         $("m-list").appendChild(li);
       });
     }).catch(function (e) { $("m-empty").hidden = false; $("m-empty").textContent = e.message; });
+  }
+  // Deleting a member and everything they shared, a part at a time, until the inbox says it's done
+  function deleteAll(m, st, failed) {
+    var said = { photos: "their photos", comments: "their comments", hearts: "their hearts", "sign-ups": "their event sign-ups" }, rounds = 0;
+    function step() {
+      return inbox("/admin/members/" + m.code + "/delete-all", { method: "POST" }).then(function (r) {
+        if (r.done) { setStatus($("m-status"), "Deleted " + m.name + " and everything they shared."); loadMembers(); return; }
+        if (++rounds > 200) throw new Error("This is taking longer than expected.");
+        setStatus(st, "Deleting " + (said[r.left] || "what they shared") + (r.photos ? " (" + r.photos + " photos to go)" : "") + "…");
+        return step();
+      });
+    }
+    setStatus(st, "Deleting…");
+    step().catch(function (e) {
+      var msg = newInbox(e, "Deleting everything").message;
+      setStatus(st, msg + (/updated/.test(msg) ? "" : " Their code no longer works; press the button again to carry on."), true);
+      failed();
+    });
   }
   $("add-member").addEventListener("submit", function (ev) {
     ev.preventDefault();
