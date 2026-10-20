@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Club admin – The Conscious Frame</title>
 <meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<script>if (window.top !== window.self) { document.documentElement.style.display = "none"; try { window.top.location = window.location.href; } catch (e) {} }   // never inside another site's frame (it could trick you into clicking)</script>
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -18,6 +20,7 @@
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
     <nav aria-label="Main"><a href="exhibition.html">Exhibition</a><a href="gallery.html">Gallery</a><a href="events.html">Events</a><a href="archive.html">Archive</a><a href="downloads.html">Downloads</a><a href="working.html">Working</a><a href="about.html">About</a><button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></nav>
+    <a class="btn btn-dark btn-small join" href="submit.html">Share a photo</a>
   </div>
 </header>
 
@@ -87,7 +90,7 @@
     </section>
   </section>
 
-  <!-- ===================== Votes ===================== -->
+  <!-- ===================== Hearts ===================== -->
   <section id="panel-votes" role="tabpanel" aria-labelledby="tab-votes" hidden>
     <section class="card" aria-labelledby="v-prev-h">
       <h2 id="v-prev-h">Last month</h2>
@@ -139,7 +142,7 @@
 
       <button class="btn btn-dark wide" type="submit" id="h-publish">Publish home page</button>
       <p class="status" id="h-status" aria-live="polite"></p>
-      <p class="note">The theme is also saved in the members' theme archive, with the month's most-voted photos.</p>
+      <p class="note">The theme is also saved in the members' theme archive, with the photos that got the most hearts that month.</p>
       <div class="row-btns"><a class="btn btn-light btn-small" id="wa-theme" href="#" target="_blank" rel="noopener">Share the theme on WhatsApp</a></div>
     </form>
     <form class="card" id="series-form" novalidate>
@@ -291,14 +294,14 @@
     </section>
     <section class="card" aria-labelledby="b-h">
       <h2 id="b-h">Backup</h2>
-      <p class="muted">Download everything in the club as one .zip file: the gallery's photos with their titles and details, members and their invite codes, comments and votes. Keep it somewhere private, because it contains the invite codes.</p>
+      <p class="muted">Download everything in the club as one .zip file: the gallery's photos with their titles and details, members and their invite codes, comments and hearts. Keep it somewhere private, because it contains the invite codes.</p>
       <button class="btn btn-dark wide" type="button" id="backup">Download backup</button>
       <p class="status" id="backup-status" aria-live="polite"></p>
       <p class="note"><span id="backup-last"></span>Once a month is plenty. Once the gallery has hundreds of photos, do it on a computer: the file gets large.</p>
     </section>
-    <section class="card" aria-labelledby="r-h">
-      <h2 id="r-h">Restore from a backup</h2>
-      <p class="muted">Brings back photos and members that are missing, with their comments and votes, from a backup file. Nothing already in the club is changed or deleted, so it's safe to try.</p>
+    <section class="card" aria-labelledby="restore-h">
+      <h2 id="restore-h">Restore from a backup</h2>
+      <p class="muted">Brings back photos and members that are missing, with their comments and hearts, from a backup file. Nothing already in the club is changed or deleted, so it's safe to try.</p>
       <label class="btn btn-light wide pick-file">Choose a backup file<input type="file" id="restore-file" accept=".zip,application/zip"></label>
       <p class="status" id="restore-status" aria-live="polite"></p>
       <div id="restore-plan" hidden>
@@ -877,7 +880,7 @@
         $("wa-top").href = whatsapp(monthName(prev.month).split(" ")[0] + "'s favourites in The Conscious Frame:\n" + top.map(function (x, i) { return (i + 1) + ". " + map[x.photo].title + " by " + map[x.photo].by; }).join("\n") +
           "\n\nSee them on the club's home page: " + siteUrl("index.html"));
         $("potw").disabled = !top.length;
-        $("potw").textContent = !top.length ? "No votes to show" : top.length === 1 ? "Show the top photo on the home page" : "Show the top " + top.length + " on the home page";
+        $("potw").textContent = !top.length ? "No hearts to show" : top.length === 1 ? "Show the top photo on the home page" : "Show the top " + top.length + " on the home page";
       });
     }).catch(function (e) { $("v-prev-info").textContent = e.message; });
   }
@@ -1173,7 +1176,7 @@
     var bits = [];
     if (n) bits.push(n + (n === 1 ? " photo" : " photos"));
     if (m) bits.push(m + (m === 1 ? " member" : " members"));
-    $("restore-go").textContent = bits.length ? "Restore " + bits.join(" and ") : "Bring back missing comments and votes";
+    $("restore-go").textContent = bits.length ? "Restore " + bits.join(" and ") : "Bring back missing comments and hearts";
   }
   $("restore-plan").addEventListener("change", restoreLabel);
   $("restore-file").addEventListener("change", function () {
@@ -1197,7 +1200,7 @@
         $("restore-info").textContent = "Backup from " + made + ": " + b.gallery.length + (b.gallery.length === 1 ? " photo, " : " photos, ") + (b.data.members || []).length + " members" + ((b.data.downloads || []).length ? ", " + b.data.downloads.length + (b.data.downloads.length === 1 ? " download" : " downloads") : "") + ". " +
           (photos.length || members.length ? "Missing from the club now: " + photos.length + (photos.length === 1 ? " photo" : " photos") + " and " + members.length + (members.length === 1 ? " member." : " members.") +
             (res[0].photos.length ? " Photos deleted on purpose are listed too, so they start unticked." : "") :
-            "Every photo and member in it is already in the club. You can still bring back any comments or votes that are missing.");
+            "Every photo and member in it is already in the club. You can still bring back any comments or hearts that are missing.");
         tickList($("restore-photos"), photos.map(function (p) { return { value: p.id, title: p.title, meta: p.by + (p.added ? ", added " + day(p.added) : "") }; }), !res[0].photos.length);
         tickList($("restore-members"), members.map(function (e) { return { value: e.key.slice(7), title: e.value.name, meta: "Code " + pretty(e.key.slice(7)) }; }), !res[1].members.length);
         $("restore-photos-box").hidden = !photos.length; $("restore-members-box").hidden = !members.length;
@@ -1216,7 +1219,7 @@
     Backup.restore(inbox, restoring.backup, ids, codes, restoring.have, function (m) { setStatus(st, m); }).then(function (done) {
       galleryInfo = null; restoring = null; $("restore-plan").hidden = true;
       setStatus(st, "Done. Restored " + done.photos + (done.photos === 1 ? " photo" : " photos") + " and " + done.members + (done.members === 1 ? " member" : " members") +
-        (done.records ? ", and brought back " + done.records + (done.records === 1 ? " record" : " records") + " of comments, votes and sent photos." : ". No comments or votes were missing.") +
+        (done.records ? ", and brought back " + done.records + (done.records === 1 ? " record" : " records") + " of comments, hearts and sent photos." : ". No comments or hearts were missing.") +
         (done.files ? " " + done.files + (done.files === 1 ? " download" : " downloads") + " came back too." : ""));
     }).catch(function (e) {
       setStatus(st, e.message + (/daily limit/.test(e.message) ? " Choose the backup file again tomorrow to finish: what's already restored stays." : ""), true);
@@ -1247,7 +1250,7 @@
     });
   }
   function firstPage(file) {
-    return Promise.all([loadPdfJs(), file.arrayBuffer()]).then(function (r) { return r[0].getDocument({ data: r[1] }).promise; })
+    return Promise.all([loadPdfJs(), file.arrayBuffer()]).then(function (r) { return r[0].getDocument({ data: r[1], isEvalSupported: false }).promise; })   // isEvalSupported off: a crafted PDF can't run code (CVE-2024-4367)
       .then(function (doc) { return doc.getPage(1); })
       .then(function (page) {
         var v = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: 900 / Math.max(v.width, v.height) });

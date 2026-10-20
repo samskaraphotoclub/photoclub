@@ -22,6 +22,7 @@ var Club = (function () {
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (d) {
           if (!r.ok) { var e = new Error(d.error || "Something went wrong (" + r.status + "). Try again."); e.status = r.status; throw e; }
+          if (d.badCode && !opts.code) setCode("");     // a code that no longer works: forget it, so pages stop sending it
           return d;
         });
       }, function () { throw new Error("Couldn't reach the club. Check your internet connection and try again."); });

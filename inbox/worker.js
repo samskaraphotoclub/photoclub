@@ -86,6 +86,26 @@ export default {
   },
 };
 
+/* ------------------------------------------------------------------ limits kept in memory */
+// Best-effort limits in the Worker's memory (each Cloudflare location keeps its own, and it empties now and then).
+// They slow down someone guessing the admin password or invite codes, and stop one phone making hundreds of
+// changes in a few minutes (which would use up the free plan's 1,000 saves a day), without saving anything themselves.
+const recent = new Map();
+function seen(key, ms) { const now = Date.now(), list = (recent.get(key) || []).filter((t) => now - t < ms); recent.set(key, list); return list; }
+function note(key) {
+  const list = recent.get(key) || [];
+  list.push(Date.now()); recent.set(key, list);
+  if (recent.size > 5000) for (const [k, v] of recent) if (!v.length || Date.now() - v[v.length - 1] > 3600e3) recent.delete(k);
+}
+const WRONG = 20, WRONG_MS = 15 * 60e3;         // wrong passwords or codes from one address, per quarter of an hour
+const CHANGES = 60, CHANGES_MS = 10 * 60e3;     // changes by one member, per 10 minutes
+function who(request) { return request.headers.get("CF-Connecting-IP") || ""; }   // the visitor's address, as Cloudflare saw it (visitors can't set it)
+function guard(request) {
+  const ip = who(request);
+  if (ip && seen("wrong:" + ip, WRONG_MS).length >= WRONG) throw fail(429, "Too many wrong codes or passwords from this connection. Wait a quarter of an hour, then try again.");
+}
+function wrong(request) { const ip = who(request); if (ip) note("wrong:" + ip); }
+
 /* ------------------------------------------------------------------ routing */
 async function route(request, env) {
   if (!env.INBOX) throw fail(500, "The inbox has no storage connected. Add a KV binding called INBOX in the Worker settings.");
@@ -166,8 +186,13 @@ async function route(request, env) {
 async function member(request, env) {
   const code = normalize(bearer(request));
   if (!code) throw fail(401, "Enter your invite code.");
+  guard(request);
   let m = await env.INBOX.get("member:" + code, "json");
-  if (!m || m.del) throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");   // (del: being deleted)
+  if (!m || m.del) { wrong(request); throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one."); }   // (del: being deleted)
+  if (request.method === "POST") {
+    if (seen("change:" + code, CHANGES_MS).length >= CHANGES) throw fail(429, "That's a lot of changes in a few minutes. Wait a little, then try again.");
+    note("change:" + code);
+  }
   m = await ensureId(env, code, m);
   return { code, ...m, codes: [code].concat(m.prev || []) };
 }
@@ -319,7 +344,7 @@ function personKey(index, k) {
 // "Mara K." and "mara k" are the same name; so are names that differ only in spaces, dots, dashes or emoji
 function nameKey(s) { return String(s || "").normalize("NFKC").toLowerCase().replace(/[\s\p{P}\p{S}\p{Cf}]+/gu, ""); }
 function memberName(v, empty) {
-  const name = String(v == null ? "" : v).normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim().replace(/\s+/g, " ");
+  const name = String(v == null ? "" : v).normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f]/g, "").replace(BIDI, "").trim().replace(/\s+/g, " ");
   if (!name) throw fail(400, empty);
   if (name.length > 60) throw fail(400, "That name is too long (60 characters at most).");
   if (!/\p{L}/u.test(name) || nameKey(name).length < 2) throw fail(400, "A name needs at least two letters.");
@@ -500,8 +525,10 @@ function checkMonth(v) {
 async function readForm(request) {
   try { return await request.formData(); } catch { throw fail(400, "The photo didn't arrive in one piece. Try again."); }
 }
+// (also takes out the invisible characters that flip the direction of text, which can make one name look like another)
+const BIDI = /[\u202a-\u202e\u2066-\u2069]/g;
 function clean(v, max, label, required) {
-  v = String(v == null ? "" : v).trim().replace(/\s+/g, " ");
+  v = String(v == null ? "" : v).replace(BIDI, "").trim().replace(/\s+/g, " ");
   if (required && !v) throw fail(400, label === "title" ? "Add a title." : "Add the " + label + ".");
   if (v.length > max) throw fail(400, "The " + label + " is too long (" + max + " characters at most).");
   return v;
@@ -611,10 +638,12 @@ async function photoInfo(request, env, rawId) {
 async function viewer(request, env) {
   const given = bearer(request);
   if (!given) throw fail(401, "Sign in with your invite code to see the gallery.");
+  guard(request);
   const code = normalize(given);
   let m = code ? await env.INBOX.get("member:" + code, "json") : null;
   if (m && !m.del) { m = await ensureId(env, code, m); return { code, id: m.id, name: m.name, codes: [code].concat(m.prev || []) }; }
   if (await isAdmin(given, env)) return { admin: true, name: "Admin" };
+  wrong(request);
   throw fail(401, "That invite code isn't valid. Check it, or ask the club for a new one.");
 }
 
@@ -866,7 +895,7 @@ async function servePhoto(url, env, rawId, size) {
   if (!(await checkPhotoToken(env, t)) && !(await checkPhotoToken(env, t, id))) throw fail(403, "This photo is for club members. Sign in to the gallery to see it.");
   const { value, metadata } = await env.INBOX.getWithMetadata("pimg:" + id + ":" + size, { type: "stream" });
   if (!value) throw fail(404, "This photo isn't in the gallery any more.");
-  return new Response(value, { headers: { "Content-Type": (metadata && metadata.type) || "image/jpeg", "Cache-Control": "private, max-age=86400" } });
+  return new Response(value, { headers: { "Content-Type": (metadata && metadata.type) || "image/jpeg", "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" } });
 }
 
 async function photoKey(env) {
@@ -1055,7 +1084,8 @@ async function isAdmin(given, env) {
 }
 async function requireAdmin(request, env) {
   if ((env.ADMIN_PASSWORD || "").length < 12) throw fail(503, "Set an ADMIN_PASSWORD secret of at least 12 characters in the Worker settings.");
-  if (!(await isAdmin(bearer(request), env))) throw fail(401, "Wrong admin password.");
+  guard(request);
+  if (!(await isAdmin(bearer(request), env))) { wrong(request); throw fail(401, "Wrong admin password."); }
 }
 
 async function pending(env) {
@@ -1069,7 +1099,7 @@ async function pending(env) {
 async function photo(env, sid, size) {
   const { value, metadata } = await env.INBOX.getWithMetadata("img:" + sid + ":" + size, "arrayBuffer");
   if (!value) throw fail(404, "This photo has already been dealt with.");
-  return new Response(value, { headers: { "Content-Type": (metadata && metadata.type) || "image/jpeg", "Cache-Control": "private, no-store" } });
+  return new Response(value, { headers: { "Content-Type": (metadata && metadata.type) || "image/jpeg", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
 }
 
 async function decide(request, env, sid) {
@@ -1565,8 +1595,8 @@ async function deleteEverything(env, raw) {
 /* ------------------------------------------------------------------ events */
 // Visitors see the events marked public; members see all of them, who's coming, and can sign up.
 async function listEvents(url, request, env) {
-  let who = null;
-  if (bearer(request)) try { who = await viewer(request, env); } catch (e) { if (e.status !== 401) throw e; }
+  let who = null, badCode = false;      // badCode: a code that no longer works (the page then forgets it)
+  if (bearer(request)) try { who = await viewer(request, env); } catch (e) { if (e.status !== 401) throw e; badCode = true; }
   const today = clubDate(Date.now(), env);
   const all = ((await env.INBOX.get(EVENTS, "json")) || []).filter((e) => who || e.public);
   const ends = (e) => e.date;
@@ -1580,7 +1610,7 @@ async function listEvents(url, request, env) {
       if (who.codes) e.mine = going.some((x) => who.codes.includes(x.code));
     });
   }
-  return json({ today, upcoming, past, member: !!(who && !who.admin), admin: !!(who && who.admin) });
+  return json({ today, upcoming, past, member: !!(who && !who.admin), admin: !!(who && who.admin), badCode });
 }
 function eventFields(b, id) {
   const time = (v) => { v = String(v || "").trim(); if (v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw fail(400, "Times look like 18:30."); return v; };
@@ -1643,11 +1673,11 @@ async function rsvp(request, env, id) {
 /* ------------------------------------------------------------------ downloads */
 // Posters, cheat sheets and guides the admins share. Visitors see the ones for everyone; members see all of them.
 async function listFiles(request, env) {
-  let who = null;
-  if (bearer(request)) try { who = await viewer(request, env); } catch (e) { if (e.status !== 401) throw e; }
+  let who = null, badCode = false;      // badCode: a code that no longer works (the page then forgets it)
+  if (bearer(request)) try { who = await viewer(request, env); } catch (e) { if (e.status !== 401) throw e; badCode = true; }
   const all = (await env.INBOX.get(FILES, "json")) || [];
   const files = who ? all : all.filter((f) => f.pub);
-  const out = { files, kinds: FILE_KINDS, member: !!(who && !who.admin), admin: !!(who && who.admin), forMembers: all.length - files.length };
+  const out = { files, kinds: FILE_KINDS, member: !!(who && !who.admin), admin: !!(who && who.admin), forMembers: all.length - files.length, badCode };
   if (who && all.some((f) => !f.pub)) out.token = await photoToken(env, Date.now());   // opens the members-only files for 12 to 24 hours
   return json(out);
 }

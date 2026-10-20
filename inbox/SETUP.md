@@ -33,7 +33,7 @@ Open the Worker, then **Settings** > **Variables and Secrets** > **Add**:
 
 | Name | Type | Value |
 | --- | --- | --- |
-| `ADMIN_PASSWORD` | Secret | A long password, at least 12 characters. Share it only with club admins. |
+| `ADMIN_PASSWORD` | Secret | A long password, at least 12 characters: a phrase of four or five unrelated words is good. Share it only with club admins. After 20 wrong passwords from one connection in 15 minutes, that connection has to wait. |
 | `ALLOWED_ORIGIN` | Text | Your site's address without anything after the domain, for example `https://yourname.github.io` |
 | `WEEKLY_LIMIT` | Text | Optional. How many photos each member can send per 7 days. Default 5. |
 | `HEARTS_PER_DAY` | Text | Optional. How many hearts each member can give per day. Default 20, which keeps a busy club within the free plan's 1,000 saved changes a day. (Old `VOTES_PER_WEEK` or `VOTES_PER_MONTH` settings are no longer used.) |
@@ -66,6 +66,8 @@ Then invite your first member: **Members** > type a name > **Create invite code*
 ## Updating the inbox program
 
 When `worker.js` changes (new features), open the Worker in Cloudflare > **Edit code**, select everything in the editor, paste the new `worker.js` over it and tap **Deploy**. Nothing stored is lost: members, photos, comments and hearts stay. The site keeps working while you do it.
+
+The first time after the update that brought member IDs (October 2026), the first page someone opens takes a moment longer: the inbox gives every member, photo and photographer line their member ID. Nothing else changes.
 
 ## Changing the admin password
 

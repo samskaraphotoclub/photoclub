@@ -14,7 +14,7 @@ The website of the Photography Club of Samskara Germany e.V. (https://samskara-g
 - **Comments:** members comment under each photo, with their name shown, and can add smileys. Members can delete their own comments; admins can delete any. Members can **Report** someone else's comment: the admin page's **Comments** tab then shows it at the top, with who reported it and why, to delete or keep. The person who wrote it never sees who reported it.
 - **Malayalam:** titles, descriptions, comments, names and the monthly theme can be in Malayalam, English or both. The site marks Malayalam text so phones use their own Malayalam font (no download), with more room between lines. Members type it with their phone's Malayalam keyboard; the About page explains how.
 - **Hearts:** members tap the heart beside a photo's title to give it a heart: any photo, new or old, one heart per photo, up to 20 a day (`HEARTS_PER_DAY`). A heart can be taken back on the day it's given (for mis-taps); after that it stays. Each photo shows its number of hearts on the photo and its thumbnail, updated as hearts come in; who gave which stays secret. Each month's favourites are the photos that got the most hearts during that month (so an old favourite only gains hearts from members who hadn't given it one yet). For members, the home page shows last month's three favourites as a fan of prints, picked automatically on the 1st; until a month with hearts has ended, it shows the newest photos. (Votes before October 2026 became hearts, dated the week or month they were given.)
-- **Monthly themes:** one theme a month on the home page; members share a photo that fits before the month ends. Voting runs for the same month.
+- **Monthly themes:** one theme a month on the home page; members share a photo that fits before the month ends. The hearts given during the month decide its favourites.
 - **Several categories and series per photo:** members and admins tick every category and series that fits (a photo can be Street and Night, in Life in Germany and From the Dining Table). The photo shows under each of them in the gallery's filters. Older photos with one of each are unchanged.
 - **Series** start with Life in Germany and From the Dining Table. Series added to the site later are offered once to clubs that already saved their own list; removing one in the admin page keeps it removed.
 - **Names and member IDs:** every member has a permanent ID (in their member record), which stays when they change their name or get a new code. Photos in the gallery, comments, event sign-ups and the photographer lines carry it, so they always show the member's current name. Members change their own name on the Share a photo page (About you), once every 30 days (`POST /me/name`; fixing capitals or spaces doesn't count); admins rename anyone in the Members tab. Names must be different from every other member's, ignoring capitals, spaces and dots, and words like Admin are kept for the club. The admin page shows each member's earlier names, and old links to a photographer page with an earlier name still work. The inbox keeps its own list of who is who (`member-ids`, with every code each member has had, never sent to pages); the first request after updating the inbox makes it and gives existing members, photos and lines their IDs.
@@ -119,6 +119,23 @@ The token and password are stored only in that phone's browser. Don't set the ad
 **GitHub Pages (free):** the site itself is small. GitHub allows about 10 site rebuilds an hour, which only matters when you publish the home page several times in a row. GitHub Pages isn't meant for running a business, such as a shop. A club site is fine.
 
 iPhones and iPads save photos as JPEG. Android and desktop browsers save WebP, which is about 30% smaller. Both work everywhere.
+
+## Keeping it safe
+
+What protects the club:
+- **Invite codes** are 12 random characters (about a billion billion possibilities), so they can't be guessed. The sign-in link's code is taken out of the address bar as soon as the page has read it.
+- **Guessing is slowed down:** after 20 wrong codes or admin passwords from one connection in a quarter of an hour, that connection waits 15 minutes. Each member can make up to 60 changes (photos, comments, hearts, sign-ups, profile) in 10 minutes, which keeps a stuck or misused phone from using up the free plan's 1,000 saved changes a day.
+- **Everything members write** (names, titles, comments, lines about themselves, events) is shown as plain text, never as page code. Names can't hide characters that flip text direction.
+- **Photos** are re-saved on the phone before they're sent, which drops the location (GPS) the camera stored in them. The inbox only accepts real JPEG, WebP and (for downloads) PDF, image, Office and ZIP files, checked by their first bytes, and browsers are told never to treat them as anything else.
+- **The admin page** won't open inside another site's frame, sends no address to other sites, and opens PDFs (for download previews) with code execution switched off.
+- **Photo links** work for 12 to 24 hours, then the pages fetch new ones.
+
+What admins should do:
+- Use a **long admin password** (a phrase of four or five words is good), and change it if it might have been seen (`inbox/SETUP.md`, Changing the admin password).
+- Use a **fine-grained GitHub token** for this repository only, as in step 2, and tap **Remove token and password from this phone** in Settings on any phone you hand on or share.
+- Keep **backups** private: they contain the invite codes.
+- Set `ALLOWED_ORIGIN` in the inbox settings to the site's address.
+- Publish only the club's own pages from this GitHub account: every GitHub Pages site of one account shares the browser storage where codes and the admin settings are kept.
 
 ## Files
 
