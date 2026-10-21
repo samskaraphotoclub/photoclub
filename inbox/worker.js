@@ -151,6 +151,8 @@ async function route(request, env) {
     if (what === "gallery" && method === "DELETE" && a) return deletePhoto(env, a);
     if (what === "potw" && method === "POST") return setPotw(request, env);
     if (what === "theme" && method === "POST") return saveTheme(request, env);
+    if (what === "archive" && method === "GET" && !a) return adminArchive(env);
+    if (what === "archive" && method === "POST" && a) return hideMonth(request, env, a);
     if (what === "series" && method === "POST") return saveSeries(request, env);
     if (what === "reports" && method === "GET" && !a) return adminReports(env);
     if (what === "reports" && a === "dismiss" && method === "POST") return dismissReport(request, env);
@@ -511,7 +513,7 @@ async function entryTheme(env, now) {
   if (months.some((x) => x.week)) return null;               // archive not converted to months yet
   const cur = monthId(now, env);
   for (const month of [nextMonth(cur), cur, previousMonth(cur)]) {
-    const m = months.find((x) => x.month === month && x.theme);
+    const m = months.find((x) => x.month === month && x.theme && !x.hidden);
     if (m) return { month, title: m.theme.title };
   }
   return null;
@@ -654,7 +656,7 @@ async function gallery(request, env) {
   const index = await memberIndex(env);                // (the first time after the update, this gives photos their photographer's ID)
   const [list, potw, token, top, series, archived, people] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastMonthsTop(env, now),
     seriesRaw(env), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE, "json")]);
-  const themes = (archived || []).filter((m) => m.month && m.theme).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
+  const themes = (archived || []).filter((m) => m.month && m.theme && !m.hidden).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
   const cur = monthId(now, env), entry = [nextMonth(cur), cur, previousMonth(cur)].map((mo) => themes.find((t) => t.month === mo)).filter(Boolean)[0] || null;
   // monthStart: for the "This month" filter (older pages call it weekStart); votes: each photo's number of hearts
   const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), monthStart: cur + "-01", weekStart: cur + "-01", month: cur,
@@ -824,7 +826,28 @@ async function archive(request, env) {
   await viewer(request, env);
   const now = Date.now();
   const months = await countFinishedMonths(env, await archiveMonths(env, now), now);
-  return json({ months, month: monthId(now, env) });
+  return json({ months: months.filter((m) => !m.hidden), month: monthId(now, env) });   // (hidden: taken out by an admin)
+}
+// The admin page's list: every month, with the ones taken out of the archive marked hidden
+async function adminArchive(env) {
+  const now = Date.now();
+  return json({ months: await countFinishedMonths(env, await archiveMonths(env, now), now), month: monthId(now, env) });
+}
+// An admin takes a month that's over out of the archive (say, one with too few entries), or brings it back.
+// Its photos stay in the gallery; they just stop being shown as entries for that month's theme. The month stays
+// in the record, marked hidden, so it isn't worked out again and can be brought back as it was.
+async function hideMonth(request, env, raw) {
+  const month = checkMonth(raw), now = Date.now();
+  if (!month) throw fail(400, "Unknown month.");
+  const body = await request.json().catch(() => ({}));
+  const hide = body.hidden !== false;
+  if (hide && month >= monthId(now, env)) throw fail(400, "Only months that are over can be taken out of the archive. To change this month's theme, publish another one.");
+  const months = await countFinishedMonths(env, await archiveMonths(env, now), now);
+  const m = months.find((x) => x.month === month);
+  if (!m) throw fail(404, "That month isn't in the archive.");
+  if (hide) m.hidden = true; else delete m.hidden;
+  await env.INBOX.put(ARCHIVE, JSON.stringify(months));
+  return json({ ok: true, month, hidden: !!m.hidden });
 }
 async function archiveMonths(env, now) {
   const kept = await env.INBOX.get(ARCHIVE, "json");

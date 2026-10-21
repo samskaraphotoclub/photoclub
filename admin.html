@@ -153,6 +153,12 @@
       <button class="btn btn-dark wide" type="submit" id="s-save">Save series</button>
       <p class="status" id="s-status" aria-live="polite"></p>
     </form>
+    <section class="card" aria-labelledby="ar-h">
+      <h2 id="ar-h">Theme archive</h2>
+      <p class="muted">The months that are over, as members see them on the Theme archive page. Take out a month that had too few entries: its photos stay in the gallery, just no longer marked as entries for that theme. You can bring it back here.</p>
+      <ul class="list" id="ar-list"></ul>
+      <p class="status" id="ar-status" aria-live="polite"></p>
+    </section>
   </section>
 
   <!-- ===================== Events ===================== -->
@@ -969,7 +975,51 @@
       showSeriesEditor((galleryData && galleryData.series) || []);
       showPlan(); themeShare();
       $("h-loading").hidden = true;
+      loadArchiveList();
     }).catch(function (e) { $("h-loading").textContent = e.message; });
+  }
+  /* ---------- the theme archive: months that are over, which an admin can take out (photos stay) or bring back ---------- */
+  function loadArchiveList() {
+    var st = $("ar-status");
+    $("ar-list").innerHTML = "";
+    if (!inboxReady()) { setStatus(st, "Add the inbox address and admin password in Settings first."); return; }
+    setStatus(st, "Loading the archive…");
+    inbox("/admin/archive").then(function (d) {
+      var past = (d.months || []).filter(function (m) { return m.month < d.month && (m.theme || (m.top && m.top.length)); });
+      setStatus(st, past.length ? "" : "No finished months in the archive yet.");
+      past.forEach(function (m) { $("ar-list").appendChild(archiveRow(m)); });
+    }).catch(function (e) { setStatus(st, newInbox(e, "Taking months out of the archive").message, true); });
+  }
+  function archiveRow(m) {
+    var li = document.createElement("li"), title = m.theme ? m.theme.title : "";
+    var entries = ((galleryData && galleryData.photos) || []).filter(function (p) { return p.theme === m.month; }).length;
+    var what = title ? (entries === 1 ? "1 entry" : entries + " entries") : "No theme recorded, only the month's favourites";
+    li.innerHTML = "<b>" + esc(monthName(m.month)) + (title ? ": <span" + ml(title) + ">" + esc(title) + "</span>" : "") + "</b>" +
+      '<span class="meta">' + what + "</span>" + (m.hidden ? '<span class="meta"><span class="chip no">Taken out of the archive</span></span>' : "") +
+      '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="go">' + (m.hidden ? "Bring back" : "Take out of the archive") + "</button></div>" +
+      '<p class="status" aria-live="polite"></p>';
+    var row = li.querySelector(".row-btns"), st = li.querySelector(".status");
+    var send = function (btns) {
+      btns.forEach(function (b) { b.disabled = true; });
+      inbox("/admin/archive/" + m.month, { method: "POST", json: { hidden: !m.hidden } }).then(function (r) {
+        m.hidden = r.hidden;
+        var fresh = archiveRow(m);
+        li.replaceWith(fresh);
+        setStatus(fresh.querySelector(".status"), r.hidden ? "Taken out. Members no longer see " + monthName(m.month) + " in the Theme archive." : "Back in the Theme archive.");
+      }).catch(function (e) { btns.forEach(function (b) { b.disabled = false; }); setStatus(st, newInbox(e, "Taking months out of the archive").message, true); });
+    };
+    li.querySelector('[data-a="go"]').addEventListener("click", function () {
+      if (m.hidden) { send([this]); return; }
+      row.hidden = true;
+      var box = document.createElement("div");
+      box.innerHTML = '<p class="meta" style="margin:10px 0 0">Take ' + esc(monthName(m.month)) + " out of the Theme archive?" +
+        (entries ? " " + (entries === 1 ? "Its photo stays" : "Its " + entries + " photos stay") + " in the gallery, no longer marked as theme entries." : "") + "</p>" +
+        '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, take it out</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button></div>';
+      li.insertBefore(box, st);
+      box.querySelector('[data-a="no"]').addEventListener("click", function () { box.remove(); row.hidden = false; });
+      box.querySelector('[data-a="yes"]').addEventListener("click", function () { send([].slice.call(box.querySelectorAll("button"))); });
+    });
+    return li;
   }
   var PLAN = [
     {"month": "2026-11", "title": "Arrival", "prompt": "Suitcases, first flats, the first view from a new window. What arriving looks like, then or now."},

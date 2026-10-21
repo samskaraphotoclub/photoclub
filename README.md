@@ -82,6 +82,8 @@ The token and password are stored only in that phone's browser. Don't set the ad
 
 **Renaming a member:** admin page > **Members** > **Rename**. Their photos, comments and sign-ups show the new name at once. Members can also change their own name once a month.
 
+**Taking a month out of the theme archive:** admin page > **Home page** > **Theme archive** lists the months that are over, with their number of entries. **Take out of the archive** hides a month (say, one with too few entries) from the members' Theme archive page; its photos stay in the gallery, just no longer marked as entries for that theme. **Bring back** puts it back as it was. The current month can't be taken out: publish another theme instead.
+
 **Photos of the month:** the home page shows last month's three favourites by itself. The admin page's **Hearts** tab shows this month's hearts so far and last month's (only admins see the numbers), and **Show the top 3 on the home page** sets them as Photos of the month. You rarely need it: the home page shows last month's favourites anyway.
 
 **The exhibition:** admin page > **Gallery** > **Edit** on a photo > tick **In the public exhibition** > **Save**. The box says whether the photographer agreed when sharing it; if not, ask them first. Untick it to take the photo out: it goes off the Exhibition page straight away. When approving a photo, the same box is on its card.
