@@ -8,6 +8,7 @@ The website of the Photography Club of Samskara Germany e.V. (https://samskara-g
 - **The photo inbox** is a small free program on Cloudflare (`inbox/worker.js`). It keeps members' photos private until an admin decides, then keeps the approved photos in the gallery. It only hands photos to people signed in with an invite code (or the admin password), through links that stop working within a day. Photos in the exhibition are the exception: anyone can see those.
 - **The exhibition** (`exhibition.html`) is public. Admins choose its photos, but only photos whose photographer agreed: members tick a box when they share a photo, or an admin ticks it after asking them. On every visit, the home page shows visitors one exhibition photo at random (gently tilted, like a print), and everyone a few more below.
 - **Downloads** (`downloads.html`) are posters, cheat sheets, guides and forms the admins share on the admin page's **Downloads** tab: a PDF, image, Word, Excel or PowerPoint file, or a ZIP, up to 20 MB each, kept in the inbox. Each one is either for everyone or for members only. The home page shows the newest three. PDFs and images get a preview, made on the admin's phone (PDFs with Mozilla's pdf.js, kept in `vendor/pdfjs`).
+- **The Photography Handbook** (`handbook/`) is the club's handbook as web pages, free for everyone, with thirteen chapters and their exercises, a glossary, an index, a search box and the PDF. A card on the home page links to it. The pages use the site's header, footer, `style.css` and `theme.js`; their own look is in `handbook/handbook.css`. Members can tick off exercises, and each phone remembers its ticks. The pages are generated from the book's text, so bigger changes are best made in the book and the pages rebuilt. A typo can be fixed straight in the page's HTML.
 - **Series** are long-term projects members add photos to, starting with **Life in Germany**. Members choose a series when they share a photo. Each series has a section on the members' home page and a filter in the gallery and the exhibition. Admins add, rename or close series on the admin page's **Home page** tab.
 - **Members** sign in once on each phone with their invite code. They browse the gallery, comment, give hearts, and send photos on the Share a photo page (`submit.html`). Photos are resized on the phone first.
 - **Admins** use the admin page (`admin.html`) to approve or decline photos, edit or delete photos in the gallery, invite or remove members, choose Photos of the month, edit the home page and post photos directly. Approved photos appear in the gallery straight away.
@@ -149,6 +150,8 @@ archive.html           The theme archive, for members
 photographers.html     The photographers, for members
 events.html            Events: photo walks, workshops, exhibitions, meet-ups
 downloads.html         Downloads: posters, cheat sheets, guides and forms
+handbook/              The Photography Handbook: index.html (start page), one page per chapter, glossary.html, topics.html (index),
+                       handbook.css, handbook.js (contents, search, exercise ticks), search-data.js, img/, photography-handbook.pdf
 impressum.html         Impressum (legal notice)
 datenschutz.html       Privacy policy (Datenschutzerklärung)
 about.html             Who we are, joining, questions

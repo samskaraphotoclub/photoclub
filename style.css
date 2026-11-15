@@ -195,6 +195,15 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
 .tag { display: inline-block; font-size: .78rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--shade); color: var(--ink); vertical-align: 1px; }
 
 /* principles */
+/* home: the card for the Photography Handbook (the handbook's own pages are styled by handbook/handbook.css) */
+.handbook-card { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(20px, 4vw, 48px); align-items: center;
+  background: var(--sheet); border-radius: 6px; padding: clamp(18px, 3vw, 32px); }
+.handbook-pic img { width: 100%; aspect-ratio: 5 / 3; object-fit: cover; border-radius: 4px; }
+.handbook-pic:hover img { opacity: .9; }
+.handbook-card h2 { margin-bottom: 10px; }
+.handbook-card p:not(.kicker) { color: var(--muted); max-width: 52ch; }
+.handbook-card .actions { margin-bottom: 0; }
+@media (max-width: 760px) { .handbook-card { grid-template-columns: minmax(0, 1fr); } }
 .panel { background: var(--sheet); border-radius: 6px; padding: clamp(22px, 5vw, 52px); }
 .panel .three p { color: var(--muted); margin: 6px 0 0; }
 .panel .three { margin: 24px 0; }
