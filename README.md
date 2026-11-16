@@ -6,8 +6,9 @@ The website of the Photography Club of Samskara Germany e.V. (https://samskara-g
 
 - **The website** is hosted free on GitHub Pages. It holds the pages and the monthly theme, but no photos. Visitors see the theme, club information, the exhibition, events, downloads, and an invitation to sign in.
 - **The photo inbox** is a small free program on Cloudflare (`inbox/worker.js`). It keeps members' photos private until an admin decides, then keeps the approved photos in the gallery. It only hands photos to people signed in with an invite code (or the admin password), through links that stop working within a day. Photos in the exhibition are the exception: anyone can see those.
-- **The exhibition** (`exhibition.html`) is public. Admins choose its photos, but only photos whose photographer agreed: members tick a box when they share a photo, or an admin ticks it after asking them. On every visit, the home page shows visitors one exhibition photo at random (gently tilted, like a print), and everyone a few more below.
+- **The exhibition** is public and sits on the home page (`index.html#exhibition`, shown by `exhibition.js`; the old `exhibition.html` forwards there, photo links included). Admins choose its photos, but only photos whose photographer agreed: members tick a box when they share a photo, or an admin ticks it after asking them. On every visit, the home page shows visitors one exhibition photo at random (gently tilted, like a print), and everyone a few more below.
 - **Downloads** (`downloads.html`) are posters, cheat sheets, guides and forms the admins share on the admin page's **Downloads** tab: a PDF, image, Word, Excel or PowerPoint file, or a ZIP, up to 20 MB each, kept in the inbox. Each one is either for everyone or for members only. The home page shows the newest three. PDFs and images get a preview, made on the admin's phone (PDFs with Mozilla's pdf.js, kept in `vendor/pdfjs`).
+- **36 frames** (`frames/`, the menu item where Exhibition used to be) is for members only: 36 photographs each by Henri Cartier-Bresson, Raghu Rai, Helen Levitt, Dorothea Lange and Brassaï, one page each plus a start page. The pages are locked like the handbook (same `HANDBOOK_KEY`, one shared edition) and use `masters/masters.js` and `masters/masters.css`. The photographs are never stored here: they load from MoMA's website, or Magnum Photos' for Raghu Rai, only after a member taps Show (see the privacy page). If a photo doesn't load, its tile links to the photo on the museum's site. The pages are generated and locked when they're built, so changes go through a rebuild.
 - **Masters of photography** (`masters/`) are pages about great photographers, for members only, starting with Henri Cartier-Bresson. A card on the home page links to them. They're locked the same way as the handbook and use the same `HANDBOOK_KEY` secret. The masters' own photographs are never stored here: each page shows them from MoMA's website, and only after a member taps Show, because that sends the member's IP address to MoMA (see the privacy page). If MoMA's picture doesn't load, the page links to it on moma.org instead. The pages are generated and locked when they're built, so changes go through a rebuild.
 - **The Photography Handbook** (`handbook/`) is the club's handbook as web pages, for members only, with twenty chapters and their exercises, a glossary, an index and a search box. A card on the home page links to it. Everything in `handbook/` is locked except the cover picture: visitors see a sign-in form, and a signed-in member's browser gets the key from the inbox and opens the pages, pictures and search there. The inbox needs the `HANDBOOK_KEY` secret for this (see `inbox/SETUP.md`); until it has it, the handbook says it opens soon. The pages use the site's header, footer, `style.css` and `theme.js`; their own look is in `handbook/handbook.css`. Members can tick off exercises, and each phone remembers its ticks. The pages are generated from the book's text and locked when they're built, so every change, even a typo, is made in the book and the pages rebuilt.
 - **Series** are long-term projects members add photos to, starting with **Life in Germany**. Members choose a series when they share a photo. Each series has a section on the members' home page and a filter in the gallery and the exhibition. Admins add, rename or close series on the admin page's **Home page** tab.
@@ -144,9 +145,10 @@ What admins should do:
 ## Files
 
 ```
-index.html             Home: theme of the month, photos from the exhibition, events, the newest downloads; for members also last month's top three, series and the newest photos
+index.html             Home: theme of the month, the exhibition, events, the newest downloads; for members also last month's top three, series and the newest photos
 gallery.html           The members-only gallery: sign-in, category and series filters, photo viewer
-exhibition.html        The public exhibition
+exhibition.html        Forwards to the exhibition on the home page (kept so old links work)
+frames/                36 frames, for members: index.html and one page per photographer (each a sign-in form with the page locked inside)
 archive.html           The theme archive, for members
 photographers.html     The photographers, for members
 events.html            Events: photo walks, workshops, exhibitions, meet-ups
@@ -167,7 +169,7 @@ style.css              All styles
 club.js                Signing in, loading the gallery and exhibition from the inbox, and the rows of photos
 viewer.js              Photo tiles and the photo viewer, used by the gallery and exhibition
 gallery.js             The gallery page: photos, filters, comments (with Report) and hearts
-exhibition.js          The exhibition page
+exhibition.js          The exhibition on the home page
 archive.js             The theme archive page
 photographers.js       The photographers page
 events.js              The events page, calendar files and links, used by the home and admin pages too

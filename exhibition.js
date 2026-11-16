@@ -1,9 +1,10 @@
-/* The Conscious Frame – the public exhibition: photos members have agreed anyone may see,
+/* The Conscious Frame – the public exhibition on the home page: photos members have agreed anyone may see,
    chosen by the club's admins. No sign-in. Needs config.js, club.js and viewer.js. */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var esc = Club.esc, ml = Club.ml, data = null;
+  if (!$("x-grid")) return;
 
   Viewer.init({
     onMissing: function () { if (data) { $("x-status").hidden = false; $("x-status").textContent = "That photo isn't in the exhibition any more."; } }
@@ -24,7 +25,7 @@
       document.head.appendChild(document.createElement("style")).textContent = rules.join("\n");
       $("x-chips").hidden = false;
     }
-    $("grid").innerHTML = d.photos.map(function (p) {
+    $("x-grid").innerHTML = d.photos.map(function (p) {
       var ids = Club.seriesOf(p), names = ids.map(function (id) { return Club.seriesName(d.series, id); }).filter(Boolean);
       return Viewer.tile(p, Club.publicUrl(p, "thumb"), Club.publicUrl(p, "full"), {
         cls: ids.map(function (id) { return "s-" + id; }).join(" "), series: names,

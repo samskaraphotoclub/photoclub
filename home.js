@@ -1,6 +1,6 @@
 /* The Conscious Frame – the home page's photos.
-   Everyone: a few photos from the public exhibition, picked at random on each visit. Visitors also get one of
-   them as the large photo. Members instead see last month's top three as a fan of prints, Photos of the month,
+   Visitors get one photo from the public exhibition (shown further down the page by exhibition.js), picked at
+   random on each visit, as the large photo. Members instead see last month's top three as a fan of prints, Photos of the month,
    the long-term series and the newest photos, loaded from the club's inbox. Everyone sees the next
    events and the newest downloads. Needs config.js and club.js (and events.js, downloads.js). */
 (function () {
@@ -44,22 +44,14 @@
     var pool = Club.shuffle(ex.photos.slice());
     if (d) members(d);
     else if (pool.length) visitorPhoto(pool.shift());
-    // a few more from the exhibition, for everyone
-    var strip = pool.slice(0, 6);
-    if (strip.length) {
-      $("exhibit").innerHTML = strip.map(function (p) {
-        return '<a href="exhibition.html#p-' + esc(p.id) + '" style="--ar:' + ar(p) + '" aria-label="' + esc(p.title + " by " + p.by) + '">' + img(Club.publicUrl(p, "thumb"), p, "thumb", "") + "</a>";
-      }).join("");
-      $("exhibit-section").hidden = false;
-    }
     Club.layout();
   });
 
   // Visitors: one photo from the exhibition as the large photo, gently tilted. The invitation to sign in moves below.
   function visitorPhoto(p) {
     $("hero-photo").style.setProperty("--ar", ar(p));
-    $("hero-photo").innerHTML = '<a href="exhibition.html#p-' + esc(p.id) + '">' + img(Club.publicUrl(p, "full"), p, "full", p.title, ' fetchpriority="high"') + "</a>" +
-      "<figcaption>" + byLine(p) + ', from the club\'s <a href="exhibition.html">exhibition</a></figcaption>';
+    $("hero-photo").innerHTML = '<a href="#p-' + esc(p.id) + '">' + img(Club.publicUrl(p, "full"), p, "full", p.title, ' fetchpriority="high"') + "</a>" +
+      "<figcaption>" + byLine(p) + ', from the club\'s <a href="#exhibition">exhibition</a></figcaption>';
     $("hero-photo").hidden = false;
     $("join-slot").appendChild($("hero-card"));
     $("join-slot").hidden = false;

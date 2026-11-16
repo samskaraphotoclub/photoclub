@@ -71,7 +71,7 @@ p { margin: 0 0 1em; }
 .brand .name span { white-space: nowrap; }
 .top nav { display: flex; align-items: center; gap: 2px; }
 .top nav .mode { margin-left: 16px; }   /* the light/dark switch sits at the end of the menu */
-.top nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 999px; text-decoration: none; color: var(--muted); font-weight: 500; }
+.top nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 999px; text-decoration: none; color: var(--muted); font-weight: 500; white-space: nowrap; }
 .top nav a:hover { color: var(--ink); }
 .top nav a[aria-current] { color: var(--accent); background: var(--shade); }
 /* the light/dark switch */

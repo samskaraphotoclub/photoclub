@@ -84,7 +84,7 @@
     });
   }
 
-  /* ---------- photos from a museum's website, only when the member asks ---------- */
+  /* ---------- photos from a museum's or agency's website, only when the member asks ---------- */
   function show(slot) {
     if (!slot || slot.getAttribute("data-shown")) return;
     slot.setAttribute("data-shown", "1");
@@ -97,16 +97,19 @@
       slot.classList.add("is-shown");
     };
     img.onerror = function () {
+      var second = slot.getAttribute("data-src2");   // a smaller copy on the same site, tried once
+      if (second && img.src !== second) { img.src = second; return; }
       slot.removeAttribute("data-shown");
       var ask = slot.querySelector(".ms-ask");
       if (!ask) return;
       ask.innerHTML = "";
       var p = document.createElement("p");
-      p.textContent = "The museum’s photo didn’t load.";
+      var site = slot.getAttribute("data-site");     // e.g. "magnumphotos.com"; the museum when not given
+      p.textContent = site ? "The photo didn’t load." : "The museum’s photo didn’t load.";
       var a = document.createElement("a");
       a.href = slot.getAttribute("data-page") || "#";
       a.target = "_blank"; a.rel = "noopener";
-      a.textContent = "See it on the museum’s website";
+      a.textContent = site ? "See it on " + site : "See it on the museum’s website";
       ask.appendChild(p); ask.appendChild(a);
     };
     var ask = slot.querySelector(".ms-ask p");
