@@ -41,14 +41,3 @@
   .ms-work { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .ms-photo { min-height: 200px; }
 }
-
-/* our own drawings */
-.ms-seq { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px !important; }
-.ms-seq figure { position: relative; }
-.ms-seq span { position: absolute; top: 6px; right: 8px; color: #fff; font: 600 .8rem var(--sans); }
-.ms-seq .is-moment img { outline: 3px solid var(--red); outline-offset: -3px; }
-.ms-seq .is-moment em { position: absolute; left: 8px; bottom: 8px; padding: 3px 7px; border-radius: 3px; background: var(--red); color: #fff;
-  font: 700 .68rem var(--sans); letter-spacing: .08em; text-transform: uppercase; font-style: normal; }
-.ms-hero img { width: 100%; }
-@media (min-width: 700px) { .ms-hero { float: right; width: 40%; margin: 4px 0 14px 28px !important; } }
-.ms-clear { clear: both; }
