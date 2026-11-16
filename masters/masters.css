@@ -56,6 +56,17 @@
 .ms-cap a { display: block; margin-top: 2px; color: var(--muted); }
 @media (max-width: 460px) { .ms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; } }
 
-/* 36 frames: the whole roll, as a contact sheet the width of the page */
-.ms-sheet { margin: 26px 0 20px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+/* 36 frames: the whole roll as a contact sheet, three frames across and twelve rows down.
+   Every frame is 3:2 like a 35 mm negative; upright photos sit in it on a dark ground. */
+.ms-sheet { margin: 26px 0 20px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 18px; }
+.ms-sheet .ms-photo { aspect-ratio: 3 / 2; min-height: auto; }
+.ms-sheet .ms-photo:not(.is-shown) { overflow: visible; }      /* the Show button or a message can make it taller */
+.ms-sheet .ms-photo img { width: 100%; height: 100%; max-height: none; object-fit: contain; }
 .ms-sheet .ms-year { white-space: nowrap; }
+@media (max-width: 560px) {
+  .ms-sheet { gap: 16px 8px; }
+  .ms-sheet .ms-ask { padding: 6px; }
+  .ms-sheet .ms-ask p:has(+ .ms-show) { display: none; }      /* just the button on small screens */
+  .ms-sheet .ms-ask .btn { min-height: 34px; padding: 0 10px; font-size: .8rem; }
+  .ms-sheet .ms-cap { font-size: .74rem; line-height: 1.35; }
+}
