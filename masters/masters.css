@@ -41,3 +41,17 @@
   .ms-work { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .ms-photo { min-height: 200px; }
 }
+
+/* eighteen more: a grid of smaller photos with short captions */
+.ms-more-show { margin: 0 0 18px !important; }
+.ms-grid { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 22px 18px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.ms-tile { margin: 0; }
+.ms-tile .ms-photo { min-height: 150px; }
+.ms-tile .ms-photo img { max-height: 320px; }
+.ms-tile .ms-ask { padding: 14px; }
+.ms-tile .ms-ask p { margin-bottom: 8px !important; font-size: .85rem !important; }
+.ms-cap { margin: 8px 0 0 !important; font: .86rem/1.45 var(--sans); color: var(--muted); }
+.ms-cap b { color: var(--ink); font-weight: 600; }
+.ms-cap .ms-ctx { display: block; }
+.ms-cap a { display: block; margin-top: 2px; color: var(--muted); }
+@media (max-width: 460px) { .ms-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; } }

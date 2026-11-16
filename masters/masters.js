@@ -120,8 +120,7 @@
       var all = ev.target.closest(".ms-show-all");
       if (all) {
         main.querySelectorAll(".ms-photo").forEach(show);
-        all.disabled = true;
-        all.textContent = "Showing the photos";
+        main.querySelectorAll(".ms-show-all").forEach(function (btn) { btn.disabled = true; btn.textContent = "Showing the photos"; });
       }
     });
   }
