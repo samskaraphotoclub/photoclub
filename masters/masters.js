@@ -96,9 +96,10 @@
       slot.appendChild(img);
       slot.classList.add("is-shown");
     };
+    // Other copies of the same photo on the same site (data-src2, then data-alts, space-separated), tried in turn
+    var tries = [slot.getAttribute("data-src2")].concat((slot.getAttribute("data-alts") || "").split(" ")).filter(Boolean);
     img.onerror = function () {
-      var second = slot.getAttribute("data-src2");   // a smaller copy on the same site, tried once
-      if (second && img.src !== second) { img.src = second; return; }
+      if (tries.length) { img.src = tries.shift(); return; }
       slot.removeAttribute("data-shown");
       var ask = slot.querySelector(".ms-ask");
       if (!ask) return;
