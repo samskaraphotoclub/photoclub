@@ -213,3 +213,7 @@
   .top, footer, .hb-side, .hb-pager, .hb-done { display: none !important; }
   .hb { display: block; }
 }
+
+/* the sign-in form, shown until a member's page has opened */
+.hb-lock { min-height: 32vh; padding-bottom: 56px; }
+.hb-lock .gate { margin-top: 4px; }

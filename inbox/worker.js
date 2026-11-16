@@ -14,6 +14,8 @@
  *   WEEKLY_LIMIT    photos each member can send per 7 days (default 5)
  *   HEARTS_PER_DAY  hearts each member can give per day (default 20; keeps within the free plan's daily writes)
  *   TIMEZONE        the club's time zone, for when weeks and months start (default Europe/Berlin)
+ * Optional secret:
+ *   HANDBOOK_KEY    opens the members-only Photography Handbook on the site (the handbook stays locked without it)
  */
 
 const MAX_FULL = 3 * 1024 * 1024;      // bytes, large version (the site resizes to ~200–450 KB)
@@ -131,6 +133,7 @@ async function route(request, env) {
   if (parts[0] === "photo" && method === "POST" && parts[1] && parts[2] === "details") return editOwnPhoto(request, env, parts[1]);
   if (parts[0] === "files" && method === "GET" && !parts[1]) return listFiles(request, env);
   if (parts[0] === "file" && method === "GET" && parts[1] && (!parts[2] || parts[2] === "thumb")) return serveFile(url, env, parts[1], parts[2] === "thumb");
+  if (parts[0] === "handbook-key" && method === "GET" && !parts[1]) return handbookKey(url, request, env);
   if (parts[0] === "vote" && method === "POST") return vote(request, env);
   if (parts[0] === "comment" && method === "POST" && !parts[1]) return addComment(request, env);
   if (parts[0] === "comment" && method === "POST" && parts[1] === "delete") {
@@ -182,6 +185,40 @@ async function route(request, env) {
     }
   }
   throw fail(404, "Not found.");
+}
+
+/* ------------------------------------------------------------------ the handbook */
+// The Photography Handbook's pages on the site are locked. Each edition is locked with its own random key, made from
+// the edition's public key (e, on the site) and the public half of HANDBOOK_KEY. Working the key out again needs the
+// private half, which only this inbox has, and it hands the key only to signed-in members (and admins).
+let handbookSecret = null;
+async function handbookKey(url, request, env) {
+  await viewer(request, env);
+  const secret = String(env.HANDBOOK_KEY || "").replace(/\s+/g, "");
+  if (!secret) throw fail(503, "The handbook opens soon.");
+  const e = String(url.searchParams.get("e") || "");
+  if (!/^[A-Za-z0-9_-]{87}$/.test(e)) throw fail(400, "That isn't an edition of the handbook.");
+  if (!handbookSecret || handbookSecret.secret !== secret) {
+    let key;
+    try { key = await crypto.subtle.importKey("pkcs8", fromBase64(secret), { name: "ECDH", namedCurve: "P-256" }, false, ["deriveBits"]); }
+    catch { throw fail(503, "The HANDBOOK_KEY secret in the Worker settings isn't complete. Copy it in again."); }
+    handbookSecret = { secret, key };
+  }
+  let edition;
+  try { edition = await crypto.subtle.importKey("raw", fromBase64(e), { name: "ECDH", namedCurve: "P-256" }, false, []); }
+  catch { throw fail(400, "That isn't an edition of the handbook."); }
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: edition }, handbookSecret.key, 256));
+  const label = new TextEncoder().encode("conscious-frame handbook 1:");
+  const both = new Uint8Array(label.length + shared.length);
+  both.set(label); both.set(shared, label.length);
+  const key = new Uint8Array(await crypto.subtle.digest("SHA-256", both));
+  return json({ key: btoa(String.fromCharCode(...key)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") });
+}
+// standard or URL-safe base64, with or without padding
+function fromBase64(s) {
+  const t = String(s).replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(t + "===".slice((t.length + 3) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 
 /* ------------------------------------------------------------------ members and photos */

@@ -38,6 +38,7 @@ Open the Worker, then **Settings** > **Variables and Secrets** > **Add**:
 | `WEEKLY_LIMIT` | Text | Optional. How many photos each member can send per 7 days. Default 5. |
 | `HEARTS_PER_DAY` | Text | Optional. How many hearts each member can give per day. Default 20, which keeps a busy club within the free plan's 1,000 saved changes a day. (Old `VOTES_PER_WEEK` or `VOTES_PER_MONTH` settings are no longer used.) |
 | `TIMEZONE` | Text | Optional. When days and months start, for example `Europe/Berlin` (the default) or `Europe/London`. |
+| `HANDBOOK_KEY` | Secret | Opens the members-only Photography Handbook on the site. The value is one long line of letters and numbers that you get from whoever builds the handbook. Paste it exactly, all on one line. Without it the handbook stays locked and says it opens soon. Keep it to yourself: anyone with it could open the handbook's files. |
 
 Save and deploy.
 
@@ -61,6 +62,8 @@ Then invite your first member: **Members** > type a name > **Create invite code*
 - **"Set an ADMIN_PASSWORD secret of at least 12 characters":** add the secret (step 5), or make it longer.
 - **"The inbox has no storage connected":** add the KV binding called `INBOX` (step 4).
 - **The admin page says it can't reach the inbox:** check the inbox address, and that `ALLOWED_ORIGIN` is your site's address with `https://` and no slash at the end.
+- **Members see "The handbook opens soon":** add the `HANDBOOK_KEY` secret (step 5), and check the inbox has the latest `worker.js` (see Updating the inbox program).
+- **"The HANDBOOK_KEY secret in the Worker settings isn't complete":** paste the secret again, the whole line, with nothing added.
 - **Members get "The photo is missing" when they send a photo:** open the Worker's **Settings**, and set the **Compatibility date** to today's date.
 
 ## Updating the inbox program
