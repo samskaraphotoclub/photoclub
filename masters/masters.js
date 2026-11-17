@@ -97,10 +97,9 @@
       slot.appendChild(img);
       slot.classList.add("is-shown");
     };
-    // Other copies of the same photo on the same site (data-src2, then data-alts, space-separated), tried in turn
-    var tries = [slot.getAttribute("data-src2")].concat((slot.getAttribute("data-alts") || "").split(" ")).filter(Boolean);
+    // One address per photo. If it doesn't load (a wrong address, or the site blocking other sites), we show a link to
+    // the photo on that site and don't try other copies, so we never work around a block (since 17 Nov 2026).
     img.onerror = function () {
-      if (tries.length) { img.src = tries.shift(); return; }
       slot.removeAttribute("data-shown");
       var ask = slot.querySelector(".ms-ask");
       if (!ask) return;
