@@ -70,3 +70,9 @@
   .ms-sheet .ms-ask .btn { min-height: 34px; padding: 0 10px; font-size: .8rem; }
   .ms-sheet .ms-cap { font-size: .74rem; line-height: 1.35; }
 }
+
+/* 36 frames start page: initials in place of the photo count (17 Nov 2026) */
+.ms-initials { grid-row: span 2; align-self: start; display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%;
+  border: 2px solid var(--accent); color: var(--accent); font: 600 1.05rem/1 var(--serif); letter-spacing: .03em; }
+.ms-initials.is-long { font-size: .88rem; letter-spacing: 0; }
+.hb-chcard:has(> .ms-initials) { grid-template-rows: auto 1fr; }
