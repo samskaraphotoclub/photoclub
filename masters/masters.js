@@ -70,6 +70,7 @@
       main.innerHTML = new TextDecoder().decode(buf);
       data.parentNode.removeChild(data); data = null;
       museumPhotos();
+      document.dispatchEvent(new Event("ms-opened"));   // the Learning page fills itself in then
       if (location.hash) {
         var t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
         if (t) t.scrollIntoView();

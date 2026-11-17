@@ -19,7 +19,7 @@
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
-    <nav aria-label="Main"><a href="frames/index.html">36 frames</a><a href="gallery.html">Gallery</a><a href="events.html">Events</a><a href="archive.html">Archive</a><a href="downloads.html">Downloads</a><a href="working.html">Working</a><a href="about.html">About</a><button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></nav>
+    <nav aria-label="Main"><a href="frames/index.html">36 frames</a><a href="gallery.html">Gallery</a><a href="learning/index.html">Learning</a><a href="archive.html">Archive</a><a href="downloads.html">Downloads</a><a href="working.html">Working</a><a href="about.html">About</a><button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></nav>
     <a class="btn btn-dark btn-small join" href="submit.html">Share a photo</a>
   </div>
 </header>
@@ -33,6 +33,7 @@
     <button type="button" role="tab" id="tab-votes" aria-controls="panel-votes" aria-selected="false">Hearts</button>
     <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false">Comments <span id="r-count"></span></button>
     <button type="button" role="tab" id="tab-home" aria-controls="panel-home" aria-selected="false">Home page</button>
+    <button type="button" role="tab" id="tab-learning" aria-controls="panel-learning" aria-selected="false">Learning</button>
     <button type="button" role="tab" id="tab-events" aria-controls="panel-events" aria-selected="false">Events</button>
     <button type="button" role="tab" id="tab-files" aria-controls="panel-files" aria-selected="false">Downloads</button>
     <button type="button" role="tab" id="tab-post" aria-controls="panel-post" aria-selected="false">Post a photo</button>
@@ -158,6 +159,29 @@
       <p class="muted">The months that are over, as members see them on the Theme archive page. Take out a month that had too few entries: its photos stay in the gallery, just no longer marked as entries for that theme. You can bring it back here.</p>
       <ul class="list" id="ar-list"></ul>
       <p class="status" id="ar-status" aria-live="polite"></p>
+    </section>
+  </section>
+
+  <!-- ===================== Learning: the monthly Masters challenge ===================== -->
+  <section id="panel-learning" role="tabpanel" aria-labelledby="tab-learning" hidden>
+    <form class="card" id="mc-form" novalidate>
+      <h2>Masters challenge</h2>
+      <p class="muted" style="margin-top:0">Pick one photographer from the Masters of photography pages and one of their five exercises. Members see it on the <a href="learning/index.html">Learning</a> page and can tick a photo as their attempt when they send it. Next month's choice stays hidden from members until the month starts.</p>
+      <div class="two">
+        <div><label class="f" for="mc-month">Month</label><select id="mc-month"></select></div>
+        <div><label class="f" for="mc-who">Photographer</label><select id="mc-who"></select></div>
+      </div>
+      <label class="f" for="mc-ex">Exercise</label>
+      <select id="mc-ex"></select>
+      <label class="f" for="mc-note">Note for members <small>(optional)</small></label>
+      <textarea id="mc-note" maxlength="300" placeholder="For example: we'll look at the attempts together at the next meet-up"></textarea>
+      <div class="row-btns"><button class="btn btn-dark" type="submit" id="mc-save">Save challenge</button><button class="btn btn-light" type="button" id="mc-remove" hidden>Remove this month's challenge</button><a class="btn btn-light btn-small" id="mc-wa" href="#" target="_blank" rel="noopener" hidden>Share on WhatsApp</a></div>
+      <p class="status" id="mc-msg" aria-live="polite"></p>
+    </form>
+    <section class="card" aria-labelledby="mc-list-h">
+      <h2 id="mc-list-h">Challenges</h2>
+      <p class="muted" id="mc-empty">Loading…</p>
+      <ul class="list" id="mc-list"></ul>
     </section>
   </section>
 
@@ -329,7 +353,7 @@
       <li><a href="frames/index.html">36 frames</a></li>
       <li><a href="index.html#exhibition">Exhibition</a></li>
       <li><a href="gallery.html">Gallery</a></li>
-      <li><a href="events.html">Events</a></li>
+      <li><a href="learning/index.html">Learning</a></li>
       <li><a href="photographers.html">Photographers</a></li>
       <li><a href="archive.html">Theme archive</a></li>
       <li><a href="downloads.html">Downloads</a></li>
@@ -350,6 +374,7 @@
 <script src="club.js"></script>
 <script src="events.js"></script>
 <script src="downloads.js"></script>
+<script src="learning/masters-list.js"></script>
 <script>
 (function () {
   "use strict";
@@ -424,7 +449,7 @@
   }
 
   /* ---------- tabs ---------- */
-  var tabs = ["approve", "gallery", "members", "votes", "comments", "home", "events", "files", "post", "settings"];
+  var tabs = ["approve", "gallery", "members", "votes", "comments", "home", "learning", "events", "files", "post", "settings"];
   function show(name) {
     tabs.forEach(function (t) {
       $("tab-" + t).setAttribute("aria-selected", t === name);
@@ -441,6 +466,7 @@
       $("series").innerHTML = list.map(function (s) { return '<label><input type="checkbox" value="' + esc(s.id) + '"' + (v.indexOf(s.id) >= 0 ? " checked" : "") + "><span" + ml(s.name) + ">" + esc(s.name) + (s.open ? "" : " (closed)") + "</span></label>"; }).join("");
       $("ptheme").innerHTML = themeOptions($("ptheme").value, "Not an entry");
     });
+    if (name === "learning") loadChallenges();
     if (name === "events") loadEvents();
     if (name === "files") loadFiles();
     if (name === "settings") loadStorage();
@@ -498,6 +524,7 @@
       pubBox(p.name, p.pubOk, false) +
       '<div class="two"><div><label class="f">Monthly theme' + (p.theme ? " <small>(" + esc(p.name.split(" ")[0]) + " entered it)</small>" : "") + '<select class="e-theme">' + themeOptions(p.theme || "") + "</select></label></div>" +
       '<div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
+      (p.mc ? '<label class="tick consent"><input type="checkbox" class="e-mc" checked> <span>An attempt at the Masters challenge of ' + esc(monthName(p.mc)) + ' <small class="muted">' + esc(p.name.split(" ")[0]) + " ticked this. Untick it if it doesn't fit.</small></span></label>" : "") +
       (settings ? '<p class="sub-settings">' + esc(settings) + "</p>" : "") +
       '<div class="row-btns"><button class="btn btn-dark approve" type="button">Approve</button><button class="btn btn-light decline" type="button">Decline</button></div>' +
       '<div class="decline-box" hidden><label class="f">Note to ' + esc(p.name.split(" ")[0]) + ' <small>(optional, they will see it)</small><textarea class="e-note" maxlength="300" placeholder="For example: a bit soft, try a faster shutter speed"></textarea></label>' +
@@ -522,7 +549,8 @@
       var pub = el.querySelector(".e-pub").checked, ser = el.querySelector(".e-series"), cats = ticked(el.querySelector(".e-cats"));
       if (!cats.length) { setStatus(status, "Choose a category.", true); return; }
       inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cats: cats, desc: el.querySelector(".e-desc").value.trim(),
-        series: ser ? ticked(ser) : undefined, pub: pub, pubOk: pub || undefined, theme: el.querySelector(".e-theme").value, fb: el.querySelector(".e-fb").value } }).then(function (r) {
+        series: ser ? ticked(ser) : undefined, pub: pub, pubOk: pub || undefined, theme: el.querySelector(".e-theme").value, fb: el.querySelector(".e-fb").value,
+        mc: el.querySelector(".e-mc") ? (el.querySelector(".e-mc").checked ? p.mc : "") : undefined } }).then(function (r) {
         markDecided(p.sid); galleryInfo = null;
         done(el, "“" + title + "” by " + p.name + " is now in the gallery" + (pub ? " and the public exhibition." : "."), r.id ? "gallery.html#p-" + r.id : "");
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
@@ -1411,6 +1439,71 @@
     view();
     return li;
   }
+
+  /* ---------- Learning: the monthly Masters challenge ---------- */
+  var MASTERS = window.MASTERS_LIST || [], mcList = [], mcNow = "";
+  function master(slug) { return MASTERS.filter(function (m) { return m.slug === slug; })[0]; }
+  function mcSay(c) { var m = master(c.slug), ex = m && m.ex[c.ex - 1]; return m ? m.name + (ex ? ", “" + ex + "”" : "") : mcText(c); }
+  function mcText(c) { var m = master(c.slug); return m ? m.name + ": " + (m.ex[c.ex - 1] || "exercise " + c.ex) : c.slug + ", exercise " + c.ex; }
+  function addMonths(m, n) { var y = +m.slice(0, 4), k = +m.slice(5, 7) - 1 + n; y += Math.floor(k / 12); k = ((k % 12) + 12) % 12; return y + "-" + String(k + 1).padStart(2, "0"); }
+  function mcExercises() {
+    var m = master($("mc-who").value), keep = $("mc-ex").value;
+    $("mc-ex").innerHTML = m ? m.ex.map(function (t, i) { return '<option value="' + (i + 1) + '">' + (i + 1) + ". " + esc(t) + "</option>"; }).join("") : "";
+    if (keep) $("mc-ex").value = keep;
+  }
+  function mcShow() {   // the chosen month's challenge in the form
+    var month = $("mc-month").value, c = mcList.filter(function (x) { return x.month === month; })[0];
+    if (c) { $("mc-who").value = c.slug; mcExercises(); $("mc-ex").value = String(c.ex); } else mcExercises();
+    $("mc-note").value = c && c.note || "";
+    $("mc-remove").hidden = !c;
+    $("mc-remove").textContent = "Remove " + monthName(month) + "'s challenge";
+    var share = c && month === mcNow;
+    $("mc-wa").hidden = !share;
+    if (share) $("mc-wa").href = "https://wa.me/?text=" + encodeURIComponent("This month's Masters challenge is " + mcSay(c) + ". Take it on your next walk and share your attempt on the Learning page. " + new URL("learning/index.html", location.href).href);
+  }
+  function mcRender() {
+    var photos = (galleryData && galleryData.photos) || [];
+    $("mc-empty").textContent = mcList.length ? "" : "No challenges yet. Pick one above.";
+    $("mc-empty").hidden = !!mcList.length;
+    $("mc-list").innerHTML = mcList.map(function (c) {
+      var n = photos.filter(function (p) { return p.mc === c.month; }).length, when = c.month === mcNow ? "This month" : c.month > mcNow ? "Coming, hidden from members" : "Over";
+      return "<li><b>" + esc(monthName(c.month)) + "</b><span class=\"meta\">" + esc(mcText(c)) + " · " + when + (galleryData ? " · " + n + (n === 1 ? " attempt" : " attempts") : "") + "</span>" +
+        (c.month >= mcNow ? '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-month="' + esc(c.month) + '">Edit</button></div>' : "") + "</li>";
+    }).join("");
+  }
+  function loadChallenges() {
+    $("mc-who").innerHTML = MASTERS.map(function (m) { return '<option value="' + esc(m.slug) + '">' + esc(m.name) + "</option>"; }).join("");
+    if (!MASTERS.length) { $("mc-empty").textContent = "The list of Masters photographers didn't load. Reload the page."; return; }
+    inbox("/admin/challenges").then(function (d) {
+      mcList = d.challenges || []; mcNow = d.month;
+      var keep = $("mc-month").value;
+      $("mc-month").innerHTML = [0, 1, 2].map(function (i) { var m = addMonths(mcNow, i); return '<option value="' + m + '">' + esc(monthName(m)) + (i === 0 ? " (this month)" : "") + "</option>"; }).join("");
+      if (keep && keep >= mcNow) $("mc-month").value = keep;
+      mcShow(); mcRender();
+      if (!galleryData) loadGallery().then(mcRender, function () {});
+    }).catch(function (e) { $("mc-empty").hidden = false; $("mc-empty").textContent = /Not found/.test(e.message) ? "Update the inbox program in Cloudflare to use the Masters challenge." : e.message; });
+  }
+  $("mc-month").addEventListener("change", mcShow);
+  $("mc-who").addEventListener("change", function () { $("mc-ex").value = ""; mcExercises(); });
+  $("mc-list").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button[data-month]"); if (!b) return;
+    $("mc-month").value = b.getAttribute("data-month"); mcShow(); $("mc-form").scrollIntoView();
+  });
+  function mcSave(body, done) {
+    var month = $("mc-month").value;
+    $("mc-save").disabled = $("mc-remove").disabled = true; setStatus($("mc-msg"), "Saving…");
+    inbox("/admin/challenge/" + month, { method: "POST", json: body }).then(function (d) {
+      mcList = d.challenges || []; mcShow(); mcRender(); setStatus($("mc-msg"), done(month));
+    }).catch(function (e) { setStatus($("mc-msg"), e.message, true); }).then(function () { $("mc-save").disabled = $("mc-remove").disabled = false; });
+  }
+  $("mc-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!$("mc-who").value || !$("mc-ex").value) { setStatus($("mc-msg"), "Choose a photographer and an exercise.", true); return; }
+    mcSave({ slug: $("mc-who").value, ex: +$("mc-ex").value, note: $("mc-note").value.trim() }, function (month) {
+      return "Saved the challenge for " + monthName(month) + (month === mcNow ? ". Members see it on the Learning page now." : ". Members see it when the month starts.");
+    });
+  });
+  $("mc-remove").addEventListener("click", function () { mcSave({ slug: "" }, function (month) { return "Removed " + monthName(month) + "'s challenge."; }); });
 
   /* ---------- events ---------- */
   var editingEvent = null, eventsCache = {};

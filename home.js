@@ -2,7 +2,7 @@
    Visitors get one photo from the public exhibition (shown further down the page by exhibition.js), picked at
    random on each visit, as the large photo. Members instead see last month's top three as a fan of prints, Photos of the month,
    the long-term series and the newest photos, loaded from the club's inbox. Everyone sees the next
-   events and the newest downloads. Needs config.js and club.js (and events.js, downloads.js). */
+   the newest downloads. Needs config.js and club.js (and downloads.js). */
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
@@ -18,17 +18,7 @@
 
   var member = !!Club.code();
 
-  // the next three events (visitors see the public ones)
-  Club.call("/events").then(function (r) {
-    var next = r.upcoming.slice(0, 3);
-    if (!next.length || !window.ClubEvents) return;
-    $("coming").innerHTML = next.map(function (e) {
-      var p = ClubEvents.parts(e.date);
-      return '<li><a href="events.html#e-' + esc(e.id) + '"><span class="when"><b>' + p.day + "</b><span>" + p.mon + '</span></span><span class="what"><b' + ml(e.title) + ">" + esc(e.title) + "</b><span>" +
-        esc(e.kind + " · " + ClubEvents.when(e)) + (e.going && e.going.length ? " · " + e.going.length + " coming" : "") + "</span></span></a></li>";
-    }).join("");
-    $("coming-section").hidden = false;
-  }).catch(function () { /* no events yet, or the inbox hasn't been updated */ });
+  // Events are hidden from the site since 17 Nov 2026 (the admin page keeps them); Learning took their place in the menu.
 
   // the three newest downloads (visitors get the ones for everyone)
   if (window.ClubDownloads) ClubDownloads.load().then(function (d) {

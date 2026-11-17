@@ -18,7 +18,7 @@
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img class="logo" src="logo.webp" width="40" height="40" alt=""><span class="name"><span>The Conscious</span> <span>Frame</span></span></a>
-    <nav aria-label="Main"><a href="frames/index.html">36 frames</a><a href="gallery.html">Gallery</a><a href="events.html">Events</a><a href="archive.html">Archive</a><a href="downloads.html">Downloads</a><a href="working.html">Working</a><a href="about.html">About</a><button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></nav>
+    <nav aria-label="Main"><a href="frames/index.html">36 frames</a><a href="gallery.html">Gallery</a><a href="learning/index.html">Learning</a><a href="archive.html">Archive</a><a href="downloads.html">Downloads</a><a href="working.html">Working</a><a href="about.html">About</a><button class="mode" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark mode"><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.7 8.7 0 1 0 11.3 11.3z"/></svg><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6M4.8 4.8l1.8 1.8M17.4 17.4l1.8 1.8M4.8 19.2l1.8-1.8M17.4 6.6l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg></button></nav>
     <a class="btn btn-dark btn-small join" href="submit.html" aria-current="page">Share a photo</a>
   </div>
 </header>
@@ -88,6 +88,7 @@
       <label class="f" for="desc">Description <small>(optional)</small></label>
       <textarea id="desc" maxlength="400" placeholder="Where you took it, what caught your eye"></textarea>
       <label class="tick consent" id="entry-box" hidden><input type="checkbox" id="entry"> <span>This is my entry for the monthly theme: <b id="entry-title"></b></span></label>
+      <label class="tick consent" id="mc-box" hidden><input type="checkbox" id="mc"> <span>This is my attempt at this month's Masters challenge<span id="mc-title"></span> <small class="muted">It shows on the <a href="learning/index.html">Learning</a> page.</small></span></label>
       <fieldset class="choice">
         <legend>Comments you'd like</legend>
         <label><input type="radio" name="fb" value="" checked> <span>Feedback welcome <small>Members start with what works, then suggest what could be better.</small></span></label>
@@ -131,7 +132,7 @@
       <li><a href="frames/index.html">36 frames</a></li>
       <li><a href="index.html#exhibition">Exhibition</a></li>
       <li><a href="gallery.html">Gallery</a></li>
-      <li><a href="events.html">Events</a></li>
+      <li><a href="learning/index.html">Learning</a></li>
       <li><a href="photographers.html">Photographers</a></li>
       <li><a href="archive.html">Theme archive</a></li>
       <li><a href="downloads.html">Downloads</a></li>
@@ -147,6 +148,7 @@
 
 <script src="config.js"></script>
 <script src="photo-tools.js"></script>
+<script src="learning/masters-list.js"></script>
 <script>
 (function () {
   "use strict";
@@ -154,7 +156,7 @@
   var T = PhotoTools, esc = T.esc;
   var INBOX = String(window.CLUB_INBOX || "").replace(/\/+$/, "");
   var KEY = "conscious-frame-member";
-  var code = "", prepared = null, wantSeries = "", wantEntry = false, theme = null;
+  var code = "", prepared = null, wantSeries = "", wantEntry = false, theme = null, challenge = null, wantChallenge = false;
 
   function saved() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
   function remember(c) { try { c ? localStorage.setItem(KEY, c) : localStorage.removeItem(KEY); } catch (e) {} }
@@ -192,6 +194,13 @@
       theme = d.theme;
       $("entry-box").hidden = !theme;
       if (theme) { $("entry-title").textContent = theme.title; if (wantEntry) $("entry").checked = true; }
+      challenge = d.challenge || null;   // this month's Masters challenge (inboxes from before 17 Nov 2026 don't send one)
+      $("mc-box").hidden = !challenge;
+      if (challenge) {
+        var m = (window.MASTERS_LIST || []).filter(function (x) { return x.slug === challenge.slug; })[0], ex = m && m.ex[challenge.ex - 1];
+        $("mc-title").innerHTML = m ? ": <b>" + esc(m.name) + (ex ? ", “" + esc(ex) + "”" : "") + "</b>" : "";
+        if (wantChallenge) $("mc").checked = true;
+      }
       var series = d.series || [];
       $("series").innerHTML = series.map(function (s) { return '<label><input type="checkbox" value="' + esc(s.id) + '"' + (s.id === wantSeries ? " checked" : "") + "><span>" + esc(s.name) + "</span></label>"; }).join("");
       $("series-box").hidden = !series.length;
@@ -349,6 +358,7 @@
     ticked("series").forEach(function (s) { fd.append("series", s); });
     if ($("pubOk").checked) fd.append("pubOk", "1");
     if (theme && $("entry").checked) fd.append("entry", "1");
+    if (challenge && $("mc").checked) fd.append("challenge", "1");
     if ($("form").querySelector('input[name="fb"]:checked').value === "share") fd.append("fb", "share");
     fd.append("w", prepared.full.w); fd.append("h", prepared.full.h);
     fd.append("tw", prepared.thumb.w); fd.append("th", prepared.thumb.h);
@@ -358,8 +368,8 @@
     setStatus($("status"), "Sending…");
     call("/submit", { method: "POST", body: fd }).then(function () {
       setStatus($("status"), "Sent. An admin will check it soon, and it will appear in the gallery once it's approved.");
-      var keep = ticked("series"), keepEntry = $("entry").checked;
-      $("form").reset(); $("exif-note").textContent = ""; $("entry").checked = keepEntry;
+      var keep = ticked("series"), keepEntry = $("entry").checked, keepMc = $("mc").checked;
+      $("form").reset(); $("exif-note").textContent = ""; $("entry").checked = keepEntry; $("mc").checked = keepMc;
       $("series").querySelectorAll("input").forEach(function (i) { i.checked = keep.indexOf(i.value) >= 0; });
       $("preview").hidden = true; $("pick").hidden = false; prepared = null;
       return call("/me").then(function (d) { showMine(d.photos); });
@@ -374,6 +384,7 @@
   var params = new URLSearchParams(location.search), fromLink = params.get("code");
   wantSeries = params.get("series") || "";
   wantEntry = params.get("entry") === "1";
+  wantChallenge = params.get("challenge") === "1";
   if (fromLink) history.replaceState(null, "", location.pathname);   // don't leave the code in the address bar
   var start = fromLink || saved();
   if (start) signIn(start, !!fromLink); else showSignin();

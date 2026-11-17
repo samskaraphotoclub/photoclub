@@ -103,6 +103,7 @@
     var cats = Club.cats(p).map(Club.catClass).join(" "), ids = Club.seriesOf(p);
     var series = ids.map(function (id) { return Club.seriesName(data.series, id); }).filter(Boolean), theme = p.theme ? themeTitle(data, p.theme) : "";
     var lines = (theme ? '<p class="in-series">Entry for the monthly theme <a href="gallery.html?theme=' + esc(p.theme) + '"><b' + Club.ml(theme) + ">" + esc(theme) + "</b></a></p>" : "") +
+      (/^\d{4}-\d{2}$/.test(p.mc || "") ? '<p class="in-series">An attempt at the <a href="learning/index.html#mc-' + esc(p.mc) + '">Masters challenge</a> of ' + esc(monthName(p.mc)) + "</p>" : "") +
       (p.fb === "share" ? '<p class="fb-note">Just sharing: no critique needed. Say what you enjoy about it.</p>' : '<p class="fb-note">Feedback welcome: start with what works, then your suggestion.</p>');
     return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
       cls: cats + (Club.thisMonth(data, p) ? " this-month" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") + (p.fb === "share" ? "" : " fb-on"),

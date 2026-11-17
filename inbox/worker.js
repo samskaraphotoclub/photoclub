@@ -56,6 +56,7 @@ const STORAGE_KB = 1024 * 1024;        // Cloudflare's free plan: 1 GB
 const HEARTS = "hearts";               // each photo's number of hearts { totals }, worked out again after every heart
 const HEARTERS = "hearters";           // { codes }: the invite codes with hearts in h:CODE, so counting needs no list request
 // h:CODE = { photoId: "YYYY-MM-DD" }: the photos a member gave a heart, and on which day (one heart per photo, ever)
+const CHALLENGES = "challenges";       // the monthly Masters challenge, chosen by an admin: [{ month, slug, ex, note }], newest first
 const FILES = "files";                 // the club's downloads, newest first; each file is in file:ID, its preview in fthumb:ID
 const FILE_KINDS = ["Poster", "Cheat sheet", "Guide", "Form", "Other"];
 const MAX_FILE = 20 * 1024 * 1024;     // bytes, one download (Cloudflare keeps up to 25 MB in one item)
@@ -123,6 +124,7 @@ async function route(request, env) {
   if (parts[0] === "avatar" && method === "GET" && parts[1]) return servePicture(url, env, parts[1]);
   if (parts[0] === "events" && method === "GET" && !parts[1]) return listEvents(url, request, env);
   if (parts[0] === "events" && method === "POST" && parts[1] && parts[2] === "rsvp") return rsvp(request, env, parts[1]);
+  if (parts[0] === "challenges" && method === "GET" && !parts[1]) return listChallenges(request, env);
   if (parts[0] === "submit" && method === "POST") return submit(request, env);
   if (parts[0] === "gallery" && method === "GET") return gallery(request, env);
   if (parts[0] === "exhibition" && method === "GET") return exhibition(env);
@@ -167,6 +169,8 @@ async function route(request, env) {
     if (what === "members" && method === "POST" && a && b === "picture") return adminRemovePicture(env, a);
     if (what === "members" && method === "POST" && a && b === "name") return adminRename(request, env, a);
     if (what === "members" && method === "POST" && a && b === "delete-all") return deleteEverything(env, a);
+    if (what === "challenges" && method === "GET" && !a) return adminChallenges(env);
+    if (what === "challenge" && method === "POST" && a) return saveChallenge(request, env, a);
     if (what === "events" && method === "POST" && !a) return saveEvent(request, env);
     if (what === "events" && method === "DELETE" && a) return deleteEvent(env, a);
     if (what === "files" && method === "POST" && !a) return addFile(request, env);
@@ -241,7 +245,8 @@ async function me(request, env) {
   const own = (await env.INBOX.get("own:" + m.code, "json")) || [];
   const series = (await seriesList(env)).filter((s) => s.open).map((s) => ({ id: s.id, name: s.name }));
   const people = (await env.INBOX.get(PEOPLE, "json")) || {}, person = people[m.id] || {};
-  return json({ name: m.name, id: m.id, renameFrom: renameFrom(m, env), photos: own, weeklyLimit: weeklyLimit(env), series, theme: await entryTheme(env, Date.now()), bio: m.bio || person.bio || "",
+  return json({ name: m.name, id: m.id, renameFrom: renameFrom(m, env), photos: own, weeklyLimit: weeklyLimit(env), series, theme: await entryTheme(env, Date.now()),
+                challenge: currentChallenge(await challengeList(env), env, Date.now()), bio: m.bio || person.bio || "",
                 picture: person.av || "", token: person.av ? await photoToken(env, Date.now()) : "" });
 }
 
@@ -616,6 +621,11 @@ async function submit(request, env) {
     if (!t) throw fail(400, "There's no monthly theme to enter at the moment. Untick the theme box and send it again.");
     p.theme = t.month;
   }
+  if (form.get("challenge") === "1") {                // an attempt at this month's Masters challenge
+    const c = currentChallenge(await challengeList(env), env, Date.now());
+    if (!c) throw fail(400, "There's no Masters challenge this month. Untick the challenge box and send it again.");
+    p.mc = c.month;
+  }
   p.kb = Math.round((files.full.byteLength + files.thumb.byteLength) / 1024);
   const fullBytes = files.full, thumbBytes = files.thumb, ext = p.ext;
   const full = { type: files.type }, thumb = { type: files.type };
@@ -856,6 +866,42 @@ async function saveSeries(request, env) {
   return json({ ok: true, series: out });
 }
 
+/* ------------------------------------------------------------------ the monthly Masters challenge */
+// An admin picks one photographer from the Masters of photography pages (slug) and one of their five exercises (ex)
+// for a month. Members see it on the Learning page, and when they send a photo they can tick it as an attempt:
+// the photo then carries mc, the challenge's month. Next month's choice stays hidden from members until it starts.
+async function challengeList(env) { return (await env.INBOX.get(CHALLENGES, "json")) || []; }
+function currentChallenge(list, env, now) { const month = monthId(now, env); return list.find((c) => c.month === month) || null; }
+function challengeFields(b) {
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(b.month || "")) ? String(b.month) : "", ex = parseInt(b.ex, 10);
+  if (!month || !/^[a-z0-9][a-z0-9-]{0,49}$/.test(String(b.slug || "")) || !(ex >= 1 && ex <= 5)) return null;
+  const c = { month, slug: String(b.slug), ex }, note = clean(b.note, 300, "note");
+  if (note) c.note = note;
+  return c;
+}
+async function listChallenges(request, env) {
+  await member(request, env);
+  const month = monthId(Date.now(), env), list = (await challengeList(env)).filter((c) => c.month <= month);
+  return json({ month, current: list.find((c) => c.month === month) || null, past: list.filter((c) => c.month < month) });
+}
+async function adminChallenges(env) { return json({ month: monthId(Date.now(), env), challenges: await challengeList(env) }); }
+async function saveChallenge(request, env, raw) {
+  const month = checkMonth(raw), now = monthId(Date.now(), env);
+  if (!month) throw fail(400, "Unknown month.");
+  if (month < now) throw fail(400, "A month that's over keeps its challenge. Choose this month or a later one.");
+  const body = await request.json().catch(() => ({}));
+  const list = await challengeList(env), i = list.findIndex((c) => c.month === month);
+  if (!body.slug) { if (i >= 0) list.splice(i, 1); }
+  else {
+    const c = challengeFields({ month, slug: body.slug, ex: body.ex, note: body.note });
+    if (!c) throw fail(400, "Choose a photographer and one of their five exercises.");
+    if (i >= 0) list[i] = c; else list.push(c);
+  }
+  list.sort((a, b) => b.month.localeCompare(a.month));
+  await env.INBOX.put(CHALLENGES, JSON.stringify(list.slice(0, 240)));
+  return json({ ok: true, month: now, challenges: list });
+}
+
 /* ------------------------------------------------------------------ the theme archive */
 // Every month's theme (saved when an admin publishes the home page) and the photos with the most votes that month.
 // A month's favourites, by the hearts given during it, are counted once the month is over.
@@ -996,10 +1042,10 @@ async function addToGallery(env, p, files) {
   const now = Date.now();
   const entry = { id, title: p.title, by: p.by, uid: ID_RE.test(p.uid || "") ? p.uid : "", cat: p.cat, cats: p.cats, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
                   ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: p.added == null ? clubDate(now, env) : p.added, at: now, v: now.toString(36),
-                  series: p.series, pubOk: !!p.pubOk, pub: !!(p.pub && p.pubOk), theme: p.theme, fb: p.fb === "share" ? "share" : "",
+                  series: p.series, pubOk: !!p.pubOk, pub: !!(p.pub && p.pubOk), theme: p.theme, mc: p.mc, fb: p.fb === "share" ? "share" : "",
                   kb: Math.round((files.full.byteLength + files.thumb.byteLength) / 1024) };
   if (p.sub) entry.sub = p.sub;
-  for (const k of ["uid", "desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "fb", "cats"]) if (!entry[k]) delete entry[k];
+  for (const k of ["uid", "desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "mc", "fb", "cats"]) if (!entry[k]) delete entry[k];
   if (Array.isArray(entry.series) && !entry.series.length) delete entry.series;
   await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
   await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
@@ -1180,7 +1226,7 @@ async function decide(request, env, sid) {
                 desc: clean(body.desc == null ? meta.desc : body.desc, 400, "description"),
                 series: body.series == null ? meta.series : await checkSeries(env, body.series),   // a list now; [] is no series
                 pubOk: !!(meta.pubOk || body.pubOk === true), pub: body.pub === true,
-                theme: body.theme == null ? meta.theme : checkMonth(body.theme), fb: body.fb == null ? meta.fb : body.fb === "share" ? "share" : "" };
+                theme: body.theme == null ? meta.theme : checkMonth(body.theme), mc: body.mc == null ? meta.mc : checkMonth(body.mc), fb: body.fb == null ? meta.fb : body.fb === "share" ? "share" : "" };
     if (p.pub && !p.pubOk) throw fail(409, "Only photos the photographer has agreed to can go in the public exhibition. Ask " + meta.name + " first.");
     const [full, thumb] = await Promise.all(["full", "thumb"].map((s) => env.INBOX.getWithMetadata("img:" + sid + ":" + s, "arrayBuffer")));
     if (!full.value || !thumb.value) throw fail(409, "This photo's files are missing from the inbox. Decline it and ask the member to send it again.");
@@ -1212,6 +1258,7 @@ async function post(request, env) {
   setSeries(p, await checkSeries(env, form.getAll("series")));
   if (form.get("pub") === "1") p.pub = p.pubOk = true;      // the admin has the photographer's permission
   p.theme = checkMonth(form.get("theme"));
+  p.mc = checkMonth(form.get("mc"));
   if (form.get("fb") === "share") p.fb = "share";
   const index = await memberIndex(env), ids = idsNamed(index, p.by);
   if (ids.length === 1) { p.uid = ids[0]; p.by = index.m[ids[0]].n; }     // a member's photo: theirs, with their name as it's written
@@ -1239,6 +1286,7 @@ async function editPhoto(request, env, rawId) {
   photoDetails(x, body);
   if (body.series != null) setSeries(x, await checkSeries(env, body.series));
   if (body.theme != null) { x.theme = checkMonth(body.theme); if (!x.theme) delete x.theme; }
+  if (body.mc != null) { x.mc = checkMonth(body.mc); if (!x.mc) delete x.mc; }
   if (body.fb != null) { if (body.fb === "share") x.fb = "share"; else delete x.fb; }
   if (body.pubOk === true) x.pubOk = true;          // the admin has asked the photographer
   if (body.pub === true) {
@@ -1479,6 +1527,19 @@ async function restoreRecords(request, env) {
         .map((s) => ({ id: s.id, name: clean(s.name, 60, "series name", true), desc: clean(s.desc, 300, "series description"), open: s.open !== false }));
       await env.INBOX.put(SERIES, JSON.stringify(list));
       added++;
+    } else if (key === CHALLENGES) {
+      if (!Array.isArray(v)) throw fail(400, "The backup's Masters challenges can't be read.");
+      const list = await challengeList(env), have = new Set(list.map((c) => c.month));
+      let n = 0;
+      for (const b of v.slice(0, 240)) {
+        const c = b && challengeFields(b);
+        if (!c || have.has(c.month)) continue;
+        list.push(c); have.add(c.month); n++;
+      }
+      if (!n) { skipped++; continue; }
+      list.sort((a, b) => b.month.localeCompare(a.month));
+      await env.INBOX.put(CHALLENGES, JSON.stringify(list.slice(0, 240)));
+      merged++;
     } else if (key === ARCHIVE) {
       if (!Array.isArray(v)) throw fail(400, "The backup's theme archive can't be read.");
       const months = await archiveMonths(env, Date.now()), have = new Map(months.map((m) => [m.month, m]));
@@ -1531,6 +1592,8 @@ async function restorePhoto(request, env) {
   if (yes("pubOk")) { entry.pubOk = true; if (yes("pub")) entry.pub = true; }
   const theme = String(form.get("theme") || "");
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(theme)) entry.theme = theme;
+  const mc = String(form.get("mc") || "");
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(mc)) entry.mc = mc;
   if (form.get("fb") === "share") entry.fb = "share";
   entry.kb = Math.round((files.full.byteLength + files.thumb.byteLength) / 1024);
   for (const k of ["desc", "lens", "ap", "sh", "iso", "cats"]) if (!entry[k]) delete entry[k];
