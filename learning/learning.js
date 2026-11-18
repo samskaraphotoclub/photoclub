@@ -13,6 +13,7 @@
         "<span><b" + ml(p.title) + ">" + esc(p.title) + "</b> <small" + ml(p.by) + ">" + esc(p.by) + "</small></span></a></li>";
     }).join("");
   }
+  var frames = true;   // whether 36 frames is online, read from the page in start()
   function heading(data, c) {
     var m = data[c.slug], ex = m && m.ex[c.ex - 1];
     return m ? esc(m.name) + ": " + esc(ex ? ex[0] : "exercise " + c.ex) : "Exercise " + c.ex;
@@ -28,7 +29,8 @@
       box.innerHTML = '<p class="hb-kicker">' + esc(monthName(c.month)) + "</p><h3>" + heading(data, c) + "</h3>" +
         (ex ? "<p>" + esc(ex[1]) + "</p>" : "") +
         (c.note ? '<p class="lr-note">' + esc(c.note) + "</p>" : "") +
-        (m ? '<p class="lr-links"><a href="../masters/' + esc(c.slug) + '.html">How ' + esc(m.name) + " worked</a><a href=\"../frames/" + esc(c.slug) + '.html">' + (his === "her" ? "Her" : "His") + " 36 frames</a></p>" : "") +
+        (m ? '<p class="lr-links"><a href="../masters/' + esc(c.slug) + '.html">How ' + esc(m.name) + " worked</a>" +
+          (frames ? '<a href="../frames/' + esc(c.slug) + '.html">' + (his === "her" ? "Her" : "His") + " 36 frames</a>" : "") + "</p>" : "") +
         '<p><a class="btn btn-dark" href="../submit.html?challenge=1">Send your attempt</a></p>';
       var mine = of(c.month);
       $("lr-attempts-h").textContent = mine.length ? (mine.length === 1 ? "1 attempt so far" : mine.length + " attempts so far") : "No attempts yet. Yours could be the first.";
@@ -56,6 +58,7 @@
     if (started || !$("lr-current")) return;
     started = true;
     var data = {};
+    frames = $("lr-data").getAttribute("data-frames") !== "0";   // 36 frames can be offline (data-frames="0")
     try { data = JSON.parse($("lr-data").textContent); } catch (e) {}
     Promise.all([Club.call("/challenges"), Club.gallery().catch(function () { return null; })]).then(function (r) { fill(data, r[0], r[1]); }).catch(function (e) {
       if (e.status === 404) { $("lr-current").innerHTML = '<p class="muted">The Masters challenge starts soon.</p>'; $("lr-past").innerHTML = ""; return; }

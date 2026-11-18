@@ -95,3 +95,5 @@
 .lr-more .hb-chcard { grid-template-columns: minmax(0, 1fr); }   /* no number column: title above the text */
 .lr-more .hb-chlede { grid-column: 1; }
 .hb-text .lr-card a.btn-dark { color: var(--on-red); text-decoration: none; }   /* the page's link colour would hide the label */
+/* Masters pages without photos (while the club waits for permission): the notes take the full width. */
+.ms-work:not(:has(> .ms-photo)) { grid-template-columns: minmax(0, 1fr); }
