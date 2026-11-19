@@ -30,7 +30,7 @@
         (ex ? "<p>" + esc(ex[1]) + "</p>" : "") +
         (c.note ? '<p class="lr-note">' + esc(c.note) + "</p>" : "") +
         (m ? '<p class="lr-links"><a href="../masters/' + esc(c.slug) + '.html">How ' + esc(m.name) + " worked</a>" +
-          (frames ? '<a href="../frames/' + esc(c.slug) + '.html">' + (his === "her" ? "Her" : "His") + " 36 frames</a>" : "") + "</p>" : "") +
+          (frames && m.fr !== false ? '<a href="../frames/' + esc(c.slug) + '.html">' + (his === "her" ? "Her" : "His") + " 36 frames</a>" : "") + "</p>" : "") +
         '<p><a class="btn btn-dark" href="../submit.html?challenge=1">Send your attempt</a></p>';
       var mine = of(c.month);
       $("lr-attempts-h").textContent = mine.length ? (mine.length === 1 ? "1 attempt so far" : mine.length + " attempts so far") : "No attempts yet. Yours could be the first.";
