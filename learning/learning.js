@@ -29,7 +29,7 @@
       box.innerHTML = '<p class="hb-kicker">' + esc(monthName(c.month)) + "</p><h3>" + heading(data, c) + "</h3>" +
         (ex ? "<p>" + esc(ex[1]) + "</p>" : "") +
         (c.note ? '<p class="lr-note">' + esc(c.note) + "</p>" : "") +
-        (m ? '<p class="lr-links"><a href="../masters/' + esc(c.slug) + '.html">How ' + esc(m.name) + " worked</a>" +
+        (m && m.on !== false ? '<p class="lr-links"><a href="../masters/' + esc(c.slug) + '.html">How ' + esc(m.name) + " worked</a>" +
           (frames && m.fr !== false ? '<a href="../frames/' + esc(c.slug) + '.html">' + (his === "her" ? "Her" : "His") + " 36 frames</a>" : "") + "</p>" : "") +
         '<p><a class="btn btn-dark" href="../submit.html?challenge=1">Send your attempt</a></p>';
       var mine = of(c.month);
@@ -45,7 +45,7 @@
       var list = of(p.month);
       return '<section class="lr-past" id="mc-' + esc(p.month) + '"><h3><span class="hb-kicker">' + esc(monthName(p.month)) + "</span>" + heading(data, p) + "</h3>" +
         '<p class="muted">' + (list.length ? (list.length === 1 ? "1 attempt" : list.length + " attempts") : "No attempts") +
-        (data[p.slug] ? ' · <a href="../masters/' + esc(p.slug) + '.html#try">The exercise</a>' : "") + "</p>" +
+        (data[p.slug] && data[p.slug].on !== false ? ' · <a href="../masters/' + esc(p.slug) + '.html#try">The exercise</a>' : "") + "</p>" +
         (list.length ? '<ul class="lr-thumbs small">' + thumbs(g, list) + "</ul>" : "") + "</section>";
     }).join("") : '<p class="muted">The challenges of earlier months will be collected here, with everyone’s attempts.</p>';
     if (/^#mc-\d{4}-\d{2}$/.test(location.hash)) { var t = document.getElementById(location.hash.slice(1)); if (t) t.scrollIntoView(); }

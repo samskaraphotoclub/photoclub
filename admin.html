@@ -1452,6 +1452,7 @@
   }
   function mcShow() {   // the chosen month's challenge in the form
     var month = $("mc-month").value, c = mcList.filter(function (x) { return x.month === month; })[0];
+    if (c && master(c.slug) && !$("mc-who").querySelector('option[value="' + c.slug + '"]')) $("mc-who").insertAdjacentHTML("beforeend", '<option value="' + esc(c.slug) + '">' + esc(master(c.slug).name) + " (page offline)</option>");   // a challenge set before the page went offline
     if (c) { $("mc-who").value = c.slug; mcExercises(); $("mc-ex").value = String(c.ex); } else mcExercises();
     $("mc-note").value = c && c.note || "";
     $("mc-remove").hidden = !c;
@@ -1471,7 +1472,7 @@
     }).join("");
   }
   function loadChallenges() {
-    $("mc-who").innerHTML = MASTERS.map(function (m) { return '<option value="' + esc(m.slug) + '">' + esc(m.name) + "</option>"; }).join("");
+    $("mc-who").innerHTML = MASTERS.filter(function (m) { return m.on !== false; }).map(function (m) { return '<option value="' + esc(m.slug) + '">' + esc(m.name) + "</option>"; }).join("");   // only photographers whose Masters page is online
     if (!MASTERS.length) { $("mc-empty").textContent = "The list of Masters photographers didn't load. Reload the page."; return; }
     inbox("/admin/challenges").then(function (d) {
       mcList = d.challenges || []; mcNow = d.month;
