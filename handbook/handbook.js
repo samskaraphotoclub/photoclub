@@ -5,7 +5,7 @@
    this browser only (localStorage), like the light/dark choice. Needs config.js and club.js. */
 (function () {
   "use strict";
-  var EDITION = "BCpTC-aZiKKUhkb1SEaLGJLAG1zFE-zdQOVq4SeiASfsSrOyj9OVW0nzBa1PMEU-LxkAzIum6zrDUHxf4JJtjd0";        // this edition's public key, written by make_wiki.py
+  var EDITION = "BJFnWbNojCnZIJN9BraJrNujqMw9Ie3_c2U1iaF9wBtucvq0LF0hU7kSGMozfPJ4T7MCE2HLP3T_R2pyMvrXYwY";        // this edition's public key, written by make_wiki.py
   var $ = function (id) { return document.getElementById(id); };
   var main = $("main"), data = $("hb-data");
 
