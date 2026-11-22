@@ -97,3 +97,18 @@
 .hb-text .lr-card a.btn-dark { color: var(--on-red); text-decoration: none; }   /* the page's link colour would hide the label */
 /* Masters pages without photos (while the club waits for permission): the notes take the full width. */
 .ms-work:not(:has(> .ms-photo)) { grid-template-columns: minmax(0, 1fr); }
+/* the Learning page's handbook course, Why it works (22 Nov 2026) */
+.lr-course { list-style: none; margin: 16px 0 24px; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.lr-part { border: 1px solid var(--rule); border-radius: 12px; padding: 16px 18px; background: var(--sheet); }
+.lr-part.is-next { border-color: var(--red); box-shadow: inset 4px 0 0 var(--red); }
+.lr-part .hb-kicker { display: block; margin: 0 0 2px; }
+.lr-part h3 { margin: 0 0 8px; }
+.lr-part ul { margin: 0 0 10px; padding-left: 1.1em; font-size: .95rem; }
+.lr-progress { margin: 0; font-size: .88rem; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+.lr-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--rule); overflow: hidden; }
+.lr-bar span { display: block; height: 100%; background: var(--red); }
+.lr-why { margin: 16px 0 12px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
+.lr-why img { display: block; width: 100%; height: auto; border-radius: 8px; background: var(--sheet); }
+.lr-why h3 { margin: 0 0 8px; }
+.lr-why h3 small { font-weight: 400; color: var(--muted); font-size: .9rem; }
+@media (max-width: 720px) { .lr-why { grid-template-columns: minmax(0, 1fr); } }

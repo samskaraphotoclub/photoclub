@@ -1,11 +1,12 @@
 /* The Conscious Frame – the Photography Handbook pages, for members only.
    The pages, pictures and search text on the site are locked. A signed-in member's page asks the club's inbox
    for this edition's key (the inbox checks the invite code), keeps it for the browser tab, and opens the page
-   and its pictures here in the browser. Then: the contents list, search and exercise ticks. Ticks are kept in
-   this browser only (localStorage), like the light/dark choice. Needs config.js and club.js. */
+   and its pictures here in the browser. Then: the contents list, search, exercise ticks, each chapter's quiz,
+   members' attempts at each exercise (from the gallery) and the walk cards' print button. Ticks are kept in
+   this browser only (localStorage), like the light/dark choice; quiz answers aren't kept at all. Needs config.js and club.js. */
 (function () {
   "use strict";
-  var EDITION = "BJFnWbNojCnZIJN9BraJrNujqMw9Ie3_c2U1iaF9wBtucvq0LF0hU7kSGMozfPJ4T7MCE2HLP3T_R2pyMvrXYwY";        // this edition's public key, written by make_wiki.py
+  var EDITION = "BG4DdQL8xfTLHTzblqN9kp9cUEU15R5X5lmj09I5ZI-bZzJcvtEcigNlpDFAmPzESLsNaucxTDKYAu6dyNAdR54";        // this edition's public key, written by make_wiki.py
   var $ = function (id) { return document.getElementById(id); };
   var main = $("main"), data = $("hb-data");
 
@@ -126,6 +127,10 @@
       });
     });
 
+    quizzes();
+    attempts();
+    document.querySelectorAll(".hb-print").forEach(function (b) { b.addEventListener("click", function () { window.print(); }); });
+
     // search: the handbook's text is opened the first time someone types
     var form = document.querySelector(".hb-search");
     if (!form) return;
@@ -190,6 +195,65 @@
     document.addEventListener("click", function (e) { if (!form.contains(e.target)) out.hidden = true; });
     // following a result to another part of the same page: close the list
     out.addEventListener("click", function () { out.hidden = true; });
+  }
+
+  /* ---------- each chapter's quiz: tap an answer to see whether it's right ---------- */
+  function quizzes() {
+    document.querySelectorAll(".hb-quiz").forEach(function (quiz) {
+      var qs = quiz.querySelectorAll(".hb-q"), score = quiz.querySelector(".hb-qscore"), right = 0, answered = 0;
+      qs.forEach(function (q) {
+        var answer = +q.getAttribute("data-answer"), opts = q.querySelectorAll(".hb-qopt"), why = q.querySelector(".hb-qwhy");
+        opts.forEach(function (b, i) {
+          b.addEventListener("click", function () {
+            if (q.classList.contains("is-answered")) return;
+            q.classList.add("is-answered");
+            var ok = i === answer;
+            b.classList.add(ok ? "is-right" : "is-wrong");
+            opts[answer].classList.add("is-right");
+            opts.forEach(function (x) { x.setAttribute("aria-disabled", "true"); });
+            b.setAttribute("aria-pressed", "true");
+            if (why) { why.hidden = false; why.insertAdjacentHTML("afterbegin", "<b>" + (ok ? "Right." : "Not quite.") + "</b> "); }
+            answered++; if (ok) right++;
+            if (score && answered === qs.length) {
+              score.hidden = false;
+              score.textContent = "You got " + right + " of " + qs.length + "." + (right === qs.length ? " Well done." : " Read the chapter again and have another go any time.");
+              if (right < qs.length) score.insertAdjacentHTML("beforeend", ' <button class="linkish hb-qagain" type="button">Try again</button>');
+            }
+          });
+        });
+      });
+      quiz.addEventListener("click", function (e) {
+        if (!e.target.closest(".hb-qagain")) return;
+        qs.forEach(function (q) {
+          q.classList.remove("is-answered");
+          q.querySelectorAll(".hb-qopt").forEach(function (x) { x.classList.remove("is-right", "is-wrong"); x.removeAttribute("aria-disabled"); x.removeAttribute("aria-pressed"); });
+          var why = q.querySelector(".hb-qwhy"); if (why) { why.hidden = true; var b = why.querySelector("b"); if (b) b.remove(); }
+        });
+        right = 0; answered = 0; score.hidden = true; score.textContent = "";
+        qs[0].scrollIntoView({ block: "center" });
+      });
+    });
+  }
+
+  /* ---------- members' attempts at each exercise: gallery photos tagged with its label ---------- */
+  function attempts() {
+    var rows = document.querySelectorAll('.hb-ex[id^="ex-"]');
+    if (!rows.length || !window.Club) return;
+    function esc(s) { return Club.esc(s); }
+    Club.gallery().then(function (g) {
+      rows.forEach(function (row) {
+        var label = row.id.slice(3), box = row.querySelector("div");
+        if (!box || box.querySelector(".hb-attempts")) return;
+        var list = g.photos.filter(function (p) { return p.hx === label; });
+        box.insertAdjacentHTML("beforeend", '<div class="hb-attempts">' +
+          (list.length ? '<p class="hb-attempts-h">' + (list.length === 1 ? "1 member’s attempt" : list.length + " members’ attempts") + "</p>" +
+            '<ul class="hb-athumbs">' + list.slice(0, 6).map(function (p) {
+              return '<li><a href="../gallery.html#p-' + esc(p.id) + '" title="' + esc(p.title + " by " + p.by) + '"><img src="' + esc(Club.photoUrl(g, p, "thumb")) + '" alt="' + esc(p.title) + '" loading="lazy"></a></li>';
+            }).join("") + "</ul>" : "") +
+          '<p class="hb-attempts-go"><a href="../submit.html?hx=' + encodeURIComponent(label) + '">Share your attempt</a>' +
+          (list.length > 6 ? ' · <a href="../gallery.html#handbook-exercises">See them all in the gallery</a>' : "") + "</p></div>");
+      });
+    }).catch(function () { /* the gallery couldn't load: the exercises still work */ });
   }
 
   start();

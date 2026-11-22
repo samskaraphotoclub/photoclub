@@ -57,6 +57,14 @@ const HEARTS = "hearts";               // each photo's number of hearts { totals
 const HEARTERS = "hearters";           // { codes }: the invite codes with hearts in h:CODE, so counting needs no list request
 // h:CODE = { photoId: "YYYY-MM-DD" }: the photos a member gave a heart, and on which day (one heart per photo, ever)
 const CHALLENGES = "challenges";       // the monthly Masters challenge, chosen by an admin: [{ month, slug, ex, note }], newest first
+// Learning (22 Nov 2026): a photo can be an attempt at a handbook exercise (hx), ask for feedback (fb: "ask"),
+// and come with the photo before it was edited (pimg:ID:before) and a note on what was changed (chg).
+const HB_EX = /^(?:[A-Z][1-4]|[1-9]|1\d|2[0-4])$/;   // the handbook's exercise labels: 1–24 (composition), then a letter and 1–4
+const MAX_CHANGED = 500;               // characters, "what I changed" for a before-and-after pair
+const FEEDBACK = "feedback-queue";     // feedback in three parts, waiting for an admin: [{ fid, photo, code, uid, name, w, b, q, at }]
+const MAX_FEEDBACK_PART = 400;         // characters in each part
+const MAX_FEEDBACK_QUEUE = 200, MAX_FEEDBACK_WAITING = 10;   // in all, and from one member
+const PICKS = "picks";                 // Why it works: one member's photo a month with an admin's note: [{ month, id, note, ch }], newest first
 const FILES = "files";                 // the club's downloads, newest first; each file is in file:ID, its preview in fthumb:ID
 const FILE_KINDS = ["Poster", "Cheat sheet", "Guide", "Form", "Other"];
 const MAX_FILE = 20 * 1024 * 1024;     // bytes, one download (Cloudflare keeps up to 25 MB in one item)
@@ -130,7 +138,7 @@ async function route(request, env) {
   if (parts[0] === "exhibition" && method === "GET") return exhibition(env);
   if (parts[0] === "archive" && method === "GET") return archive(request, env);
   if (parts[0] === "report" && method === "POST") return report(request, env);
-  if (parts[0] === "img" && method === "GET" && parts[1] && (parts[2] === "full" || parts[2] === "thumb")) return servePhoto(url, env, parts[1], parts[2]);
+  if (parts[0] === "img" && method === "GET" && parts[1] && (parts[2] === "full" || parts[2] === "thumb" || parts[2] === "before")) return servePhoto(url, env, parts[1], parts[2]);
   if (parts[0] === "photo" && method === "GET" && parts[1]) return photoInfo(request, env, parts[1]);
   if (parts[0] === "photo" && method === "POST" && parts[1] && parts[2] === "details") return editOwnPhoto(request, env, parts[1]);
   if (parts[0] === "files" && method === "GET" && !parts[1]) return listFiles(request, env);
@@ -138,6 +146,7 @@ async function route(request, env) {
   if (parts[0] === "handbook-key" && method === "GET" && !parts[1]) return handbookKey(url, request, env);
   if (parts[0] === "vote" && method === "POST") return vote(request, env);
   if (parts[0] === "comment" && method === "POST" && !parts[1]) return addComment(request, env);
+  if (parts[0] === "feedback" && method === "POST" && !parts[1]) return addFeedback(request, env);
   if (parts[0] === "comment" && method === "POST" && parts[1] === "delete") {
     const m = await member(request, env);
     const body = await request.json().catch(() => ({}));
@@ -149,7 +158,7 @@ async function route(request, env) {
     const [, what, a, b] = parts;
     if (what === "ping" && method === "GET") return json({ ok: true });
     if (what === "pending" && method === "GET") return pending(env);
-    if (what === "photo" && method === "GET" && a && (b === "full" || b === "thumb")) return photo(env, a, b);
+    if (what === "photo" && method === "GET" && a && (b === "full" || b === "thumb" || b === "before")) return photo(env, a, b);
     if (what === "decide" && method === "POST" && a) return decide(request, env, a);
     if (what === "post" && method === "POST") return post(request, env);
     if (what === "gallery" && method === "POST" && a) return editPhoto(request, env, a);
@@ -171,6 +180,10 @@ async function route(request, env) {
     if (what === "members" && method === "POST" && a && b === "delete-all") return deleteEverything(env, a);
     if (what === "challenges" && method === "GET" && !a) return adminChallenges(env);
     if (what === "challenge" && method === "POST" && a) return saveChallenge(request, env, a);
+    if (what === "picks" && method === "GET" && !a) return adminPicks(env);
+    if (what === "pick" && method === "POST" && a) return savePick(request, env, a);
+    if (what === "feedback" && method === "GET" && !a) return adminFeedback(env);
+    if (what === "feedback" && method === "POST" && a) return decideFeedback(request, env, a);
     if (what === "events" && method === "POST" && !a) return saveEvent(request, env);
     if (what === "events" && method === "DELETE" && a) return deleteEvent(env, a);
     if (what === "files" && method === "POST" && !a) return addFile(request, env);
@@ -601,13 +614,32 @@ async function photoFields(form) {
     w: int("w"), h: int("h"), tw: int("tw"), th: int("th"),
   };
   setCats(p, categories(form.getAll("cat")));
+  const hx = exerciseLabel(form.get("hx"));
+  if (hx) p.hx = hx;
   const full = form.get("full"), thumb = form.get("thumb");
   const fullBytes = await image(full, MAX_FULL, "photo");
   const thumbBytes = await image(thumb, MAX_THUMB, "thumbnail");
   if (thumb.type !== full.type) throw fail(400, "The photo and thumbnail must be the same format.");
   p.ext = full.type === "image/webp" ? "webp" : "jpg";
-  return { p, files: { full: fullBytes, thumb: thumbBytes, type: full.type } };
+  const files = { full: fullBytes, thumb: thumbBytes, type: full.type };
+  const before = form.get("before");          // the photo before it was edited (optional)
+  if (before && typeof before !== "string" && before.size) {
+    files.before = await image(before, MAX_FULL, "photo from before editing");
+    files.beforeType = before.type;
+    p.bef = true;
+    const chg = clean(form.get("chg"), MAX_CHANGED, "note on what you changed");
+    if (chg) p.chg = chg;
+  }
+  return { p, files };
 }
+
+// A handbook exercise's label (B2, 14), or "" for none
+function exerciseLabel(v) {
+  v = String(v == null ? "" : v).trim().toUpperCase();
+  if (v && !HB_EX.test(v)) throw fail(400, "Unknown handbook exercise.");
+  return v;
+}
+function feedbackChoice(v) { return v === "share" ? "share" : v === "ask" ? "ask" : ""; }
 
 async function submit(request, env) {
   const m = await member(request, env);
@@ -615,7 +647,7 @@ async function submit(request, env) {
   const { p, files } = await photoFields(form);
   setSeries(p, await checkSeries(env, form.getAll("series"), true));
   if (form.get("pubOk") === "1") p.pubOk = true;     // the member agrees the photo may go in the public exhibition
-  if (form.get("fb") === "share") p.fb = "share";    // "Just sharing": no critique wanted
+  if (feedbackChoice(form.get("fb"))) p.fb = feedbackChoice(form.get("fb"));   // "share": just sharing, no critique; "ask": asks for feedback
   if (form.get("entry") === "1") {                    // an entry for the monthly theme
     const t = await entryTheme(env, Date.now());
     if (!t) throw fail(400, "There's no monthly theme to enter at the moment. Untick the theme box and send it again.");
@@ -623,10 +655,10 @@ async function submit(request, env) {
   }
   if (form.get("challenge") === "1") {                // an attempt at this month's Masters challenge
     const c = currentChallenge(await challengeList(env), env, Date.now());
-    if (!c) throw fail(400, "There's no Masters challenge this month. Untick the challenge box and send it again.");
+    if (!c || !c.slug) throw fail(400, "There's no Masters challenge this month. Untick the challenge box and send it again.");
     p.mc = c.month;
   }
-  p.kb = Math.round((files.full.byteLength + files.thumb.byteLength) / 1024);
+  p.kb = Math.round((files.full.byteLength + files.thumb.byteLength + (files.before ? files.before.byteLength : 0)) / 1024);
   const fullBytes = files.full, thumbBytes = files.thumb, ext = p.ext;
   const full = { type: files.type }, thumb = { type: files.type };
 
@@ -642,6 +674,7 @@ async function submit(request, env) {
   const meta = { sid, code: m.code, uid: m.id, name: m.name, ...p, ext, sent: now };
   await env.INBOX.put("img:" + sid + ":full", fullBytes, { metadata: { type: full.type } });
   await env.INBOX.put("img:" + sid + ":thumb", thumbBytes, { metadata: { type: thumb.type } });
+  if (files.before) await env.INBOX.put("img:" + sid + ":before", files.before, { metadata: { type: files.beforeType } });
   await env.INBOX.put("sub:" + sid, JSON.stringify(meta), { metadata: { code: m.code, sent: now } });
   own.unshift({ sid, title: p.title, status: "waiting", sent: now });
   await env.INBOX.put("own:" + m.code, JSON.stringify(own.slice(0, HISTORY)));
@@ -672,6 +705,8 @@ async function photoInfo(request, env, rawId) {
     const [recs, owner] = await Promise.all([Promise.all(who.codes.map((c) => env.INBOX.get("h:" + c, "json"))), env.INBOX.get("owner:" + id)]);
     const day = recs.map((r) => r && r[id]).find(Boolean) || null;    // the day this member gave it a heart
     Object.assign(out, { member: who.name, voted: !!day, day, canUndo: !!day && day === clubDate(Date.now(), env), own: !!owner && who.codes.includes(owner) });
+    const queue = (await env.INBOX.get(FEEDBACK, "json")) || [];        // this member's feedback on it, waiting for an admin
+    out.waiting = queue.filter((f) => f.photo === id && who.codes.includes(f.code)).length;
     out.comments = comments.map((c) => publicComment(c, who.codes, index));
     if (comments.length) {   // which comments this member has already reported
       const reports = (await env.INBOX.get(REPORTS, "json")) || [];
@@ -701,13 +736,14 @@ async function gallery(request, env) {
   const who = await viewer(request, env);
   const now = Date.now();
   const index = await memberIndex(env);                // (the first time after the update, this gives photos their photographer's ID)
-  const [list, potw, token, top, series, archived, people] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastMonthsTop(env, now),
-    seriesRaw(env), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE, "json")]);
+  const [list, potw, token, top, series, archived, people, picks] = await Promise.all([env.INBOX.get(GALLERY), env.INBOX.get(POTW), photoToken(env, now), lastMonthsTop(env, now),
+    seriesRaw(env), env.INBOX.get(ARCHIVE, "json"), env.INBOX.get(PEOPLE, "json"), env.INBOX.get(PICKS, "json")]);
   const themes = (archived || []).filter((m) => m.month && m.theme && !m.hidden).map((m) => ({ month: m.month, title: m.theme.title }));   // newest first
   const cur = monthId(now, env), entry = [nextMonth(cur), cur, previousMonth(cur)].map((mo) => themes.find((t) => t.month === mo)).filter(Boolean)[0] || null;
   // monthStart: for the "This month" filter (older pages call it weekStart); votes: each photo's number of hearts
   const head = { name: who.name, admin: !!who.admin, today: clubDate(now, env), monthStart: cur + "-01", weekStart: cur + "-01", month: cur,
-                 perDay: heartsPerDay(env), token, top, themes, entry, votes: await heartCounts(env) };
+                 perDay: heartsPerDay(env), token, top, themes, entry, votes: await heartCounts(env),
+                 picks: (picks || []).filter((x) => x.month <= cur) };   // Why it works, up to this month (later ones stay hidden)
   // the list is sent on exactly as stored, without reading it through, which keeps the Worker quick.
   // people: each photographer's line and picture by their current name; was: earlier names, so old links to their page still work
   const byName = {}, was = {};
@@ -872,10 +908,19 @@ async function saveSeries(request, env) {
 // the photo then carries mc, the challenge's month. Next month's choice stays hidden from members until it starts.
 async function challengeList(env) { return (await env.INBOX.get(CHALLENGES, "json")) || []; }
 function currentChallenge(list, env, now) { const month = monthId(now, env); return list.find((c) => c.month === month) || null; }
+// A month's challenge: a Masters photographer's exercise (slug, ex), a handbook exercise of the month (hx), or both
 function challengeFields(b) {
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(b.month || "")) ? String(b.month) : "", ex = parseInt(b.ex, 10);
-  if (!month || !/^[a-z0-9][a-z0-9-]{0,49}$/.test(String(b.slug || "")) || !(ex >= 1 && ex <= 5)) return null;
-  const c = { month, slug: String(b.slug), ex }, note = clean(b.note, 300, "note");
+  const hx = HB_EX.test(String(b.hx || "").toUpperCase()) ? String(b.hx).toUpperCase() : "";
+  if (!month) return null;
+  const c = { month };
+  if (b.slug) {
+    if (!/^[a-z0-9][a-z0-9-]{0,49}$/.test(String(b.slug)) || !(ex >= 1 && ex <= 5)) return null;
+    c.slug = String(b.slug); c.ex = ex;
+  }
+  if (hx) c.hx = hx;
+  if (!c.slug && !c.hx) return null;
+  const note = clean(b.note, 300, "note");
   if (note) c.note = note;
   return c;
 }
@@ -891,15 +936,121 @@ async function saveChallenge(request, env, raw) {
   if (month < now) throw fail(400, "A month that's over keeps its challenge. Choose this month or a later one.");
   const body = await request.json().catch(() => ({}));
   const list = await challengeList(env), i = list.findIndex((c) => c.month === month);
-  if (!body.slug) { if (i >= 0) list.splice(i, 1); }
+  if (!body.slug && !body.hx) { if (i >= 0) list.splice(i, 1); }
   else {
-    const c = challengeFields({ month, slug: body.slug, ex: body.ex, note: body.note });
+    if (body.hx && !HB_EX.test(String(body.hx).toUpperCase())) throw fail(400, "Unknown handbook exercise.");
+    const c = challengeFields({ month, slug: body.slug, ex: body.ex, note: body.note, hx: body.hx });
     if (!c) throw fail(400, "Choose a photographer and one of their five exercises.");
     if (i >= 0) list[i] = c; else list.push(c);
   }
   list.sort((a, b) => b.month.localeCompare(a.month));
   await env.INBOX.put(CHALLENGES, JSON.stringify(list.slice(0, 240)));
   return json({ ok: true, month: now, challenges: list });
+}
+
+/* ------------------------------------------------------------------ Why it works */
+// Each month an admin can pick one photo from the gallery and say in a few sentences why it works, with a handbook chapter
+// to read. Members see the months up to this one (in the gallery's reply); picks for later months stay hidden until then.
+function pickFields(b) {
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(b.month || "")) ? String(b.month) : "";
+  const id = b.id ? photoId(b.id) : "", note = clean(b.note, 800, "note"), ch = String(b.ch || "");
+  if (!month || !id || note.length < 20) return null;
+  const x = { month, id, note };
+  if (/^[a-z0-9][a-z0-9-]{0,59}$/.test(ch)) x.ch = ch;
+  return x;
+}
+async function adminPicks(env) { return json({ month: monthId(Date.now(), env), picks: (await env.INBOX.get(PICKS, "json")) || [] }); }
+async function savePick(request, env, raw) {
+  const month = checkMonth(raw);
+  if (!month) throw fail(400, "Unknown month.");
+  const body = await request.json().catch(() => ({}));
+  const list = (await env.INBOX.get(PICKS, "json")) || [], i = list.findIndex((x) => x.month === month);
+  if (!body.id) { if (i >= 0) list.splice(i, 1); }
+  else {
+    const gallery = (await env.INBOX.get(GALLERY, "json")) || [];
+    if (!gallery.some((p) => p.id === photoId(body.id))) throw fail(404, "That photo isn't in the gallery.");
+    const x = pickFields({ month, id: body.id, note: body.note, ch: body.ch });
+    if (!x) throw fail(400, "Write a few sentences about why the photo works (at least 20 characters).");
+    if (i >= 0) list[i] = x; else list.push(x);
+  }
+  list.sort((a, b) => b.month.localeCompare(a.month));
+  await env.INBOX.put(PICKS, JSON.stringify(list.slice(0, 120)));
+  return json({ ok: true, month: monthId(Date.now(), env), picks: list });
+}
+async function dropPicks(env, test) {
+  const list = (await env.INBOX.get(PICKS, "json")) || [], rest = list.filter((x) => !test(x));
+  if (rest.length !== list.length) await env.INBOX.put(PICKS, JSON.stringify(rest));
+}
+
+/* ------------------------------------------------------------------ feedback in three parts */
+// On a photo whose photographer welcomes or asks for feedback, a member can say what works, what could be stronger and
+// ask a question. It waits for an admin, who adds it to the photo's comments (or leaves it out), so the tone stays kind.
+async function addFeedback(request, env) {
+  const m = await member(request, env);
+  const body = await request.json().catch(() => ({}));
+  const id = photoId(body.photo);
+  const part = (k) => String(body[k] == null ? "" : body[k]).replace(BIDI, "").replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  const w = part("w"), b = part("b"), q = part("q");
+  for (const x of [w, b, q]) if (x.length > MAX_FEEDBACK_PART) throw fail(400, "Each part can be up to " + MAX_FEEDBACK_PART + " characters.");
+  if (!w) throw fail(400, "Start with what works in the photo.");
+  if (!b && !q) throw fail(400, "Add what could be stronger, or a question for the photographer.");
+  const [list, owner] = await Promise.all([env.INBOX.get(GALLERY, "json").then((x) => x || []), env.INBOX.get("owner:" + id)]);
+  const p = list.find((x) => x.id === id);
+  if (!p) throw fail(404, "This photo isn't in the gallery any more.");
+  if ((owner && m.codes.includes(owner)) || (p.uid && p.uid === m.id)) throw fail(400, "This is your own photo. Ask other members for their feedback.");
+  if (p.fb === "share") throw fail(400, "The photographer is just sharing this one, without critique. A kind comment is welcome.");
+  const quota = "cq:" + clubDate(Date.now(), env) + ":" + m.code;
+  const today = parseInt((await env.INBOX.get(quota)) || "0", 10);
+  if (today >= COMMENTS_PER_DAY) throw fail(429, "You've posted " + COMMENTS_PER_DAY + " comments today, which is the club's daily limit. Try again tomorrow.");
+  const queue = (await env.INBOX.get(FEEDBACK, "json")) || [];
+  if (queue.filter((f) => m.codes.includes(f.code)).length >= MAX_FEEDBACK_WAITING) throw fail(429, "You have " + MAX_FEEDBACK_WAITING + " pieces of feedback waiting for an admin. Try again once they've been checked.");
+  if (queue.length >= MAX_FEEDBACK_QUEUE) throw fail(429, "A lot of feedback is waiting for the admins. Try again in a day or two.");
+  const f = { fid: Date.now().toString(36) + "-" + randomString(4).toLowerCase(), photo: id, code: m.code, uid: m.id, name: m.name, w, b, q, at: Date.now() };
+  queue.push(f);
+  await env.INBOX.put(FEEDBACK, JSON.stringify(queue));
+  await env.INBOX.put(quota, String(today + 1), { expirationTtl: 2 * 86400 });
+  return json({ ok: true, fid: f.fid });
+}
+function feedbackText(f) {
+  return [["What works", f.w], ["What could be stronger", f.b], ["A question", f.q]].filter((x) => x[1]).map((x) => x[0] + ": " + x[1]).join("\n\n");
+}
+async function adminFeedback(env) {
+  const [queue, index, list] = await Promise.all([env.INBOX.get(FEEDBACK, "json"), memberIndex(env), env.INBOX.get(GALLERY, "json")]);
+  const byId = new Map((list || []).map((p) => [p.id, p]));
+  return json({ feedback: (queue || []).map((f) => {
+    const p = byId.get(f.photo);
+    return { fid: f.fid, photo: f.photo, title: p ? p.title : "", by: p ? p.by : "", name: nameIn(index, f), w: f.w, b: f.b, q: f.q, at: f.at };   // codes stay in the inbox
+  }) });
+}
+// ok: true adds it to the photo's comments; ok: false leaves it out
+async function decideFeedback(request, env, fid) {
+  const body = await request.json().catch(() => ({}));
+  const queue = (await env.INBOX.get(FEEDBACK, "json")) || [], i = queue.findIndex((f) => f.fid === fid);
+  if (i < 0) return json({ ok: true, already: true });           // dealt with on another device a moment ago
+  const f = queue[i];
+  if (body.ok === true) {
+    const list = (await env.INBOX.get("c:" + f.photo, "json")) || [];
+    if (list.length >= MAX_COMMENTS_PER_PHOTO) throw fail(409, "This photo has reached the comment limit.");
+    const index = await memberIndex(env);
+    const c = { cid: f.fid, code: f.code, uid: f.uid, name: nameIn(index, f), text: feedbackText(f), fb: { w: f.w, b: f.b, q: f.q }, at: Date.now() };
+    for (const k of ["b", "q"]) if (!c.fb[k]) delete c.fb[k];
+    if (!list.some((x) => x.cid === c.cid)) {
+      list.push(c);
+      await env.INBOX.put("c:" + f.photo, JSON.stringify(list));
+      try {
+        const recent = (await env.INBOX.get("recent-comments", "json")) || [];
+        recent.unshift({ photo: f.photo, cid: c.cid, uid: c.uid, name: c.name, text: cut(c.text, 300), at: c.at });
+        await env.INBOX.put("recent-comments", JSON.stringify(recent.slice(0, RECENT_COMMENTS)));
+      } catch { /* the admin list is a convenience */ }
+    }
+  } else if (body.ok !== false) throw fail(400, "Choose whether to add it or leave it out.");
+  const fresh = (await env.INBOX.get(FEEDBACK, "json")) || [];
+  await env.INBOX.put(FEEDBACK, JSON.stringify(fresh.filter((x) => x.fid !== fid)));
+  return json({ ok: true });
+}
+async function dropFeedback(env, test) {
+  const queue = (await env.INBOX.get(FEEDBACK, "json")) || [], rest = queue.filter((f) => !test(f));
+  if (rest.length !== queue.length) await env.INBOX.put(FEEDBACK, JSON.stringify(rest));
 }
 
 /* ------------------------------------------------------------------ the theme archive */
@@ -1042,13 +1193,15 @@ async function addToGallery(env, p, files) {
   const now = Date.now();
   const entry = { id, title: p.title, by: p.by, uid: ID_RE.test(p.uid || "") ? p.uid : "", cat: p.cat, cats: p.cats, desc: p.desc, lens: p.lens, ap: p.ap, sh: p.sh, iso: p.iso,
                   ext: p.ext, w: p.w, h: p.h, tw: p.tw, th: p.th, added: p.added == null ? clubDate(now, env) : p.added, at: now, v: now.toString(36),
-                  series: p.series, pubOk: !!p.pubOk, pub: !!(p.pub && p.pubOk), theme: p.theme, mc: p.mc, fb: p.fb === "share" ? "share" : "",
-                  kb: Math.round((files.full.byteLength + files.thumb.byteLength) / 1024) };
+                  series: p.series, pubOk: !!p.pubOk, pub: !!(p.pub && p.pubOk), theme: p.theme, mc: p.mc, fb: feedbackChoice(p.fb), hx: p.hx,
+                  bef: !!files.before, chg: files.before ? p.chg : "",
+                  kb: Math.round((files.full.byteLength + files.thumb.byteLength + (files.before ? files.before.byteLength : 0)) / 1024) };
   if (p.sub) entry.sub = p.sub;
-  for (const k of ["uid", "desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "mc", "fb", "cats"]) if (!entry[k]) delete entry[k];
+  for (const k of ["uid", "desc", "lens", "ap", "sh", "iso", "series", "pubOk", "pub", "theme", "mc", "fb", "hx", "bef", "chg", "cats"]) if (!entry[k]) delete entry[k];
   if (Array.isArray(entry.series) && !entry.series.length) delete entry.series;
   await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
   await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
+  if (files.before) await env.INBOX.put("pimg:" + id + ":before", files.before, { metadata: { type: files.beforeType || files.type } });
   list.unshift(entry);
   await env.INBOX.put(GALLERY, JSON.stringify(list));
   return entry;
@@ -1176,6 +1329,7 @@ async function standings(url, env) {
 
 function publicComment(c, codes, index) {
   const out = { cid: c.cid, name: index ? nameIn(index, c) : c.name, text: c.text, at: c.at };   // member codes are never shown
+  if (c.fb) out.fb = c.fb;                       // feedback in three parts: { w: what works, b: what could be stronger, q: a question }
   if (codes && codes.includes(c.code)) out.mine = true;
   return out;
 }
@@ -1226,11 +1380,14 @@ async function decide(request, env, sid) {
                 desc: clean(body.desc == null ? meta.desc : body.desc, 400, "description"),
                 series: body.series == null ? meta.series : await checkSeries(env, body.series),   // a list now; [] is no series
                 pubOk: !!(meta.pubOk || body.pubOk === true), pub: body.pub === true,
-                theme: body.theme == null ? meta.theme : checkMonth(body.theme), mc: body.mc == null ? meta.mc : checkMonth(body.mc), fb: body.fb == null ? meta.fb : body.fb === "share" ? "share" : "" };
+                theme: body.theme == null ? meta.theme : checkMonth(body.theme), mc: body.mc == null ? meta.mc : checkMonth(body.mc), fb: body.fb == null ? meta.fb : feedbackChoice(body.fb),
+                hx: body.hx == null ? meta.hx : exerciseLabel(body.hx) };
     if (p.pub && !p.pubOk) throw fail(409, "Only photos the photographer has agreed to can go in the public exhibition. Ask " + meta.name + " first.");
-    const [full, thumb] = await Promise.all(["full", "thumb"].map((s) => env.INBOX.getWithMetadata("img:" + sid + ":" + s, "arrayBuffer")));
+    const [full, thumb, before] = await Promise.all(["full", "thumb", "before"].map((s) => meta.bef || s !== "before" ? env.INBOX.getWithMetadata("img:" + sid + ":" + s, "arrayBuffer") : { value: null }));
     if (!full.value || !thumb.value) throw fail(409, "This photo's files are missing from the inbox. Decline it and ask the member to send it again.");
-    const entry = await addToGallery(env, p, { full: full.value, thumb: thumb.value, type: (full.metadata && full.metadata.type) || "image/jpeg" });
+    const files = { full: full.value, thumb: thumb.value, type: (full.metadata && full.metadata.type) || "image/jpeg" };
+    if (before.value && body.dropBefore !== true) { files.before = before.value; files.beforeType = (before.metadata && before.metadata.type) || files.type; }   // the admin can leave the before photo out
+    const entry = await addToGallery(env, p, files);
     update.galleryId = entry.id;
   }
   if (decision === "declined" && body.note) update.note = cut(String(body.note).trim(), 300);
@@ -1241,7 +1398,7 @@ async function decide(request, env, sid) {
   else own.unshift({ sid, title: meta.title, sent: meta.sent, ...update });
   await env.INBOX.put("own:" + code, JSON.stringify(own.slice(0, HISTORY)));
   if (update.galleryId) await env.INBOX.put("owner:" + update.galleryId, code);   // so members can't vote for their own photo
-  await Promise.all(["sub:" + sid, "img:" + sid + ":full", "img:" + sid + ":thumb"].map((k) => env.INBOX.delete(k)));
+  await Promise.all(["sub:" + sid, "img:" + sid + ":full", "img:" + sid + ":thumb"].concat(meta.bef ? ["img:" + sid + ":before"] : []).map((k) => env.INBOX.delete(k)));
   return json({ ok: true, id: update.galleryId });
 }
 
@@ -1287,7 +1444,8 @@ async function editPhoto(request, env, rawId) {
   if (body.series != null) setSeries(x, await checkSeries(env, body.series));
   if (body.theme != null) { x.theme = checkMonth(body.theme); if (!x.theme) delete x.theme; }
   if (body.mc != null) { x.mc = checkMonth(body.mc); if (!x.mc) delete x.mc; }
-  if (body.fb != null) { if (body.fb === "share") x.fb = "share"; else delete x.fb; }
+  if (body.fb != null) { if (feedbackChoice(body.fb)) x.fb = feedbackChoice(body.fb); else delete x.fb; }
+  if (body.dropBefore === true && x.bef) { await env.INBOX.delete("pimg:" + id + ":before"); delete x.bef; delete x.chg; }
   if (body.pubOk === true) x.pubOk = true;          // the admin has asked the photographer
   if (body.pub === true) {
     if (!x.pubOk) throw fail(409, "Only photos the photographer has agreed to can go in the public exhibition. Ask " + x.by + " first.");
@@ -1298,13 +1456,15 @@ async function editPhoto(request, env, rawId) {
   return json({ ok: true, photo: x });
 }
 
-// The description and camera settings: given ones are changed, empty ones removed, missing ones kept
+// The description and camera settings: given ones are changed, empty ones removed, missing ones kept.
+// Also the handbook exercise it attempts and, with a before photo, the note on what was changed.
 function photoDetails(x, body) {
-  for (const [k, max, label] of [["desc", 400, "description"], ["lens", 30, "lens"], ["ap", 30, "aperture"], ["sh", 30, "shutter speed"], ["iso", 30, "ISO"]]) {
-    if (body[k] == null) continue;
+  for (const [k, max, label] of [["desc", 400, "description"], ["lens", 30, "lens"], ["ap", 30, "aperture"], ["sh", 30, "shutter speed"], ["iso", 30, "ISO"], ["chg", MAX_CHANGED, "note on what you changed"]]) {
+    if (body[k] == null || (k === "chg" && !x.bef)) continue;
     const v = clean(body[k], max, label);
     if (v) x[k] = v; else delete x[k];
   }
+  if (body.hx != null) { const hx = exerciseLabel(body.hx); if (hx) x.hx = hx; else delete x.hx; }
 }
 // The photographer corrects their own photo's description and camera settings. The photo keeps its name,
 // so its hearts, comments and place in the gallery stay as they are.
@@ -1317,10 +1477,11 @@ async function editOwnPhoto(request, env, rawId) {
   if (!x) throw fail(404, "This photo isn't in the gallery any more.");
   const body = await request.json().catch(() => ({}));
   photoDetails(x, body);
+  if (body.fb != null) { if (feedbackChoice(body.fb)) x.fb = feedbackChoice(body.fb); else delete x.fb; }   // e.g. asking for feedback after all
   x.edited = Date.now();
   await env.INBOX.put(GALLERY, JSON.stringify(list));
   const out = { id };
-  for (const k of ["desc", "lens", "ap", "sh", "iso"]) out[k] = x[k] || "";
+  for (const k of ["desc", "lens", "ap", "sh", "iso", "hx", "chg", "fb"]) out[k] = x[k] || "";
   return json({ ok: true, photo: out });
 }
 
@@ -1335,8 +1496,10 @@ async function deletePhoto(env, rawId) {
     potw.items = potw.items.filter((x) => x.id !== id);
     await env.INBOX.put(POTW, JSON.stringify(potw));
   }
-  await Promise.all(["pimg:" + id + ":full", "pimg:" + id + ":thumb", "owner:" + id, "c:" + id].map((k) => env.INBOX.delete(k)));
+  await Promise.all(["pimg:" + id + ":full", "pimg:" + id + ":thumb", "pimg:" + id + ":before", "owner:" + id, "c:" + id].map((k) => env.INBOX.delete(k)));
   await dropReports(env, (r) => r.photo === id);
+  await dropFeedback(env, (f) => f.photo === id);
+  await dropPicks(env, (x) => x.id === id);
   return json({ ok: true });
 }
 
@@ -1527,6 +1690,19 @@ async function restoreRecords(request, env) {
         .map((s) => ({ id: s.id, name: clean(s.name, 60, "series name", true), desc: clean(s.desc, 300, "series description"), open: s.open !== false }));
       await env.INBOX.put(SERIES, JSON.stringify(list));
       added++;
+    } else if (key === PICKS) {
+      if (!Array.isArray(v)) throw fail(400, "The backup's Why it works picks can't be read.");
+      const list = (await env.INBOX.get(PICKS, "json")) || [], have = new Set(list.map((x) => x.month));
+      let n = 0;
+      for (const b of v.slice(0, 120)) {
+        const x = b && pickFields(b);
+        if (!x || have.has(x.month)) continue;
+        list.push(x); have.add(x.month); n++;
+      }
+      if (!n) { skipped++; continue; }
+      list.sort((a, b) => b.month.localeCompare(a.month));
+      await env.INBOX.put(PICKS, JSON.stringify(list.slice(0, 120)));
+      merged++;
     } else if (key === CHALLENGES) {
       if (!Array.isArray(v)) throw fail(400, "The backup's Masters challenges can't be read.");
       const list = await challengeList(env), have = new Set(list.map((c) => c.month));
@@ -1594,11 +1770,14 @@ async function restorePhoto(request, env) {
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(theme)) entry.theme = theme;
   const mc = String(form.get("mc") || "");
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(mc)) entry.mc = mc;
-  if (form.get("fb") === "share") entry.fb = "share";
-  entry.kb = Math.round((files.full.byteLength + files.thumb.byteLength) / 1024);
+  if (feedbackChoice(form.get("fb"))) entry.fb = feedbackChoice(form.get("fb"));
+  if (p.hx) entry.hx = p.hx;
+  if (files.before) { entry.bef = true; if (p.chg) entry.chg = p.chg; }
+  entry.kb = Math.round((files.full.byteLength + files.thumb.byteLength + (files.before ? files.before.byteLength : 0)) / 1024);
   for (const k of ["desc", "lens", "ap", "sh", "iso", "cats"]) if (!entry[k]) delete entry[k];
   await env.INBOX.put("pimg:" + id + ":full", files.full, { metadata: { type: files.type } });
   await env.INBOX.put("pimg:" + id + ":thumb", files.thumb, { metadata: { type: files.type } });
+  if (files.before) await env.INBOX.put("pimg:" + id + ":before", files.before, { metadata: { type: files.beforeType } });
   const fresh = (await env.INBOX.get(GALLERY, "json")) || [];       // read again: the images took a moment
   if (fresh.some((x) => x.id === id)) return json({ ok: true, already: true, id });
   let i = fresh.findIndex((x) => (x.at || 0) < at);                 // back in its place, newest first
@@ -1652,7 +1831,9 @@ async function deleteEverything(env, raw) {
   const photos = list.filter((p) => p.uid === id), batch = photos.slice(0, 100);
   if (batch.length) {
     const gone = new Set(batch.map((p) => p.id));
-    await Promise.all(batch.flatMap((p) => ["pimg:" + p.id + ":full", "pimg:" + p.id + ":thumb", "owner:" + p.id, "c:" + p.id].map((k) => env.INBOX.delete(k))));
+    await Promise.all(batch.flatMap((p) => ["pimg:" + p.id + ":full", "pimg:" + p.id + ":thumb", "owner:" + p.id, "c:" + p.id].concat(p.bef ? ["pimg:" + p.id + ":before"] : []).map((k) => env.INBOX.delete(k))));
+    await dropPicks(env, (x) => gone.has(x.id));
+    await dropFeedback(env, (f) => gone.has(f.photo));
     await env.INBOX.put(GALLERY, JSON.stringify(list.filter((p) => !gone.has(p.id))));
     const potw = await env.INBOX.get(POTW, "json");
     if (potw && potw.items && potw.items.some((x) => gone.has(x.id))) { potw.items = potw.items.filter((x) => !gone.has(x.id)); await env.INBOX.put(POTW, JSON.stringify(potw)); }
@@ -1663,7 +1844,7 @@ async function deleteEverything(env, raw) {
   // photos still waiting for approval
   if (!job.subs) {
     const subs = (await listAll(env, "sub:")).filter((k) => has(k.metadata && k.metadata.code));
-    await Promise.all(subs.flatMap((k) => { const sid = k.name.slice(4); return [k.name, "img:" + sid + ":full", "img:" + sid + ":thumb"].map((x) => env.INBOX.delete(x)); }));
+    await Promise.all(subs.flatMap((k) => { const sid = k.name.slice(4); return [k.name, "img:" + sid + ":full", "img:" + sid + ":thumb", "img:" + sid + ":before"].map((x) => env.INBOX.delete(x)); }));
     budget -= 1 + subs.length * 3; job.subs = 1;
   }
   // their comments on other photos: 100 photos' comments at a time
@@ -1700,6 +1881,7 @@ async function deleteEverything(env, raw) {
   // the admins' lists, their picture and line, sent-photo history, earlier codes, and who they were
   const [recent, reports] = await Promise.all([env.INBOX.get("recent-comments", "json"), env.INBOX.get(REPORTS, "json")]);
   if (recent) await env.INBOX.put("recent-comments", JSON.stringify(recent.filter((r) => r.uid !== id)));
+  await dropFeedback(env, (f) => f.uid === id || theirs(f));    // feedback of theirs still waiting for an admin
   if (reports) {
     const rest = [];
     for (const r of reports) { if (r.uid === id) continue; r.by = (r.by || []).filter((b) => !theirs(b)); if (r.by.length) rest.push(r); }

@@ -220,3 +220,51 @@
 /* the sign-in form, shown until a member's page has opened */
 .hb-lock { min-height: 32vh; padding-bottom: 56px; }
 .hb-lock .gate { margin-top: 4px; }
+
+/* each chapter's quiz (22 Nov 2026) */
+.hb-quiz { margin-top: 56px; padding-top: 8px; border-top: 3px solid var(--red); scroll-margin-top: 80px; }
+.hb-quiz h2 { margin-top: .9em; }
+.hb-qlist { list-style: none; counter-reset: q; margin: 16px 0 0; padding: 0; }
+.hb-q { counter-increment: q; padding: 16px 0; border-top: 1px solid var(--rule); }
+.hb-qq { font-weight: 600; margin: 0 0 10px; }
+.hb-qq::before { content: counter(q) ". "; color: var(--accent); }
+.hb-qopts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hb-qopt { width: 100%; text-align: left; font: 1rem var(--sans); color: var(--ink); background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 8px; padding: 10px 14px; min-height: 44px; cursor: pointer; }
+.hb-qopt:hover { border-color: var(--ink); }
+.hb-qopt[aria-disabled="true"] { cursor: default; }
+.hb-qopt[aria-disabled="true"]:hover { border-color: var(--rule); }
+.hb-qopt.is-right { border-color: #1d7a3a; background: #e8f5ec; color: #11471f; }
+.hb-qopt.is-wrong { border-color: var(--red); background: #fff0f0; color: #8a0000; }
+:root[data-theme="dark"] .hb-qopt.is-right { background: #143322; color: #b8efc8; border-color: #3fa564; }
+:root[data-theme="dark"] .hb-qopt.is-wrong { background: #3a1414; color: #ffc4c0; border-color: #ff5c52; }
+.hb-qopt.is-right::after { content: " ✓"; font-weight: 700; }
+.hb-qopt.is-wrong::after { content: " ✗"; font-weight: 700; }
+.hb-qwhy { margin: 10px 0 0; font-size: .98rem; }
+.hb-qscore { font-weight: 600; margin: 16px 0 0; }
+
+/* members' attempts under each exercise */
+.hb-attempts { margin-top: 10px; }
+.hb-attempts-h { font: 600 .82rem var(--sans); color: var(--muted); margin: 0 0 6px !important; }
+.hb-athumbs { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.hb-athumbs img { display: block; width: 72px; height: 54px; object-fit: cover; border-radius: 4px; background: var(--sheet); }
+.hb-attempts-go { font: .9rem var(--sans) !important; }
+
+/* walk cards */
+.hb-print-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hb-cards { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+.hb-card { border: 1px solid var(--rule); border-top: 4px solid var(--red); border-radius: 0 0 10px 10px; padding: 16px 18px; background: var(--sheet); scroll-margin-top: 80px; }
+.hb-card h2 { margin: 2px 0 6px; font-size: 1.35rem; }
+.hb-card h3 { margin: 12px 0 4px; font: 600 .78rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.hb-card-n { font: 600 .78rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0; }
+.hb-card-aim { font-style: italic; margin: 0; }
+.hb-card ol { margin: 0 0 8px; padding-left: 1.2em; }
+.hb-card ol li { margin: 4px 0; }
+.hb-card p { margin: 6px 0 0; }
+.hb-card p b { font-family: var(--sans); font-size: .85rem; margin-right: 4px; }
+.hb-card-ch { font-size: .9rem; color: var(--muted); }
+@media print {
+  .hb-print-row, .hb-attempts, .hb-quiz .hb-qscore { display: none !important; }
+  .hb-cards { display: block; }
+  .hb-card { break-inside: avoid; page-break-inside: avoid; margin: 0 0 12mm; background: none; }
+}

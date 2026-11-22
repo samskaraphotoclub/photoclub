@@ -89,9 +89,15 @@
       <textarea id="desc" maxlength="400" placeholder="Where you took it, what caught your eye"></textarea>
       <label class="tick consent" id="entry-box" hidden><input type="checkbox" id="entry"> <span>This is my entry for the monthly theme: <b id="entry-title"></b></span></label>
       <label class="tick consent" id="mc-box" hidden><input type="checkbox" id="mc"> <span>This is my attempt at this month's Masters challenge<span id="mc-title"></span> <small class="muted">It shows on the <a href="learning/index.html">Learning</a> page.</small></span></label>
+      <div id="hx-box" hidden>
+        <label class="f" for="hx">Handbook exercise <small>(optional: if this photo is your attempt at one, it shows under that exercise in the <a href="handbook/index.html">handbook</a>)</small></label>
+        <select id="hx"><option value="">None</option></select>
+        <p class="note" id="hx-month" hidden>This month's exercise is <b id="hx-month-name"></b>. <button class="linkish" type="button" id="hx-use">Choose it</button></p>
+      </div>
       <fieldset class="choice">
         <legend>Comments you'd like</legend>
         <label><input type="radio" name="fb" value="" checked> <span>Feedback welcome <small>Members start with what works, then suggest what could be better.</small></span></label>
+        <label><input type="radio" name="fb" value="ask"> <span>I'd like feedback <small>Members say what works and what could be stronger, and can ask you a question. An admin checks it before you see it.</small></span></label>
         <label><input type="radio" name="fb" value="share"> <span>Just sharing <small>No critique, please; kind words are welcome.</small></span></label>
       </fieldset>
       <div id="series-box" hidden>
@@ -99,6 +105,19 @@
         <div class="pills" id="series" role="group" aria-labelledby="series-l"></div>
       </div>
       <label class="tick consent"><input type="checkbox" id="pubOk"> <span>The club may also show this photo in its public <a href="index.html#exhibition">exhibition</a>, where anyone can see it. <small class="muted">Anyone who can be recognised in it has agreed.</small></span></label>
+
+      <details id="ba-box" style="margin-top:16px">
+        <summary>Before and after <small class="muted">(optional: the photo before you edited it)</small></summary>
+        <p class="note">Members can switch between the two in the gallery and see what your editing did. Leave this out if you didn't edit the photo.</p>
+        <div class="row-btns">
+          <label class="btn btn-light btn-small pick-file" id="bef-pick">Choose the unedited photo<input type="file" id="bef-file" accept="image/*"></label>
+          <button class="btn btn-light btn-small" type="button" id="bef-remove" hidden>Remove it</button>
+        </div>
+        <img class="bef-pv" id="bef-pv" alt="The photo before editing" hidden>
+        <p class="status" id="bef-status" aria-live="polite"></p>
+        <label class="f" for="chg">What I changed <small>(optional)</small></label>
+        <textarea id="chg" maxlength="500" placeholder="For example: brightened the shadows and straightened the horizon"></textarea>
+      </details>
 
       <details style="margin-top:16px">
         <summary>Camera settings <small class="muted" id="exif-note"></small></summary>
@@ -148,6 +167,7 @@
 <script src="config.js"></script>
 <script src="photo-tools.js"></script>
 <script src="learning/masters-list.js"></script>
+<script src="handbook/exercises.js"></script>
 <script>
 (function () {
   "use strict";
@@ -155,7 +175,7 @@
   var T = PhotoTools, esc = T.esc;
   var INBOX = String(window.CLUB_INBOX || "").replace(/\/+$/, "");
   var KEY = "conscious-frame-member";
-  var code = "", prepared = null, wantSeries = "", wantEntry = false, theme = null, challenge = null, wantChallenge = false;
+  var code = "", prepared = null, before = null, wantSeries = "", wantEntry = false, theme = null, challenge = null, wantChallenge = false, wantHx = "";
 
   function saved() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
   function remember(c) { try { c ? localStorage.setItem(KEY, c) : localStorage.removeItem(KEY); } catch (e) {} }
@@ -193,9 +213,10 @@
       theme = d.theme;
       $("entry-box").hidden = !theme;
       if (theme) { $("entry-title").textContent = theme.title; if (wantEntry) $("entry").checked = true; }
-      challenge = d.challenge || null;   // this month's Masters challenge (inboxes from before 17 Nov 2026 don't send one)
-      $("mc-box").hidden = !challenge;
-      if (challenge) {
+      challenge = d.challenge || null;   // this month's challenge: a Masters exercise (slug), a handbook exercise (hx), or both
+      $("mc-box").hidden = !(challenge && challenge.slug);
+      showExercises(challenge && challenge.hx);
+      if (challenge && challenge.slug) {
         var m = (window.MASTERS_LIST || []).filter(function (x) { return x.slug === challenge.slug; })[0], ex = m && m.ex[challenge.ex - 1];
         $("mc-title").innerHTML = m ? ": <b>" + esc(m.name) + (ex ? ", “" + esc(ex) + "”" : "") + "</b>" : "";
         if (wantChallenge) $("mc").checked = true;
@@ -222,6 +243,32 @@
   $("signout").addEventListener("click", function () {
     remember(""); code = ""; $("code").value = ""; setStatus($("signin-status"), ""); showSignin();
   });
+
+  /* ---------- the handbook exercise this photo attempts (handbook/exercises.js lists them) ---------- */
+  var course = window.HB_COURSE || null;
+  function exerciseName(label) {
+    var e = course && course.ex.filter(function (x) { return x[0] === label; })[0];
+    return e ? label + " · " + e[1] : label;
+  }
+  function showExercises(monthly) {
+    if (!course) return;
+    var sel = $("hx");
+    if (sel.options.length < 2) {
+      sel.innerHTML = '<option value="">None</option>' + course.parts.map(function (part) {
+        return part.ch.map(function (slug) {
+          var ch = course.ch[slug];
+          return '<optgroup label="' + esc(ch[0] + ". " + ch[1]) + '">' + course.ex.filter(function (x) { return x[2] === slug; }).map(function (x) {
+            return '<option value="' + esc(x[0]) + '">' + esc(x[0] + " · " + x[1]) + "</option>";
+          }).join("") + "</optgroup>";
+        }).join("");
+      }).join("");
+    }
+    if (wantHx && sel.querySelector('option[value="' + wantHx + '"]')) sel.value = wantHx;
+    $("hx-box").hidden = false;
+    $("hx-month").hidden = !monthly;
+    if (monthly) { $("hx-month-name").textContent = exerciseName(monthly); $("hx-use").setAttribute("data-hx", monthly); }
+  }
+  $("hx-use").addEventListener("click", function () { $("hx").value = this.getAttribute("data-hx") || ""; $("hx").focus(); });
 
   /* ---------- your name: one nobody else in the club has, changed at most once a month ---------- */
   var myName = "";
@@ -343,6 +390,21 @@
     }).catch(function (e) { setStatus($("status"), e.message, true); });
   });
   $("change").addEventListener("click", function () { $("file").value = ""; $("file").click(); });
+  // the photo before it was edited: resized the same way, sent with the photo
+  function clearBefore() { before = null; $("bef-pv").hidden = true; $("bef-pv").removeAttribute("src"); $("bef-remove").hidden = true; $("bef-pick").firstChild.textContent = "Choose the unedited photo"; }
+  $("bef-file").addEventListener("change", function () {
+    var file = this.files[0], st = $("bef-status");
+    if (!file) return;
+    setStatus(st, "Preparing the photo…");
+    T.prepare(file).then(function (out) {
+      before = out.full;
+      $("bef-pv").src = URL.createObjectURL(out.full.blob); $("bef-pv").hidden = false;
+      $("bef-remove").hidden = false; $("bef-pick").firstChild.textContent = "Choose a different one";
+      setStatus(st, "Will be sent at " + out.full.w + " × " + out.full.h + " px, " + T.kb(out.full.blob.size) + ".");
+    }).catch(function (e) { setStatus(st, e.message, true); });
+    this.value = "";
+  });
+  $("bef-remove").addEventListener("click", function () { clearBefore(); setStatus($("bef-status"), ""); });
 
   /* ---------- sending ---------- */
   $("form").addEventListener("submit", function (ev) {
@@ -358,7 +420,10 @@
     if ($("pubOk").checked) fd.append("pubOk", "1");
     if (theme && $("entry").checked) fd.append("entry", "1");
     if (challenge && $("mc").checked) fd.append("challenge", "1");
-    if ($("form").querySelector('input[name="fb"]:checked').value === "share") fd.append("fb", "share");
+    var fb = $("form").querySelector('input[name="fb"]:checked').value;
+    if (fb) fd.append("fb", fb);
+    if ($("hx").value) fd.append("hx", $("hx").value);
+    if (before) { fd.append("before", before.blob, "before." + before.ext); fd.append("chg", $("chg").value.trim()); }
     fd.append("w", prepared.full.w); fd.append("h", prepared.full.h);
     fd.append("tw", prepared.thumb.w); fd.append("th", prepared.thumb.h);
     fd.append("full", prepared.full.blob, "photo." + prepared.full.ext);
@@ -369,6 +434,7 @@
       setStatus($("status"), "Sent. An admin will check it soon, and it will appear in the gallery once it's approved.");
       var keep = ticked("series"), keepEntry = $("entry").checked, keepMc = $("mc").checked;
       $("form").reset(); $("exif-note").textContent = ""; $("entry").checked = keepEntry; $("mc").checked = keepMc;
+      clearBefore(); setStatus($("bef-status"), ""); $("ba-box").open = false;
       $("series").querySelectorAll("input").forEach(function (i) { i.checked = keep.indexOf(i.value) >= 0; });
       $("preview").hidden = true; $("pick").hidden = false; prepared = null;
       return call("/me").then(function (d) { showMine(d.photos); });
@@ -384,6 +450,7 @@
   wantSeries = params.get("series") || "";
   wantEntry = params.get("entry") === "1";
   wantChallenge = params.get("challenge") === "1";
+  wantHx = String(params.get("hx") || "").toUpperCase();          // ?hx=B2: from an exercise in the handbook or the Learning page
   if (fromLink) history.replaceState(null, "", location.pathname);   // don't leave the code in the address bar
   var start = fromLink || saved();
   if (start) signIn(start, !!fromLink); else showSignin();

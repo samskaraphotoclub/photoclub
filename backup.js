@@ -39,6 +39,8 @@ var Backup = (function () {
     return new Blob(parts.concat(central, [e.buffer]), { type: "application/zip" });
   }
   function text(name, s) { return { name: name, data: new TextEncoder().encode(s) }; }
+  // a photo's file type from its first bytes: WebP starts with RIFF....WEBP, JPEG with FF D8
+  function beforeExt(buf) { var b = new Uint8Array(buf, 0, Math.min(12, buf.byteLength)); return b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50 ? "webp" : "jpg"; }
   function csv(photos) {
     var q = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     return "\ufeff" + ["name,title,photographer,category,added,description"].concat(photos.map(function (p) {
@@ -49,7 +51,7 @@ var Backup = (function () {
   /* inbox(path) -> Promise of JSON (the admin page's inbox call); photoUrl(d, p, size) -> address of a photo.
      onStatus(message) shows progress. Resolves with { blob, name, photos }. */
   function make(inbox, photoUrl, onStatus) {
-    var files = [], records = {}, d, archive = [], events = [], downloads = [], challenges = [];
+    var files = [], records = {}, d, archive = [], events = [], downloads = [], challenges = [], picks = [];
     var parts = [["member:", "members"], ["c:", "comments"], ["owner:", "who sent which photo"], ["own:", "members' sent photos"], ["h:", "hearts"], ["v:", "votes from before hearts"], ["moved:", "earlier invite codes"], ["rsvp:", "event sign-ups"]];
     onStatus("Getting the gallery…");
     return inbox("/gallery").then(function (g) {
@@ -75,7 +77,9 @@ var Backup = (function () {
         .then(function () { onStatus("Getting the events…"); return inbox("/events?all=1"); })
         .then(function (r) { events = r.upcoming.concat(r.past); }, function () { events = []; })
         .then(function () { onStatus("Getting the Masters challenges…"); return inbox("/admin/challenges"); })
-        .then(function (r) { challenges = r.challenges || []; }, function () { challenges = []; });   // older inboxes have none
+        .then(function (r) { challenges = r.challenges || []; }, function () { challenges = []; })   // older inboxes have none
+        .then(function () { onStatus("Getting Why it works…"); return inbox("/admin/picks"); })
+        .then(function (r) { picks = r.picks || []; }, function () { picks = []; });
     }).then(function () {
       // the downloads: posters, cheat sheets and guides, with their previews
       return inbox("/files").then(function (r) {
@@ -113,7 +117,7 @@ var Backup = (function () {
         if (n >= d.photos.length) return Promise.resolve();
         var p = d.photos[n++];
         onStatus("Getting photo " + n + " of " + d.photos.length + "…");
-        return Promise.all(["full", "thumb"].map(function (size) {
+        return Promise.all(["full", "thumb"].concat(p.bef ? ["before"] : []).map(function (size) {
           return fetch(photoUrl(d, p, size)).then(function (r) {
             if (!r.ok) throw new Error("Couldn't get the photo “" + p.title + "”. Try again.");
             return r.arrayBuffer();
@@ -121,6 +125,7 @@ var Backup = (function () {
         })).then(function (b) {
           files.push({ name: "photos/" + p.id + "." + p.ext, data: new Uint8Array(b[0]) });
           files.push({ name: "photos/" + p.id + "-sm." + p.ext, data: new Uint8Array(b[1]) });
+          if (b[2]) files.push({ name: "photos/" + p.id + "-before." + beforeExt(b[2]), data: new Uint8Array(b[2]) });   // the photo before it was edited
         }).then(nextPhoto);
       }
       return nextPhoto();
@@ -129,17 +134,18 @@ var Backup = (function () {
       var t = new Date(), pad = function (n) { return (n < 10 ? "0" : "") + n; };
       var day = t.getFullYear() + "-" + pad(t.getMonth() + 1) + "-" + pad(t.getDate());   // this phone's date
       var data = { made: new Date().toISOString(), members: records["member:"], comments: records["c:"], owners: records["owner:"],
-                   sent: records["own:"], hearts: records["h:"], votes: records["v:"], earlierCodes: records["moved:"], series: d.series || [], archive: archive, challenges: challenges,
+                   sent: records["own:"], hearts: records["h:"], votes: records["v:"], earlierCodes: records["moved:"], series: d.series || [], archive: archive, challenges: challenges, picks: picks,
                    people: d.people || {}, events: events, signups: records["rsvp:"], downloads: downloads };
       var readme = "The Conscious Frame – backup made on " + day + "\r\n\r\n" +
         "Keep this file private: it contains members' invite codes.\r\n\r\n" +
-        "photos/                   Every photo in the gallery: NAME.webp or NAME.jpg (large) and NAME-sm (thumbnail)\r\n" +
+        "photos/                   Every photo in the gallery: NAME.webp or NAME.jpg (large) and NAME-sm (thumbnail),\r\n" +
+        "                          and NAME-before where the photographer added the photo before editing\r\n" +
         "downloads/                The files on the Downloads page, with their previews (NAME-preview)\r\n" +
         "pictures/                 Members' pictures for the photographer pages\r\n" +
         "photos.csv                The list of photos, to open in a spreadsheet\r\n" +
         "gallery.json              The gallery as the inbox keeps it (titles, photographers, camera settings, dates)\r\n" +
         "photos-of-the-week.json   The current Photos of the month\r\n" +
-        "data.json                 Members and their invite codes, comments, hearts, who sent which photo, series, the theme archive, the Masters challenges,\r\n" +
+        "data.json                 Members and their invite codes, comments, hearts, who sent which photo, series, the theme archive, the monthly challenges, Why it works,\r\n" +
         "                          photographers' lines about themselves, events and who signed up, the list of downloads\r\n\r\n" +
         d.photos.length + " photos, " + records["member:"].length + " members.\r\n";
       var all = [text("README.txt", readme), text("photos.csv", csv(d.photos)), text("gallery.json", JSON.stringify(d.photos, null, 2)),
@@ -218,12 +224,14 @@ var Backup = (function () {
         var full = b.photoFile(p.id + "." + p.ext), thumb = b.photoFile(p.id + "-sm." + p.ext);
         if (!full || !thumb) return Promise.reject(new Error("The backup is missing the files for “" + p.title + "”."));
         var type = p.ext === "webp" ? "image/webp" : "image/jpeg", f = new FormData();
-        ["id", "title", "by", "uid", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th", "series", "pubOk", "pub", "theme", "mc", "fb"].forEach(function (k) {
+        ["id", "title", "by", "uid", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th", "series", "pubOk", "pub", "theme", "mc", "fb", "hx", "chg"].forEach(function (k) {
           if (Array.isArray(p[k])) p[k].forEach(function (x) { f.append(k, x); }); else if (k !== "cat") f.append(k, p[k] == null ? "" : p[k]);
         });
         (p.cats && p.cats.length ? p.cats : [p.cat]).forEach(function (c) { f.append("cat", c); });
         f.append("full", new Blob([full], { type: type }), "photo." + p.ext);
         f.append("thumb", new Blob([thumb], { type: type }), "thumb." + p.ext);
+        var before = p.bef && (b.photoFile(p.id + "-before.webp") || b.photoFile(p.id + "-before.jpg"));
+        if (before) f.append("before", new Blob([before], { type: b.photoFile(p.id + "-before.webp") ? "image/webp" : "image/jpeg" }), "before");
         return inbox("/admin/restore/photo", { form: f }).then(function (r) { if (!r.already) done.photos++; photos[p.id] = true; }).then(nextPhoto);
       }
       return nextPhoto();
@@ -240,6 +248,7 @@ var Backup = (function () {
       if (data.series && data.series.length) rest.push({ key: "series", value: data.series });
       if (data.archive && data.archive.length) rest.push({ key: "archive", value: data.archive });
       if (data.challenges && data.challenges.length) rest.push({ key: "challenges", value: data.challenges });
+      if (data.picks && data.picks.length) rest.push({ key: "picks", value: data.picks.filter(function (x) { return photos[x.id]; }) });
       if (data.people && Object.keys(data.people).length) rest.push({ key: "people", value: data.people });
       if (data.events && data.events.length) rest.push({ key: "events", value: data.events.map(function (e) { var x = {}; for (var k in e) if (k !== "going" && k !== "mine") x[k] = e[k]; return x; }) });
       rest = rest.concat(data.signups || []);

@@ -116,6 +116,11 @@
       <p id="c-status" aria-live="polite">Loading…</p>
       <button class="linkish" type="button" id="c-refresh">Refresh</button>
     </div>
+    <section class="card" id="fq-card" aria-labelledby="fq-h" hidden>
+      <h2 id="fq-h">Feedback to check</h2>
+      <p class="muted">Members want to give this feedback. Add it, and it shows with the photo's comments, or leave it out. Whoever wrote it only sees it once it's added.</p>
+      <ul class="list" id="fq-list"></ul>
+    </section>
     <section class="card" id="r-card" aria-labelledby="r-h" hidden>
       <h2 id="r-h">Reported comments</h2>
       <p class="muted">Members reported these. Delete the comment, or keep it if it's fine. The person who wrote it never sees who reported it.</p>
@@ -165,7 +170,7 @@
   <!-- ===================== Learning: the monthly Masters challenge ===================== -->
   <section id="panel-learning" role="tabpanel" aria-labelledby="tab-learning" hidden>
     <form class="card" id="mc-form" novalidate>
-      <h2>Masters challenge</h2>
+      <h2>This month's challenge</h2>
       <p class="muted" style="margin-top:0">Pick one photographer from the Masters of photography pages and one of their five exercises. Members see it on the <a href="learning/index.html">Learning</a> page and can tick a photo as their attempt when they send it. Next month's choice stays hidden from members until the month starts.</p>
       <div class="two">
         <div><label class="f" for="mc-month">Month</label><select id="mc-month"></select></div>
@@ -173,6 +178,8 @@
       </div>
       <label class="f" for="mc-ex">Exercise</label>
       <select id="mc-ex"></select>
+      <label class="f" for="mc-hx">Handbook exercise of the month <small>(optional; members see it on the Learning page with everyone's attempts)</small></label>
+      <select id="mc-hx"></select>
       <label class="f" for="mc-note">Note for members <small>(optional)</small></label>
       <textarea id="mc-note" maxlength="300" placeholder="For example: we'll look at the attempts together at the next meet-up"></textarea>
       <div class="row-btns"><button class="btn btn-dark" type="submit" id="mc-save">Save challenge</button><button class="btn btn-light" type="button" id="mc-remove" hidden>Remove this month's challenge</button><a class="btn btn-light btn-small" id="mc-wa" href="#" target="_blank" rel="noopener" hidden>Share on WhatsApp</a></div>
@@ -183,6 +190,22 @@
       <p class="muted" id="mc-empty">Loading…</p>
       <ul class="list" id="mc-list"></ul>
     </section>
+    <form class="card" id="pk-form" novalidate>
+      <h2>Why it works</h2>
+      <p class="muted" style="margin-top:0">Each month, pick one member's photo from the gallery and say in a few sentences why it works. Members see it on the <a href="learning/index.html">Learning</a> page and under the photo in the gallery, from the start of that month. You can also pick a photo from the Gallery tab.</p>
+      <div class="two">
+        <div><label class="f" for="pk-month">Month</label><select id="pk-month"></select></div>
+        <div><label class="f" for="pk-ch">Chapter to read <small>(optional)</small></label><select id="pk-ch"></select></div>
+      </div>
+      <label class="f" for="pk-photo">Photo</label>
+      <select id="pk-photo"><option value="">Loading the gallery…</option></select>
+      <img class="sub-img" id="pk-thumb" alt="" hidden>
+      <label class="f" for="pk-note">Why it works</label>
+      <textarea id="pk-note" maxlength="800" placeholder="For example: the road leads your eye straight to the cyclist, and waiting for him to reach the light makes the picture."></textarea>
+      <div class="row-btns"><button class="btn btn-dark" type="submit" id="pk-save">Save</button><button class="btn btn-light" type="button" id="pk-remove" hidden>Remove</button></div>
+      <p class="status" id="pk-msg" aria-live="polite"></p>
+      <ul class="list" id="pk-list"></ul>
+    </form>
   </section>
 
   <!-- ===================== Events ===================== -->
@@ -374,6 +397,7 @@
 <script src="events.js"></script>
 <script src="downloads.js"></script>
 <script src="learning/masters-list.js"></script>
+<script src="handbook/exercises.js"></script>
 <script>
 (function () {
   "use strict";
@@ -437,7 +461,17 @@
       return '<option value="' + esc(t.month) + '"' + (t.month === selected ? " selected" : "") + ">" + esc(monthName(t.month) + ": " + t.title) + "</option>";
     }).join("");
   }
-  function fbOptions(v) { return '<option value=""' + (v === "share" ? "" : " selected") + '>Feedback welcome</option><option value="share"' + (v === "share" ? " selected" : "") + ">Just sharing</option>"; }
+  function fbOptions(v) { return [["", "Feedback welcome"], ["ask", "Asks for feedback"], ["share", "Just sharing"]].map(function (o) { return '<option value="' + o[0] + '"' + ((v || "") === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join(""); }
+  // the handbook's exercises (handbook/exercises.js), grouped by chapter, for a select
+  var COURSE = window.HB_COURSE || null;
+  function hxName(label) { var x = COURSE && COURSE.ex.filter(function (e) { return e[0] === label; })[0]; return x ? label + " · " + x[1] : label; }
+  function hxOptions(v, none) {
+    var out = '<option value="">' + esc(none || "None") + "</option>";
+    if (!COURSE) return out + (v ? '<option value="' + esc(v) + '" selected>' + esc(v) + "</option>" : "");
+    return out + COURSE.parts.map(function (part) { return part.ch.map(function (slug) {
+      return '<optgroup label="' + esc(COURSE.ch[slug][0] + ". " + COURSE.ch[slug][1]) + '">' + COURSE.ex.filter(function (x) { return x[2] === slug; }).map(function (x) {
+        return '<option value="' + esc(x[0]) + '"' + (x[0] === v ? " selected" : "") + ">" + esc(x[0] + " · " + x[1]) + "</option>"; }).join("") + "</optgroup>"; }).join(""); }).join("");
+  }
   function whatsapp(text) { return "https://wa.me/?text=" + encodeURIComponent(text); }
   function siteUrl(path) { return new URL(path, location.href).href.split("#")[0]; }
   // the exhibition tick box: only photos whose photographer agreed may go in
@@ -465,7 +499,7 @@
       $("series").innerHTML = list.map(function (s) { return '<label><input type="checkbox" value="' + esc(s.id) + '"' + (v.indexOf(s.id) >= 0 ? " checked" : "") + "><span" + ml(s.name) + ">" + esc(s.name) + (s.open ? "" : " (closed)") + "</span></label>"; }).join("");
       $("ptheme").innerHTML = themeOptions($("ptheme").value, "Not an entry");
     });
-    if (name === "learning") loadChallenges();
+    if (name === "learning") { loadChallenges(); loadPicks(); }
     if (name === "events") loadEvents();
     if (name === "files") loadFiles();
     if (name === "settings") loadStorage();
@@ -524,6 +558,10 @@
       '<div class="two"><div><label class="f">Monthly theme' + (p.theme ? " <small>(" + esc(p.name.split(" ")[0]) + " entered it)</small>" : "") + '<select class="e-theme">' + themeOptions(p.theme || "") + "</select></label></div>" +
       '<div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
       (p.mc ? '<label class="tick consent"><input type="checkbox" class="e-mc" checked> <span>An attempt at the Masters challenge of ' + esc(monthName(p.mc)) + ' <small class="muted">' + esc(p.name.split(" ")[0]) + " ticked this. Untick it if it doesn't fit.</small></span></label>" : "") +
+      '<label class="f">Handbook exercise' + (p.hx ? " <small>(" + esc(p.name.split(" ")[0]) + " chose it)</small>" : "") + '<select class="e-hx">' + hxOptions(p.hx || "") + "</select></label>" +
+      (p.bef ? '<div class="sub-before"><p class="f">Before editing <small>(' + esc(p.name.split(" ")[0]) + ' sent the unedited photo too)</small></p><img class="sub-img sub-bef" alt="Before editing">' +
+        (p.chg ? '<p class="sub-chg"><b>What I changed:</b> <span' + ml(p.chg) + ">" + esc(p.chg) + "</span></p>" : "") +
+        '<label class="tick consent"><input type="checkbox" class="e-keepbef" checked> <span>Show the before photo in the gallery <small class="muted">Untick to leave it out.</small></span></label></div>' : "") +
       (settings ? '<p class="sub-settings">' + esc(settings) + "</p>" : "") +
       '<div class="row-btns"><button class="btn btn-dark approve" type="button">Approve</button><button class="btn btn-light decline" type="button">Decline</button></div>' +
       '<div class="decline-box" hidden><label class="f">Note to ' + esc(p.name.split(" ")[0]) + ' <small>(optional, they will see it)</small><textarea class="e-note" maxlength="300" placeholder="For example: a bit soft, try a faster shutter speed"></textarea></label>' +
@@ -531,6 +569,7 @@
       '<p class="status" aria-live="polite"></p>';
     var img = el.querySelector("img"), status = el.querySelector(".status");
     inbox("/admin/photo/" + p.sid + "/thumb", { blob: true }).then(function (b) { img.src = URL.createObjectURL(b); }).catch(function () {});
+    if (p.bef) inbox("/admin/photo/" + p.sid + "/before", { blob: true }).then(function (b) { el.querySelector(".sub-bef").src = URL.createObjectURL(b); }).catch(function () {});
     var buttons = function (on) { el.querySelectorAll("button").forEach(function (b) { b.disabled = !on; }); };
 
     el.querySelector(".decline").addEventListener("click", function () { el.querySelector(".decline-box").hidden = false; el.querySelector(".e-note").focus(); });
@@ -549,7 +588,8 @@
       if (!cats.length) { setStatus(status, "Choose a category.", true); return; }
       inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cats: cats, desc: el.querySelector(".e-desc").value.trim(),
         series: ser ? ticked(ser) : undefined, pub: pub, pubOk: pub || undefined, theme: el.querySelector(".e-theme").value, fb: el.querySelector(".e-fb").value,
-        mc: el.querySelector(".e-mc") ? (el.querySelector(".e-mc").checked ? p.mc : "") : undefined } }).then(function (r) {
+        mc: el.querySelector(".e-mc") ? (el.querySelector(".e-mc").checked ? p.mc : "") : undefined, hx: el.querySelector(".e-hx").value,
+        dropBefore: el.querySelector(".e-keepbef") ? !el.querySelector(".e-keepbef").checked : undefined } }).then(function (r) {
         markDecided(p.sid); galleryInfo = null;
         done(el, "“" + title + "” by " + p.name + " is now in the gallery" + (pub ? " and the public exhibition." : "."), r.id ? "gallery.html#p-" + r.id : "");
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
@@ -602,10 +642,11 @@
         '<span><b' + ml(p.title) + '><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc((p.cats && p.cats.length ? p.cats : [p.cat]).join(", ")) + (p.added ? ", added " + esc(day(p.added)) : "") +
         (Array.isArray(p.series) ? p.series : p.series ? [p.series] : []).map(function (id) { var n = seriesName(d.series, id); return n ? ", " + esc(n) : ""; }).join("") + (p.theme ? ", theme entry " + esc(monthName(p.theme)) : "") + (p.fb === "share" ? ", just sharing" : "") +
         "</span>" + (p.pub ? '<span class="chip ok">In the exhibition</span>' : "") + "</span>" +
-        '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div>' +
+        '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><button class="btn btn-light btn-small" type="button" data-a="why">Why it works…</button><button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div>' +
         '<p class="status" aria-live="polite"></p>';
       var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
       li.querySelector('[data-a="edit"]').addEventListener("click", edit);
+      li.querySelector('[data-a="why"]').addEventListener("click", function () { pickPhoto(p.id); });
       li.querySelector('[data-a="delete"]').addEventListener("click", function () {
         row.innerHTML = '<span class="meta" style="flex-basis:100%">Delete “' + esc(p.title) + '” and its comments? This can\'t be undone.</span>' +
           '<button class="btn btn-dark btn-small" type="button" data-a="yes">Yes, delete</button><button class="btn btn-light btn-small" type="button" data-a="no">Cancel</button>';
@@ -629,6 +670,8 @@
         ((d.series || []).length ? '<p class="f">Series</p>' + seriesPills(d.series, p) : "") +
         pubBox(p.by, p.pubOk, p.pub) +
         '<div class="two"><div><label class="f">Monthly theme<select class="e-theme">' + themeOptions(p.theme || "") + '</select></label></div><div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
+        '<label class="f">Handbook exercise<select class="e-hx">' + hxOptions(p.hx || "") + "</select></label>" +
+        (p.bef ? '<label class="tick consent"><input type="checkbox" class="e-dropbef"> <span>Remove the before photo <small class="muted">The photo itself stays.</small></span></label>' : "") +
         '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
         '<p class="status" aria-live="polite"></p></form>';
       var form = li.querySelector("form");
@@ -641,7 +684,8 @@
         if (!cats.length) { setStatus(form.querySelector(".status"), "Choose a category.", true); return; }
         inbox("/admin/gallery/" + encodeURIComponent(p.id), { method: "POST", json: { title: form.querySelector(".e-title").value, by: form.querySelector(".e-by").value,
           cats: cats, desc: form.querySelector(".e-desc").value, series: ticked(form.querySelector(".e-series")), pub: pub, pubOk: pub || undefined,
-          theme: form.querySelector(".e-theme").value, fb: form.querySelector(".e-fb").value } }).then(function (r) {
+          theme: form.querySelector(".e-theme").value, fb: form.querySelector(".e-fb").value, hx: form.querySelector(".e-hx").value,
+          dropBefore: form.querySelector(".e-dropbef") ? form.querySelector(".e-dropbef").checked : undefined } }).then(function (r) {
           p = r.photo; galleryInfo = null; view(); setStatus(li.querySelector(".status"), "Saved.");
         }).catch(function (e) { setStatus(st, e.message, true); });
       });
@@ -935,9 +979,10 @@
     if (!inboxReady()) { $("c-status").textContent = "Add the inbox address and admin password in Settings first."; $("c-list").innerHTML = ""; return; }
     $("c-status").textContent = "Loading…";
     var gallery = galleryInfo ? Promise.resolve(galleryInfo) : loadGallery().catch(function () { return {}; });
-    Promise.all([inbox("/admin/comments"), gallery, inbox("/admin/reports").catch(function () { return { reports: [] }; })]).then(function (res) {
+    Promise.all([inbox("/admin/comments"), gallery, inbox("/admin/reports").catch(function () { return { reports: [] }; }), inbox("/admin/feedback").catch(function () { return { feedback: [] }; })]).then(function (res) {
       var list = res[0].comments, map = res[1], reported = {};
       showReports(res[2].reports, map);
+      showFeedback(res[3].feedback || []);
       res[2].reports.forEach(function (r) { reported[r.cid] = true; });
       $("c-status").textContent = list.length ? "The latest " + list.length + (list.length === 1 ? " comment" : " comments") + ", newest first." : "No comments yet.";
       $("c-list").innerHTML = "";
@@ -960,8 +1005,37 @@
     }).catch(function (e) { $("c-status").textContent = e.message; });
   }
   $("c-refresh").addEventListener("click", loadComments);
-  function setReportCount(n) { $("r-count").textContent = n ? "(" + n + ")" : ""; }
-  function countReports() { if (inboxReady()) inbox("/admin/reports").then(function (r) { setReportCount(r.reports.length); }).catch(function () {}); }
+  var waitingReports = 0, waitingFeedback = 0;   // shown together beside the Comments tab
+  function setReportCount(n) { waitingReports = n; var t = waitingReports + waitingFeedback; $("r-count").textContent = t ? "(" + t + ")" : ""; }
+  function setFeedbackCount(n) { waitingFeedback = n; setReportCount(waitingReports); }
+  function countReports() {
+    if (!inboxReady()) return;
+    inbox("/admin/reports").then(function (r) { setReportCount(r.reports.length); }).catch(function () {});
+    inbox("/admin/feedback").then(function (r) { setFeedbackCount((r.feedback || []).length); }).catch(function () {});
+  }
+  // feedback in three parts, waiting to be added to a photo's comments
+  function showFeedback(list) {
+    setFeedbackCount(list.length);
+    $("fq-card").hidden = !list.length;
+    $("fq-list").innerHTML = "";
+    list.forEach(function (f) {
+      var li = document.createElement("li");
+      li.innerHTML = "<b>" + esc(f.name) + '</b><span class="meta">' + T.ago(f.at) + ' on <a href="gallery.html#p-' + esc(f.photo) + '">' + esc(f.title || f.photo) + "</a>" + (f.by ? " by " + esc(f.by) : "") + "</span>" +
+        [["What works", f.w], ["What could be stronger", f.b], ["A question", f.q]].filter(function (x) { return x[1]; }).map(function (x) {
+          return '<p class="said"' + ml(x[1]) + "><b>" + x[0] + ":</b> " + esc(x[1]) + "</p>"; }).join("") +
+        '<div class="row-btns"><button class="btn btn-dark btn-small" type="button" data-a="add">Add it</button><button class="btn btn-light btn-small" type="button" data-a="leave">Leave it out</button></div><p class="status" aria-live="polite"></p>';
+      var st = li.querySelector(".status");
+      li.querySelectorAll("[data-a]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var ok = b.getAttribute("data-a") === "add";
+          li.querySelectorAll("button").forEach(function (x) { x.disabled = true; }); setStatus(st, ok ? "Adding…" : "Leaving it out…");
+          inbox("/admin/feedback/" + encodeURIComponent(f.fid), { method: "POST", json: { ok: ok } }).then(loadComments)
+            .catch(function (e) { li.querySelectorAll("button").forEach(function (x) { x.disabled = false; }); setStatus(st, e.message, true); });
+        });
+      });
+      $("fq-list").appendChild(li);
+    });
+  }
   function showReports(list, map) {
     setReportCount(list.length);
     $("r-card").hidden = !list.length;
@@ -1442,8 +1516,16 @@
   /* ---------- Learning: the monthly Masters challenge ---------- */
   var MASTERS = window.MASTERS_LIST || [], mcList = [], mcNow = "";
   function master(slug) { return MASTERS.filter(function (m) { return m.slug === slug; })[0]; }
-  function mcSay(c) { var m = master(c.slug), ex = m && m.ex[c.ex - 1]; return m ? m.name + (ex ? ", “" + ex + "”" : "") : mcText(c); }
-  function mcText(c) { var m = master(c.slug); return m ? m.name + ": " + (m.ex[c.ex - 1] || "exercise " + c.ex) : c.slug + ", exercise " + c.ex; }
+  function mcSay(c) {
+    var m = c.slug && master(c.slug), ex = m && m.ex[c.ex - 1];
+    var who = c.slug ? (m ? m.name + (ex ? ", “" + ex + "”" : "") : c.slug + ", exercise " + c.ex) : "";
+    return who + (c.hx ? (who ? ", and the handbook exercise " : "the handbook exercise ") + hxName(c.hx) : "");
+  }
+  function mcText(c) {
+    var m = c.slug && master(c.slug);
+    var who = c.slug ? (m ? m.name + ": " + (m.ex[c.ex - 1] || "exercise " + c.ex) : c.slug + ", exercise " + c.ex) : "";
+    return who + (c.hx ? (who ? " · " : "") + "Handbook " + hxName(c.hx) : "");
+  }
   function addMonths(m, n) { var y = +m.slice(0, 4), k = +m.slice(5, 7) - 1 + n; y += Math.floor(k / 12); k = ((k % 12) + 12) % 12; return y + "-" + String(k + 1).padStart(2, "0"); }
   function mcExercises() {
     var m = master($("mc-who").value), keep = $("mc-ex").value;
@@ -1453,26 +1535,28 @@
   function mcShow() {   // the chosen month's challenge in the form
     var month = $("mc-month").value, c = mcList.filter(function (x) { return x.month === month; })[0];
     if (c && master(c.slug) && !$("mc-who").querySelector('option[value="' + c.slug + '"]')) $("mc-who").insertAdjacentHTML("beforeend", '<option value="' + esc(c.slug) + '">' + esc(master(c.slug).name) + " (page offline)</option>");   // a challenge set before the page went offline
-    if (c) { $("mc-who").value = c.slug; mcExercises(); $("mc-ex").value = String(c.ex); } else mcExercises();
+    if (!$("mc-hx").options.length) $("mc-hx").innerHTML = hxOptions("", "No handbook exercise this month");
+    if (c) { $("mc-who").value = c.slug || ""; mcExercises(); if (c.slug) $("mc-ex").value = String(c.ex); } else { $("mc-who").value = ""; mcExercises(); }
+    $("mc-hx").value = c && c.hx || "";
     $("mc-note").value = c && c.note || "";
     $("mc-remove").hidden = !c;
     $("mc-remove").textContent = "Remove " + monthName(month) + "'s challenge";
     var share = c && month === mcNow;
     $("mc-wa").hidden = !share;
-    if (share) $("mc-wa").href = "https://wa.me/?text=" + encodeURIComponent("This month's Masters challenge is " + mcSay(c) + ". Take it on your next walk and share your attempt on the Learning page. " + new URL("learning/index.html", location.href).href);
+    if (share) $("mc-wa").href = "https://wa.me/?text=" + encodeURIComponent("This month's challenge is " + mcSay(c) + ". Take it on your next walk and share your attempt on the Learning page. " + new URL("learning/index.html", location.href).href);
   }
   function mcRender() {
     var photos = (galleryData && galleryData.photos) || [];
     $("mc-empty").textContent = mcList.length ? "" : "No challenges yet. Pick one above.";
     $("mc-empty").hidden = !!mcList.length;
     $("mc-list").innerHTML = mcList.map(function (c) {
-      var n = photos.filter(function (p) { return p.mc === c.month; }).length, when = c.month === mcNow ? "This month" : c.month > mcNow ? "Coming, hidden from members" : "Over";
+      var n = photos.filter(function (p) { return (c.slug && p.mc === c.month) || (c.hx && p.hx === c.hx); }).length, when = c.month === mcNow ? "This month" : c.month > mcNow ? "Coming, hidden from members" : "Over";
       return "<li><b>" + esc(monthName(c.month)) + "</b><span class=\"meta\">" + esc(mcText(c)) + " · " + when + (galleryData ? " · " + n + (n === 1 ? " attempt" : " attempts") : "") + "</span>" +
         (c.month >= mcNow ? '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-month="' + esc(c.month) + '">Edit</button></div>' : "") + "</li>";
     }).join("");
   }
   function loadChallenges() {
-    $("mc-who").innerHTML = MASTERS.filter(function (m) { return m.on !== false; }).map(function (m) { return '<option value="' + esc(m.slug) + '">' + esc(m.name) + "</option>"; }).join("");   // only photographers whose Masters page is online
+    $("mc-who").innerHTML = '<option value="">No Masters challenge this month</option>' + MASTERS.filter(function (m) { return m.on !== false; }).map(function (m) { return '<option value="' + esc(m.slug) + '">' + esc(m.name) + "</option>"; }).join("");   // only photographers whose Masters page is online
     if (!MASTERS.length) { $("mc-empty").textContent = "The list of Masters photographers didn't load. Reload the page."; return; }
     inbox("/admin/challenges").then(function (d) {
       mcList = d.challenges || []; mcNow = d.month;
@@ -1498,12 +1582,74 @@
   }
   $("mc-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
-    if (!$("mc-who").value || !$("mc-ex").value) { setStatus($("mc-msg"), "Choose a photographer and an exercise.", true); return; }
-    mcSave({ slug: $("mc-who").value, ex: +$("mc-ex").value, note: $("mc-note").value.trim() }, function (month) {
+    if (!$("mc-who").value && !$("mc-hx").value) { setStatus($("mc-msg"), "Choose a photographer and an exercise, or a handbook exercise.", true); return; }
+    if ($("mc-who").value && !$("mc-ex").value) { setStatus($("mc-msg"), "Choose one of the photographer's exercises.", true); return; }
+    mcSave({ slug: $("mc-who").value, ex: $("mc-who").value ? +$("mc-ex").value : undefined, hx: $("mc-hx").value, note: $("mc-note").value.trim() }, function (month) {
       return "Saved the challenge for " + monthName(month) + (month === mcNow ? ". Members see it on the Learning page now." : ". Members see it when the month starts.");
     });
   });
-  $("mc-remove").addEventListener("click", function () { mcSave({ slug: "" }, function (month) { return "Removed " + monthName(month) + "'s challenge."; }); });
+  $("mc-remove").addEventListener("click", function () { mcSave({ slug: "", hx: "" }, function (month) { return "Removed " + monthName(month) + "'s challenge."; }); });
+
+  /* ---------- Learning: Why it works ---------- */
+  var pkList = [], pkNow = "", pkWanted = "";
+  function pkPhotos() { return (galleryData && galleryData.photos) || []; }
+  function pkShow() {
+    var month = $("pk-month").value, x = pkList.filter(function (y) { return y.month === month; })[0];
+    if (x) $("pk-photo").value = x.id;
+    $("pk-note").value = x ? x.note : "";
+    $("pk-ch").value = x && x.ch || "";
+    $("pk-remove").hidden = !x;
+    pkThumb();
+  }
+  function pkThumb() {
+    var p = pkPhotos().filter(function (q) { return q.id === $("pk-photo").value; })[0];
+    $("pk-thumb").hidden = !p;
+    if (p) $("pk-thumb").src = thumbUrl(galleryData, p);
+  }
+  function pkRender() {
+    var byId = {}; pkPhotos().forEach(function (p) { byId[p.id] = p; });
+    $("pk-list").innerHTML = pkList.map(function (x) {
+      var p = byId[x.id], when = x.month === pkNow ? "This month" : x.month > pkNow ? "Coming, hidden from members" : "Over";
+      return "<li><b>" + esc(monthName(x.month)) + '</b><span class="meta">' + esc(p ? p.title + " by " + p.by : x.id) + " · " + when + '</span><div class="row-btns"><button class="btn btn-light btn-small" type="button" data-month="' + esc(x.month) + '">Edit</button></div></li>';
+    }).join("");
+  }
+  function loadPicks() {
+    if (!inboxReady()) return;
+    if (COURSE && $("pk-ch").options.length < 2) $("pk-ch").innerHTML = '<option value="">None</option>' + COURSE.parts.map(function (part) { return part.ch.map(function (slug) { return '<option value="' + esc(slug) + '">' + esc(COURSE.ch[slug][0] + ". " + COURSE.ch[slug][1]) + "</option>"; }).join(""); }).join("");
+    Promise.all([inbox("/admin/picks"), galleryData ? Promise.resolve() : loadGallery()]).then(function (r) {
+      pkList = r[0].picks || []; pkNow = r[0].month;
+      var keep = $("pk-month").value;
+      $("pk-month").innerHTML = [-3, -2, -1, 0, 1, 2].map(function (i) { var m = addMonths(pkNow, i); return '<option value="' + m + '">' + esc(monthName(m)) + (i === 0 ? " (this month)" : "") + "</option>"; }).join("");
+      $("pk-month").value = keep || pkNow;
+      $("pk-photo").innerHTML = '<option value="">Choose a photo</option>' + pkPhotos().map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.title + " by " + p.by) + "</option>"; }).join("");
+      pkShow();
+      if (pkWanted) { $("pk-photo").value = pkWanted; pkWanted = ""; pkThumb(); $("pk-note").focus(); }
+      pkRender();
+    }).catch(function (e) { setStatus($("pk-msg"), /Not found/.test(e.message) ? "Update the inbox program in Cloudflare to use Why it works." : e.message, true); });
+  }
+  function pickPhoto(id) {   // from the Gallery tab
+    pkWanted = id;
+    document.getElementById("tab-learning").click();
+    $("pk-form").scrollIntoView();
+  }
+  $("pk-month").addEventListener("change", pkShow);
+  $("pk-photo").addEventListener("change", pkThumb);
+  $("pk-list").addEventListener("click", function (ev) { var b = ev.target.closest("button[data-month]"); if (!b) return; $("pk-month").value = b.getAttribute("data-month"); pkShow(); $("pk-form").scrollIntoView(); });
+  function pkSave(body, done) {
+    var month = $("pk-month").value;
+    $("pk-save").disabled = $("pk-remove").disabled = true; setStatus($("pk-msg"), "Saving…");
+    inbox("/admin/pick/" + month, { method: "POST", json: body }).then(function (d) { pkList = d.picks || []; pkShow(); pkRender(); setStatus($("pk-msg"), done(month)); })
+      .catch(function (e) { setStatus($("pk-msg"), e.message, true); }).then(function () { $("pk-save").disabled = $("pk-remove").disabled = false; });
+  }
+  $("pk-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!$("pk-photo").value) { setStatus($("pk-msg"), "Choose a photo.", true); return; }
+    if ($("pk-note").value.trim().length < 20) { setStatus($("pk-msg"), "Write a few sentences about why it works.", true); $("pk-note").focus(); return; }
+    pkSave({ id: $("pk-photo").value, note: $("pk-note").value.trim(), ch: $("pk-ch").value }, function (month) {
+      return "Saved for " + monthName(month) + (month <= pkNow ? ". Members see it now." : ". Members see it when the month starts.");
+    });
+  });
+  $("pk-remove").addEventListener("click", function () { pkSave({ id: "" }, function (month) { return "Removed " + monthName(month) + "'s pick."; }); });
 
   /* ---------- events ---------- */
   var editingEvent = null, eventsCache = {};

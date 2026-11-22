@@ -67,6 +67,9 @@
       var fresh = list.filter(function (p) { return Club.thisMonth(d, p); }).length;
       $("l-month").hidden = !fresh;
       if ((location.hash === "#this-month" || location.hash === "#this-week") && fresh) $("c-month").checked = true;
+      if (location.hash === "#asking-for-feedback" && $("c-ask")) $("c-ask").checked = true;
+      if (location.hash === "#why-it-works" && $("c-why")) $("c-why").checked = true;
+      if (location.hash === "#handbook-exercises" && $("c-hx")) $("c-hx").checked = true;
       var s = location.hash.match(/^#series-([a-z0-9-]+)$/), chip = s && $("c-s-" + s[1]);
       if (chip) { chip.checked = true; chip.scrollIntoView({ block: "nearest", inline: "center" }); }
       Club.layout();
@@ -99,14 +102,35 @@
     }
   }
 
+  // a handbook exercise from handbook/exercises.js: [label, title, chapter slug]
+  function exercise(label) { var c = window.HB_COURSE; return label && c ? c.ex.filter(function (x) { return x[0] === label; })[0] || null : null; }
+  // the lines under a photo's title that can change when its photographer edits it
+  function exLines(p) {
+    var e = exercise(p.hx);
+    return '<div class="ex-lines">' +
+      (p.hx ? '<p class="in-series">An attempt at the handbook exercise ' + (e ? '<a href="handbook/' + esc(e[2]) + ".html#ex-" + esc(e[0]) + '"><b>' + esc(e[0] + ", " + e[1]) + "</b></a>" : "<b>" + esc(p.hx) + "</b>") + "</p>" : "") +
+      (p.fb === "share" ? '<p class="fb-note">Just sharing: no critique needed. Say what you enjoy about it.</p>'
+        : p.fb === "ask" ? '<p class="fb-note fb-ask">Asked for feedback: say what works and what could be stronger. A question is welcome too.</p>'
+        : '<p class="fb-note">Feedback welcome: start with what works, then your suggestion.</p>') + "</div>";
+  }
+  // Why it works: an admin's note on this photo, for a month
+  function whyItWorks(p) {
+    return (data.picks || []).filter(function (x) { return x.id === p.id; }).map(function (x) {
+      var ch = x.ch && window.HB_COURSE && window.HB_COURSE.ch[x.ch];
+      return '<div class="why-works"><p class="why-k">Why it works · ' + esc(monthName(x.month)) + '</p><p' + Club.ml(x.note) + ">" + esc(x.note) + "</p>" +
+        (ch ? '<p class="why-read">Read more in the handbook: <a href="handbook/' + esc(x.ch) + '.html">' + esc(ch[1]) + "</a></p>" : "") + "</div>";
+    }).join("");
+  }
   function tile(p) {
     var cats = Club.cats(p).map(Club.catClass).join(" "), ids = Club.seriesOf(p);
     var series = ids.map(function (id) { return Club.seriesName(data.series, id); }).filter(Boolean), theme = p.theme ? themeTitle(data, p.theme) : "";
-    var lines = (theme ? '<p class="in-series">Entry for the monthly theme <a href="gallery.html?theme=' + esc(p.theme) + '"><b' + Club.ml(theme) + ">" + esc(theme) + "</b></a></p>" : "") +
+    var lines = whyItWorks(p) + (theme ? '<p class="in-series">Entry for the monthly theme <a href="gallery.html?theme=' + esc(p.theme) + '"><b' + Club.ml(theme) + ">" + esc(theme) + "</b></a></p>" : "") +
       (/^\d{4}-\d{2}$/.test(p.mc || "") ? '<p class="in-series">An attempt at the <a href="learning/index.html#mc-' + esc(p.mc) + '">Masters challenge</a> of ' + esc(monthName(p.mc)) + "</p>" : "") +
-      (p.fb === "share" ? '<p class="fb-note">Just sharing: no critique needed. Say what you enjoy about it.</p>' : '<p class="fb-note">Feedback welcome: start with what works, then your suggestion.</p>');
+      exLines(p);
     return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
-      cls: cats + (Club.thisMonth(data, p) ? " this-month" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") + (p.fb === "share" ? "" : " fb-on"),
+      cls: cats + (Club.thisMonth(data, p) ? " this-month" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") +
+        (p.fb === "share" ? "" : " fb-on") + (p.fb === "ask" ? " fb-ask" : "") + (p.hx ? " hx-on" : "") + ((data.picks || []).some(function (x) { return x.id === p.id; }) ? " why-on" : ""),
+      before: p.bef ? Club.photoUrl(data, p, "before") : "",
       series: series, lines: lines, byHref: "gallery.html?by=" + encodeURIComponent(p.by), votes: (data.votes && data.votes[p.id]) || 0,
       extra: p.pub ? '<p class="note">Also in the club\'s public <a href="index.html#p-' + esc(p.id) + '">exhibition</a>, where anyone can see it.</p>' : ""
     });
@@ -124,6 +148,9 @@
     (d.series || []).forEach(function (s) { if (list.some(function (p) { return Club.seriesOf(p).indexOf(s.id) >= 0; })) html += chip("c-s-" + s.id, s.name, "s-" + s.id); });
     $("c-all").nextElementSibling.insertAdjacentHTML("afterend", html);
     if (list.some(function (p) { return p.fb !== "share"; }) && list.some(function (p) { return p.fb === "share"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-fb", "Feedback welcome", "fb-on"));
+    if (list.some(function (p) { return p.fb === "ask"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-ask", "Asking for feedback", "fb-ask"));
+    if (list.some(function (p) { return p.hx; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-hx", "Handbook exercises", "hx-on"));
+    if ((d.picks || []).length) $("c-month").insertAdjacentHTML("beforebegin", chip("c-why", "Why it works", "why-on"));
     style.textContent = rules.join("\n");
   }
 
@@ -214,10 +241,21 @@
       wrap.querySelector("button").addEventListener("click", open);
     }
     function field(k, label, ph) { return '<div><label class="f" for="ed-' + k + "-" + id + '">' + label + '</label><input type="text" id="ed-' + k + "-" + id + '" maxlength="30" placeholder="' + ph + '" value="' + esc(p[k] || "") + '"></div>'; }
+    function exerciseOptions(v) {
+      var c = window.HB_COURSE;
+      if (!c) return '<option value="' + esc(v || "") + '">' + esc(v || "None") + "</option>";
+      return '<option value="">None</option>' + c.parts.map(function (part) { return part.ch.map(function (slug) {
+        return '<optgroup label="' + esc(c.ch[slug][0] + ". " + c.ch[slug][1]) + '">' + c.ex.filter(function (x) { return x[2] === slug; }).map(function (x) {
+          return '<option value="' + esc(x[0]) + '"' + (x[0] === v ? " selected" : "") + ">" + esc(x[0] + " · " + x[1]) + "</option>"; }).join("") + "</optgroup>"; }).join(""); }).join("");
+    }
     function open() {
       wrap.innerHTML = '<form class="edit-form" novalidate><label class="f" for="ed-desc-' + id + '">Description</label>' +
         '<textarea id="ed-desc-' + id + '" maxlength="400"' + ml(p.desc) + ">" + esc(p.desc || "") + "</textarea>" +
         '<div class="two">' + field("lens", "Lens", "35 mm") + field("ap", "Aperture", "f/8") + field("sh", "Shutter", "1/250 s") + field("iso", "ISO", "100") + "</div>" +
+        '<label class="f" for="ed-fb-' + id + '">Comments you\'d like</label><select id="ed-fb-' + id + '">' +
+          [["", "Feedback welcome"], ["ask", "I'd like feedback"], ["share", "Just sharing"]].map(function (o) { return '<option value="' + o[0] + '"' + ((p.fb || "") === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select>" +
+        '<label class="f" for="ed-hx-' + id + '">Handbook exercise</label><select id="ed-hx-' + id + '">' + exerciseOptions(p.hx || "") + "</select>" +
+        (p.bef ? '<label class="f" for="ed-chg-' + id + '">What I changed</label><textarea id="ed-chg-' + id + '" maxlength="500"' + ml(p.chg) + ">" + esc(p.chg || "") + "</textarea>" : "") +
         '<p class="note">Its hearts and comments stay. To change the photo itself or its title, ask a club admin.</p>' +
         '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
         '<p class="status" aria-live="polite"></p></form>';
@@ -225,12 +263,16 @@
       form.querySelector('[data-a="cancel"]').addEventListener("click", function () { closed(); });
       form.addEventListener("submit", function (ev) {
         ev.preventDefault();
-        var body = { desc: form.querySelector("#ed-desc-" + id).value };
+        var body = { desc: form.querySelector("#ed-desc-" + id).value, fb: form.querySelector("#ed-fb-" + id).value, hx: form.querySelector("#ed-hx-" + id).value };
         ["lens", "ap", "sh", "iso"].forEach(function (k) { body[k] = form.querySelector("#ed-" + k + "-" + id).value; });
+        if (p.bef) body.chg = form.querySelector("#ed-chg-" + id).value;
         form.querySelector('[type="submit"]').disabled = true; setStatus(st, "Saving…");
         Club.call("/photo/" + id + "/details", { method: "POST", json: body }).then(function (r) {
-          ["desc", "lens", "ap", "sh", "iso"].forEach(function (k) { if (r.photo[k]) p[k] = r.photo[k]; else delete p[k]; });
+          ["desc", "lens", "ap", "sh", "iso", "hx", "chg", "fb"].forEach(function (k) { if (!(k in r.photo) && ["hx", "chg", "fb"].indexOf(k) >= 0) return; if (r.photo[k]) p[k] = r.photo[k]; else delete p[k]; });
           Viewer.setDetails(id, p);
+          var lines = v.querySelector(".ex-lines"); if (lines) lines.outerHTML = exLines(p);
+          var t = document.getElementById("t-" + id);
+          if (t) { t.classList.toggle("fb-on", p.fb !== "share"); t.classList.toggle("fb-ask", p.fb === "ask"); t.classList.toggle("hx-on", !!p.hx); }
           closed("Saved. The photo keeps its hearts and comments.");
         }).catch(function (e) {
           setStatus(st, e.status === 404 && /Not found/.test(e.message) ? "Editing details works once the club's inbox has been updated." : e.message, true);
@@ -250,11 +292,19 @@
     html += "<h3>Comments" + (d.comments.length ? " (" + d.comments.length + ")" : "") + "</h3>";
     html += d.comments.length
       ? '<ol class="comments">' + d.comments.map(function (c) {
-          return '<li data-cid="' + esc(c.cid) + '"><p class="who-said"><b' + ml(c.name) + '>' + esc(c.name) + "</b> <time>" + ago(c.at) + '</time></p><p class="said"' + ml(c.text) + '>' + esc(c.text) + "</p>" +
+          var said = c.fb ? '<div class="fb-parts">' + [["w", "What works"], ["b", "What could be stronger"], ["q", "A question"]].filter(function (x) { return c.fb[x[0]]; }).map(function (x) {
+              return '<p class="said"' + ml(c.fb[x[0]]) + "><b>" + x[1] + "</b> " + esc(c.fb[x[0]]) + "</p>"; }).join("") + "</div>"
+            : '<p class="said"' + ml(c.text) + '>' + esc(c.text) + "</p>";
+          return '<li data-cid="' + esc(c.cid) + '"' + (c.fb ? ' class="fb-comment"' : "") + '><p class="who-said"><b' + ml(c.name) + '>' + esc(c.name) + "</b>" + (c.fb ? ' <span class="fb-tag">Feedback</span>' : "") + " <time>" + ago(c.at) + '</time></p>' + said +
             (c.mine ? '<div class="del-box"><button class="linkish del" type="button">Delete</button></div>'
               : member ? '<div class="del-box">' + (c.reported ? '<span class="muted">You reported this comment</span>' : '<button class="linkish report" type="button">Report</button>') + "</div>" : "") + "</li>";
         }).join("") + "</ol>"
       : '<p class="muted">No comments yet.' + (member ? " Start with what you like about the photo." : "") + "</p>";
+    var photo = data && data.byId[id];
+    if (member && !d.own && photo && photo.fb !== "share") {        // feedback in three parts, checked by an admin before it's shown
+      html += '<div class="fb-give">' + (d.waiting ? '<p class="status">' + (d.waiting === 1 ? "Your feedback on this photo is" : "Your " + d.waiting + " pieces of feedback on this photo are") + " waiting for an admin. It shows here once it's checked.</p>" : "") +
+        '<button class="btn btn-light btn-small" type="button" data-a="fb-open">Give feedback</button> <small class="muted">What works, what could be stronger, a question. An admin checks it first.</small></div>';
+    }
     if (member) {
       html += '<form class="comment-form" novalidate><label class="f" for="cf-' + id + '">Your comment <small>(as ' + esc(d.member) + ")</small></label>" +
         '<textarea id="cf-' + id + '" maxlength="1000" placeholder="' + (data && data.byId[id] && data.byId[id].fb === "share" ? "Just sharing: say what you enjoy about it. English or Malayalam." : "Start with what you like about the photo, then your suggestion. English or Malayalam.") + '"></textarea>' +
@@ -265,6 +315,32 @@
         '<button class="btn btn-dark btn-small" type="submit">Post comment</button></div><p class="status" aria-live="polite"></p></form>';
     }
     box.innerHTML = html;
+
+    var give = box.querySelector('[data-a="fb-open"]');
+    if (give) give.addEventListener("click", function () {
+      var slot = give.parentNode, fid = "fbf-" + id;
+      slot.innerHTML = '<form class="fb-form" novalidate><p class="fb-form-h">Feedback on “' + esc(photo.title) + '” <small class="muted">(as ' + esc(d.member) + ")</small></p>" +
+        '<label class="f" for="' + fid + '-w">What works</label><textarea id="' + fid + '-w" maxlength="400" placeholder="What caught your eye, and why it works"></textarea>' +
+        '<label class="f" for="' + fid + '-b">What could be stronger <small>(optional)</small></label><textarea id="' + fid + '-b" maxlength="400" placeholder="One suggestion they could try next time"></textarea>' +
+        '<label class="f" for="' + fid + '-q">A question <small>(optional)</small></label><input type="text" id="' + fid + '-q" maxlength="400" placeholder="For example: did you wait for the cyclist?">' +
+        '<p class="note">An admin reads it first, so the tone stays kind. Then it shows with the comments. Our handbook’s chapter <a href="handbook/talking-about-photographs.html">Talking about photographs</a> has tips.</p>' +
+        '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Send feedback</button><button class="btn btn-light btn-small" type="button" data-a="fb-cancel">Cancel</button></div><p class="status" aria-live="polite"></p></form>';
+      var f = slot.querySelector("form"), st = f.querySelector(".status"), val = function (k) { return f.querySelector("#" + fid + "-" + k).value.trim(); };
+      f.querySelector("textarea").focus();
+      f.querySelector('[data-a="fb-cancel"]').addEventListener("click", function () { draw(box, id, d); });
+      f.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        if (!val("w")) { setStatus(st, "Start with what works in the photo.", true); f.querySelector("#" + fid + "-w").focus(); return; }
+        if (!val("b") && !val("q")) { setStatus(st, "Add what could be stronger, or a question.", true); f.querySelector("#" + fid + "-b").focus(); return; }
+        f.querySelector('[type="submit"]').disabled = true; setStatus(st, "Sending…");
+        Club.call("/feedback", { method: "POST", json: { photo: id, w: val("w"), b: val("b"), q: val("q") } }).then(function () {
+          return Club.call("/photo/" + id).then(function (d2) { draw(box, id, d2); var s2 = box.querySelector(".fb-give .status"); if (s2) s2.textContent = "Thank you. An admin will check your feedback, then it shows here."; });
+        }).catch(function (e) {
+          f.querySelector('[type="submit"]').disabled = false;
+          setStatus(st, e.status === 404 && /Not found/.test(e.message) ? "Feedback works once the club's inbox has been updated." : e.message, true);
+        });
+      });
+    });
 
 
     var form = box.querySelector(".comment-form");

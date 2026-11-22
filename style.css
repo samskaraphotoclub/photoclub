@@ -256,7 +256,7 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
 /* on your own photo: Edit details (description and camera settings) */
 .own-edit { margin-top: 16px; }
 .own-edit .status:empty { display: none; }
-.edit-form input[type=text], .edit-form textarea { width: 100%; min-height: 44px; padding: 10px 12px; font: 16px var(--sans); color: var(--ink);
+.edit-form input[type=text], .edit-form textarea, .edit-form select { width: 100%; min-height: 44px; padding: 10px 12px; font: 16px var(--sans); color: var(--ink);
   background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
 .edit-form textarea { min-height: 96px; resize: vertical; }
 .edit-form .note { margin-top: 10px; }
@@ -627,3 +627,32 @@ a.by-link:hover { text-decoration: underline; }
 .meter.warn span { background: #c77700; }
 .meter.full span { background: var(--red); }
 .plan-pick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+
+/* learning (22 Nov 2026): before and after, Why it works, feedback in three parts, handbook exercises */
+.ba-switch { position: absolute; z-index: 2; bottom: 12px; left: 50%; transform: translateX(-50%); display: inline-flex; border-radius: 999px; overflow: hidden;
+  background: rgba(20, 18, 18, .72); border: 1px solid rgba(255, 255, 255, .35); }
+.ba-switch button { border: 0; background: none; color: #fff; font: 600 .9rem var(--sans); padding: 8px 16px; min-height: 40px; cursor: pointer; }
+.ba-switch button[aria-pressed="true"] { background: #fff; color: #141212; }
+.pic.showing-before::after { content: "Before editing"; position: absolute; top: 12px; right: 12px; z-index: 1; background: rgba(20, 18, 18, .72); color: #fff;
+  font: 600 .8rem var(--sans); padding: 5px 10px; border-radius: 999px; }
+.viewer .chg { font-size: .95rem; margin-top: 12px; }
+.viewer .chg b { display: block; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.why-works { border-left: 3px solid var(--red); background: var(--shade); padding: 10px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; font-size: .95rem; }
+.why-works p { margin: 0; }
+.why-works p + p { margin-top: 6px; }
+.why-works .why-k { font: 600 .78rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.why-works .why-read { font-size: .9rem; color: var(--muted); }
+.viewer .fb-note.fb-ask { border-left-color: var(--red); color: var(--ink); }
+.fb-give { margin: 14px 0 6px; }
+.fb-give .status { margin: 0 0 8px; font-weight: 500; }
+.fb-form { border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; }
+.fb-form-h { font-weight: 600; margin: 0 0 4px; }
+.fb-form textarea { min-height: 64px; }
+.fb-parts .said b { display: block; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.fb-tag { font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); margin-left: 6px; }
+.bef-pv { display: block; max-width: 100%; max-height: 220px; width: auto; border-radius: 6px; margin-top: 12px; }
+#hx { width: 100%; }
+#pk-thumb { max-height: 220px; margin-top: 10px; }
+.sub-before { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--rule); }
+.sub-before .sub-img { max-height: 40vh; }
+.sub-chg { font-size: .95rem; margin: 8px 0 0; }

@@ -7,14 +7,16 @@ var Viewer = (function () {
 
   /* A tile with its viewer. thumb, full: the image addresses.
      o.cls: extra classes; o.series: the names of its series; o.extra: HTML under the details; o.byHref: link for the photographer's name;
-     o.votes: its number of hearts (shown on the photo), which also makes room for the heart button beside the title. */
+     o.votes: its number of hearts (shown on the photo), which also makes room for the heart button beside the title.
+     o.before: the address of the photo before it was edited, for a Before / After switch on the photo. */
   var HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.6 4.3 13a4.9 4.9 0 0 1 0-7 4.9 4.9 0 0 1 7 0l.7.7.7-.7a4.9 4.9 0 0 1 7 0 4.9 4.9 0 0 1 0 7Z"/></svg>';
   function badge(n, cls) { return '<span class="' + cls + '"' + (n ? "" : " hidden") + ' aria-label="' + n + (n === 1 ? " heart" : " hearts") + '">' + HEART + "<b>" + (n | 0) + "</b></span>"; }
   // the description and camera settings
   function details(p) {
     var rows = [["Lens", p.lens], ["Aperture", p.ap], ["Shutter", p.sh], ["ISO", p.iso]].filter(function (r) { return r[1]; })
       .map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("");
-    return (p.desc ? '<p class="desc"' + ml(p.desc) + ">" + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "");
+    return (p.desc ? '<p class="desc"' + ml(p.desc) + ">" + esc(p.desc) + "</p>" : "") + (rows ? "<dl>" + rows + "</dl>" : "") +
+      (p.bef && p.chg ? '<p class="chg"><b>What I changed</b> <span' + ml(p.chg) + ">" + esc(p.chg) + "</span></p>" : "");
   }
   function setDetails(id, p) { var box = document.querySelector("#p-" + id + " .details"); if (box) box.innerHTML = details(p); }
   function tile(p, thumb, full, o) {
@@ -29,7 +31,9 @@ var Viewer = (function () {
         '<a class="shade" href="#t-' + id + '" aria-label="Close" tabindex="-1"></a>' +
         '<div class="box">' +
           '<a class="close" href="#t-' + id + '" aria-label="Close">×</a>' +
-          '<div class="pic"><img src="' + esc(full) + '" alt="' + title + '" width="' + (p.w | 0) + '" height="' + (p.h | 0) + '" loading="lazy">' + (voting ? badge(o.votes, "vote-badge") : "") + "</div>" +
+          '<div class="pic"><img src="' + esc(full) + '" alt="' + title + '" width="' + (p.w | 0) + '" height="' + (p.h | 0) + '" loading="lazy"' +
+            (o.before ? ' data-after="' + esc(full) + '" data-before="' + esc(o.before) + '"' : "") + ">" + (voting ? badge(o.votes, "vote-badge") : "") +
+            (o.before ? '<div class="ba-switch" role="group" aria-label="Before and after editing"><button type="button" data-ba="before" aria-pressed="false">Before</button><button type="button" data-ba="after" aria-pressed="true">After</button></div>' : "") + "</div>" +
           '<div class="info">' + (voting ? '<div class="title-row"><h2' + ml(p.title) + ">" + title + '</h2><div class="vote-slot"></div></div><p class="vote-note" aria-live="polite"></p>' : "<h2" + ml(p.title) + ">" + title + "</h2>") +
             '<p class="by">' + by + ", " + esc(Club.cats(p).join(", ")) + "</p>" +
             (series.length ? '<p class="in-series">Part of the series ' + series.map(function (n) { return "<b" + ml(n) + ">" + esc(n) + "</b>"; }).join(" and ") + "</p>" : "") + (o.lines || "") +
@@ -74,6 +78,15 @@ var Viewer = (function () {
     started = true;
     window.addEventListener("hashchange", sync);
     document.addEventListener("click", function (e) {
+      var s = e.target.closest(".ba-switch button");   // the photo before and after editing
+      if (s) {
+        var pic = s.closest(".pic"), img = pic.querySelector("img[data-before]"), before = s.getAttribute("data-ba") === "before";
+        img.src = img.getAttribute(before ? "data-before" : "data-after");
+        img.alt = img.alt.replace(/ \(before editing\)$/, "") + (before ? " (before editing)" : "");
+        pic.classList.toggle("showing-before", before);
+        pic.querySelectorAll(".ba-switch button").forEach(function (x) { x.setAttribute("aria-pressed", x === s); });
+        return;
+      }
       var b = e.target.closest(".step, .viewer .close, .viewer .shade");
       if (!b) return;
       e.preventDefault();
