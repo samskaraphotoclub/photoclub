@@ -36,6 +36,7 @@ Open the Worker, then **Settings** > **Variables and Secrets** > **Add**:
 | `ADMIN_PASSWORD` | Secret | A long password, at least 12 characters: a phrase of four or five unrelated words is good. Share it only with club admins. After 20 wrong passwords from one connection in 15 minutes, that connection has to wait. |
 | `ALLOWED_ORIGIN` | Text | Your site's address without anything after the domain, for example `https://yourname.github.io` |
 | `WEEKLY_LIMIT` | Text | Optional. How many photos each member can send per 7 days. Default 5. |
+| `EXERCISE_LIMIT` | Text | Optional. How many exercise attempts (the gallery's Exercises tab) each member can send per 7 days, on top of `WEEKLY_LIMIT`. Default 5. |
 | `HEARTS_PER_DAY` | Text | Optional. How many hearts each member can give per day. Default 20, which keeps a busy club within the free plan's 1,000 saved changes a day. (Old `VOTES_PER_WEEK` or `VOTES_PER_MONTH` settings are no longer used.) |
 | `TIMEZONE` | Text | Optional. When days and months start, for example `Europe/Berlin` (the default) or `Europe/London`. |
 | `HANDBOOK_KEY` | Secret | Opens the members-only Photography Handbook on the site. The value is one long line of letters and numbers that you get from whoever builds the handbook. Paste it exactly, all on one line. Without it the handbook stays locked and says it opens soon. Keep it to yourself: anyone with it could open the handbook's files. |

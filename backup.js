@@ -224,7 +224,7 @@ var Backup = (function () {
         var full = b.photoFile(p.id + "." + p.ext), thumb = b.photoFile(p.id + "-sm." + p.ext);
         if (!full || !thumb) return Promise.reject(new Error("The backup is missing the files for “" + p.title + "”."));
         var type = p.ext === "webp" ? "image/webp" : "image/jpeg", f = new FormData();
-        ["id", "title", "by", "uid", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th", "series", "pubOk", "pub", "theme", "mc", "fb", "hx", "chg"].forEach(function (k) {
+        ["id", "title", "by", "uid", "cat", "desc", "lens", "ap", "sh", "iso", "added", "sub", "at", "w", "h", "tw", "th", "series", "pubOk", "pub", "theme", "mc", "fb", "hx", "chg", "ex"].forEach(function (k) {
           if (Array.isArray(p[k])) p[k].forEach(function (x) { f.append(k, x); }); else if (k !== "cat") f.append(k, p[k] == null ? "" : p[k]);
         });
         (p.cats && p.cats.length ? p.cats : [p.cat]).forEach(function (c) { f.append("cat", c); });

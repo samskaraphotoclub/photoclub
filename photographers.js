@@ -26,7 +26,7 @@
     Club.gallery().then(function (d) {
       $("a-name").textContent = d.name; $("a-who").hidden = false;
       var byName = {}, order = [];
-      d.photos.forEach(function (p) { if (!byName[p.by]) { byName[p.by] = []; order.push(p.by); } byName[p.by].push(p); });   // newest photo first
+      d.photos.filter(function (p) { return !p.ex; }).forEach(function (p) { if (!byName[p.by]) { byName[p.by] = []; order.push(p.by); } byName[p.by].push(p); });   // newest photo first
       $("people").innerHTML = order.map(function (name) {
         var photos = byName[name], bio = ((d.people || {})[name] || {}).bio || "", href = "gallery.html?by=" + encodeURIComponent(name);
         var mine = name === d.name, pic = ((d.people || {})[name] || {}).av;

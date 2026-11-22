@@ -57,19 +57,26 @@
         if (now) { byName = now; try { history.replaceState(null, "", "gallery.html?by=" + encodeURIComponent(byName) + location.hash); } catch (e) {} }
       }
       var list = byName ?d.photos.filter(function (p) { return p.by === byName; }) : themeMonth ? d.photos.filter(function (p) { return p.theme === themeMonth; }) : d.photos;
+      var exCount = list.filter(function (p) { return p.ex; }).length;
       heading(d, list);
       seriesChips(d, list);
       $("grid").innerHTML = list.map(tile).join("");
       $("g-status").hidden = list.length > 0;
+      // Gallery | Exercises: exercise attempts have their own tab (a theme's entries never include them; a photographer's page only shows the tabs if they have some)
+      $("g-tabs").hidden = !!themeMonth || (!!byName && !exCount);
+      $("t-ex-n").textContent = exCount ? String(exCount) : "";
       $("g-status").textContent = byName ? "No photos from " + byName + " in the gallery yet." : themeMonth ? "No entries for this theme yet." : "No photos yet. Share the first one on the Share a photo page.";
       $("g-name").textContent = d.name;
       $("g-who").hidden = false; $("g-photos").hidden = false;
       var fresh = list.filter(function (p) { return Club.thisMonth(d, p); }).length;
       $("l-month").hidden = !fresh;
       if ((location.hash === "#this-month" || location.hash === "#this-week") && fresh) $("c-month").checked = true;
-      if (location.hash === "#asking-for-feedback" && $("c-ask")) $("c-ask").checked = true;
-      if (location.hash === "#why-it-works" && $("c-why")) $("c-why").checked = true;
+      var toEx = location.hash === "#exercises" || location.hash === "#handbook-exercises" || location.hash === "#masters-challenge";
+      if (location.hash === "#asking-for-feedback" && $("c-ask")) { $("c-ask").checked = true; toEx = $("c-ask").classList.contains("ex-only"); }
+      if (location.hash === "#why-it-works" && $("c-why")) { $("c-why").checked = true; toEx = $("c-why").classList.contains("ex-only"); }
       if (location.hash === "#handbook-exercises" && $("c-hx")) $("c-hx").checked = true;
+      if (location.hash === "#masters-challenge" && $("c-mc")) $("c-mc").checked = true;
+      setTab(toEx && !$("g-tabs").hidden, true);
       var s = location.hash.match(/^#series-([a-z0-9-]+)$/), chip = s && $("c-s-" + s[1]);
       if (chip) { chip.checked = true; chip.scrollIntoView({ block: "nearest", inline: "center" }); }
       Club.layout();
@@ -81,6 +88,24 @@
     });
   }
 
+  // Gallery | Exercises. keep: leave the address alone (a photo is open, or the page is starting)
+  var INTRO = "";
+  function setTab(ex, keep) {
+    $(ex ? "t-ex" : "t-gallery").checked = true;
+    var chip = document.querySelector('.chips input[name="cat"]:checked');      // a filter only the other tab has: back to All
+    if (chip && chip.classList.contains(ex ? "gal-only" : "ex-only")) $("c-all").checked = true;
+    var any = [].some.call(document.querySelectorAll("#grid .tile"), function (t) { return t.classList.contains("ex") === ex; });
+    $("ex-empty").hidden = !(ex && !any);
+    if (!byName && !themeMonth) {
+      INTRO = INTRO || $("g-intro").textContent;
+      $("g-intro").textContent = ex ? "Members' attempts at the handbook's exercises and the monthly Masters challenge, newest first. They're practice, so say what works and what to try next time." : INTRO;
+    }
+    if (!keep) try { history.replaceState(null, "", location.pathname + location.search + (ex ? "#exercises" : "")); } catch (e) {}
+    Club.layout();
+  }
+  document.querySelectorAll('input[name="tab"]').forEach(function (r) { r.addEventListener("change", function () { setTab(r.id === "t-ex"); }); });
+  window.addEventListener("hashchange", function () { if (data && location.hash === "#exercises" && !$("g-tabs").hidden) setTab(true, true); });
+
   // the page's heading: the gallery, a photographer's page, or a theme's entries
   function heading(d, list) {
     if (byName) {
@@ -90,7 +115,8 @@
       $("g-intro").textContent = person && person.bio ? person.bio : mine ? "Add a line about yourself on the Share a photo page; members see it here." : "";
       $("g-intro").setAttribute("lang", person && Club.ml(person.bio) ? "ml" : "en");
       $("g-intro").hidden = !$("g-intro").textContent;
-      $("g-meta").innerHTML = list.length + (list.length === 1 ? " photo" : " photos") + ' · <a href="photographers.html">All photographers</a>' + (mine ? ' · <a href="submit.html#about-you">Edit your picture and line</a>' : "");
+      var nEx = list.filter(function (p) { return p.ex; }).length, nG = list.length - nEx;
+      $("g-meta").innerHTML = nG + (nG === 1 ? " photo" : " photos") + (nEx ? " and " + nEx + (nEx === 1 ? " exercise attempt" : " exercise attempts") : "") + ' · <a href="photographers.html">All photographers</a>' + (mine ? ' · <a href="submit.html#about-you">Edit your picture and line</a>' : "");
       $("g-meta").hidden = false;
     } else if (themeMonth) {
       var title = themeTitle(d, themeMonth);
@@ -129,7 +155,7 @@
       exLines(p);
     return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
       cls: cats + (Club.thisMonth(data, p) ? " this-month" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") +
-        (p.fb === "share" ? "" : " fb-on") + (p.fb === "ask" ? " fb-ask" : "") + (p.hx ? " hx-on" : "") + ((data.picks || []).some(function (x) { return x.id === p.id; }) ? " why-on" : ""),
+        (p.fb === "share" ? "" : " fb-on") + (p.fb === "ask" ? " fb-ask" : "") + (p.hx ? " hx-on" : "") + (p.mc ? " mc-on" : "") + (p.ex ? " ex" : "") + ((data.picks || []).some(function (x) { return x.id === p.id; }) ? " why-on" : ""),
       before: p.bef ? Club.photoUrl(data, p, "before") : "",
       series: series, lines: lines, byHref: "gallery.html?by=" + encodeURIComponent(p.by), votes: (data.votes && data.votes[p.id]) || 0,
       extra: p.pub ? '<p class="note">Also in the club\'s public <a href="index.html#p-' + esc(p.id) + '">exhibition</a>, where anyone can see it.</p>' : ""
@@ -142,15 +168,23 @@
     document.querySelectorAll(".chips .extra-chip").forEach(function (el) { el.remove(); });
     var style = $("series-filters") || document.head.appendChild(Object.assign(document.createElement("style"), { id: "series-filters" }));
     var rules = [], html = "";
-    var chip = function (id, label, cls) { rules.push(".gallery:has(#" + id + ":checked) .tile:not(." + cls + ") { display: none; }");
-      return '<input type="radio" name="cat" class="extra-chip" id="' + id + '"><label class="extra-chip" for="' + id + '"' + ml(label) + ">" + esc(label) + "</label>"; };
-    if (d.entry && !themeMonth && list.some(function (p) { return p.theme === d.entry.month; })) html += chip("c-e", "Theme: " + d.entry.title, "e-" + d.entry.month);
-    (d.series || []).forEach(function (s) { if (list.some(function (p) { return Club.seriesOf(p).indexOf(s.id) >= 0; })) html += chip("c-s-" + s.id, s.name, "s-" + s.id); });
+    // a chip shows in the tab(s) that have photos for it: gal-only, ex-only, or both
+    var gal = list.filter(function (p) { return !p.ex; }), exs = list.filter(function (p) { return p.ex; });
+    var chip = function (id, label, cls, test) {
+      var inG = !test || gal.some(test), inE = !test || exs.some(test), only = inG && inE ? "" : inG ? " gal-only" : " ex-only";
+      rules.push(".gallery:has(#" + id + ":checked) .tile:not(." + cls + ") { display: none; }");
+      return '<input type="radio" name="cat" class="extra-chip' + only + '" id="' + id + '"><label class="extra-chip' + only + '" for="' + id + '"' + ml(label) + ">" + esc(label) + "</label>"; };
+    if (d.entry && !themeMonth && list.some(function (p) { return p.theme === d.entry.month; })) html += chip("c-e", "Theme: " + d.entry.title, "e-" + d.entry.month, function (p) { return p.theme === d.entry.month; });
+    (d.series || []).forEach(function (s) { var t = function (p) { return Club.seriesOf(p).indexOf(s.id) >= 0; }; if (list.some(t)) html += chip("c-s-" + s.id, s.name, "s-" + s.id, t); });
     $("c-all").nextElementSibling.insertAdjacentHTML("afterend", html);
-    if (list.some(function (p) { return p.fb !== "share"; }) && list.some(function (p) { return p.fb === "share"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-fb", "Feedback welcome", "fb-on"));
-    if (list.some(function (p) { return p.fb === "ask"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-ask", "Asking for feedback", "fb-ask"));
-    if (list.some(function (p) { return p.hx; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-hx", "Handbook exercises", "hx-on"));
-    if ((d.picks || []).length) $("c-month").insertAdjacentHTML("beforebegin", chip("c-why", "Why it works", "why-on"));
+    if (list.some(function (p) { return p.fb !== "share"; }) && list.some(function (p) { return p.fb === "share"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-fb", "Feedback welcome", "fb-on", function (p) { return p.fb !== "share"; }));
+    if (list.some(function (p) { return p.fb === "ask"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-ask", "Asking for feedback", "fb-ask", function (p) { return p.fb === "ask"; }));
+    if (exs.some(function (p) { return p.hx; }) && exs.some(function (p) { return p.mc; })) {      // in Exercises: the handbook's or the Masters challenge's
+      $("c-month").insertAdjacentHTML("beforebegin", chip("c-hx", "Handbook exercises", "hx-on", function (p) { return p.ex && p.hx; }));
+      $("c-month").insertAdjacentHTML("beforebegin", chip("c-mc", "Masters challenge", "mc-on", function (p) { return p.ex && p.mc; }));
+    }
+    var picked = function (p) { return (d.picks || []).some(function (x) { return x.id === p.id; }); };
+    if (list.some(picked)) $("c-month").insertAdjacentHTML("beforebegin", chip("c-why", "Why it works", "why-on", picked));
     style.textContent = rules.join("\n");
   }
 
@@ -158,7 +192,11 @@
 
   /* ---------- the viewer ---------- */
   Viewer.init({
-    onOpen: function (v) { panel(v); },
+    onOpen: function (v) {      // a photo in the other tab (from a link): show that tab first
+      var t = v.closest(".tile");
+      if (t && !$("g-tabs").hidden && t.classList.contains("ex") !== $("t-ex").checked) setTab(t.classList.contains("ex"), true);
+      panel(v);
+    },
     onMissing: function () { if (data) { $("g-status").hidden = false; $("g-status").textContent = "That photo isn't in the gallery any more."; } }
   });
 
@@ -244,7 +282,7 @@
     function exerciseOptions(v) {
       var c = window.HB_COURSE;
       if (!c) return '<option value="' + esc(v || "") + '">' + esc(v || "None") + "</option>";
-      return '<option value="">None</option>' + c.parts.map(function (part) { return part.ch.map(function (slug) {
+      return '<option value="">' + (p.mc ? "None (only the Masters challenge)" : "Choose an exercise") + "</option>" + c.parts.map(function (part) { return part.ch.map(function (slug) {
         return '<optgroup label="' + esc(c.ch[slug][0] + ". " + c.ch[slug][1]) + '">' + c.ex.filter(function (x) { return x[2] === slug; }).map(function (x) {
           return '<option value="' + esc(x[0]) + '"' + (x[0] === v ? " selected" : "") + ">" + esc(x[0] + " · " + x[1]) + "</option>"; }).join("") + "</optgroup>"; }).join(""); }).join("");
     }
@@ -254,7 +292,7 @@
         '<div class="two">' + field("lens", "Lens", "35 mm") + field("ap", "Aperture", "f/8") + field("sh", "Shutter", "1/250 s") + field("iso", "ISO", "100") + "</div>" +
         '<label class="f" for="ed-fb-' + id + '">Comments you\'d like</label><select id="ed-fb-' + id + '">' +
           [["", "Feedback welcome"], ["ask", "I'd like feedback"], ["share", "Just sharing"]].map(function (o) { return '<option value="' + o[0] + '"' + ((p.fb || "") === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select>" +
-        '<label class="f" for="ed-hx-' + id + '">Handbook exercise</label><select id="ed-hx-' + id + '">' + exerciseOptions(p.hx || "") + "</select>" +
+        (p.ex ? '<label class="f" for="ed-hx-' + id + '">Handbook exercise</label><select id="ed-hx-' + id + '">' + exerciseOptions(p.hx || "") + "</select>" : "") +
         (p.bef ? '<label class="f" for="ed-chg-' + id + '">What I changed</label><textarea id="ed-chg-' + id + '" maxlength="500"' + ml(p.chg) + ">" + esc(p.chg || "") + "</textarea>" : "") +
         '<p class="note">Its hearts and comments stay. To change the photo itself or its title, ask a club admin.</p>' +
         '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
@@ -263,7 +301,8 @@
       form.querySelector('[data-a="cancel"]').addEventListener("click", function () { closed(); });
       form.addEventListener("submit", function (ev) {
         ev.preventDefault();
-        var body = { desc: form.querySelector("#ed-desc-" + id).value, fb: form.querySelector("#ed-fb-" + id).value, hx: form.querySelector("#ed-hx-" + id).value };
+        var body = { desc: form.querySelector("#ed-desc-" + id).value, fb: form.querySelector("#ed-fb-" + id).value };
+        if (p.ex) body.hx = form.querySelector("#ed-hx-" + id).value;
         ["lens", "ap", "sh", "iso"].forEach(function (k) { body[k] = form.querySelector("#ed-" + k + "-" + id).value; });
         if (p.bef) body.chg = form.querySelector("#ed-chg-" + id).value;
         form.querySelector('[type="submit"]').disabled = true; setStatus(st, "Saving…");

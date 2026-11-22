@@ -251,7 +251,7 @@
               return '<li><a href="../gallery.html#p-' + esc(p.id) + '" title="' + esc(p.title + " by " + p.by) + '"><img src="' + esc(Club.photoUrl(g, p, "thumb")) + '" alt="' + esc(p.title) + '" loading="lazy"></a></li>';
             }).join("") + "</ul>" : "") +
           '<p class="hb-attempts-go"><a href="../submit.html?hx=' + encodeURIComponent(label) + '">Share your attempt</a>' +
-          (list.length > 6 ? ' · <a href="../gallery.html#handbook-exercises">See them all in the gallery</a>' : "") + "</p></div>");
+          (list.length > 6 ? ' · <a href="../gallery.html#exercises">See them all in Exercises</a>' : "") + "</p></div>");
       });
     }).catch(function () { /* the gallery couldn't load: the exercises still work */ });
   }

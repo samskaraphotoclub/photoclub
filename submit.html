@@ -25,7 +25,7 @@
 
 <main class="wrap tool">
   <h1>Share a photo</h1>
-  <p>Send a photo to the club gallery. An admin checks each photo before it appears.</p>
+  <p>Send a photo to the club gallery, or an attempt at an exercise to the gallery's Exercises tab. An admin checks each one before it appears.</p>
 
   <p class="card status error" id="not-ready" hidden>Photo sharing isn't switched on yet. Ask a club admin to finish setting it up.</p>
 
@@ -70,6 +70,14 @@
     </form>
 
     <form class="card" id="form" novalidate>
+      <fieldset class="where-pick">
+        <legend>Where it goes</legend>
+        <div class="where-two">
+          <label><input type="radio" name="where" value="gallery" checked><span><b>Gallery</b><small>A photo you'd like to share with the club</small></span></label>
+          <label><input type="radio" name="where" value="ex"><span><b>Exercises</b><small>An attempt at a handbook exercise or the Masters challenge</small></span></label>
+        </div>
+        <p class="note" id="where-note"></p>
+      </fieldset>
       <label class="pick" id="pick">
         <input type="file" id="file" accept="image/*">
         Choose a photo
@@ -90,8 +98,8 @@
       <label class="tick consent" id="entry-box" hidden><input type="checkbox" id="entry"> <span>This is my entry for the monthly theme: <b id="entry-title"></b></span></label>
       <label class="tick consent" id="mc-box" hidden><input type="checkbox" id="mc"> <span>This is my attempt at this month's Masters challenge<span id="mc-title"></span> <small class="muted">It shows on the <a href="learning/index.html">Learning</a> page.</small></span></label>
       <div id="hx-box" hidden>
-        <label class="f" for="hx">Handbook exercise <small>(optional: if this photo is your attempt at one, it shows under that exercise in the <a href="handbook/index.html">handbook</a>)</small></label>
-        <select id="hx"><option value="">None</option></select>
+        <label class="f" for="hx">Handbook exercise <small>(your attempt shows under that exercise in the <a href="handbook/index.html">handbook</a>)</small></label>
+        <select id="hx"><option value="">Choose an exercise</option></select>
         <p class="note" id="hx-month" hidden>This month's exercise is <b id="hx-month-name"></b>. <button class="linkish" type="button" id="hx-use">Choose it</button></p>
       </div>
       <fieldset class="choice">
@@ -104,7 +112,7 @@
         <p class="f" id="series-l">Series <small>(optional: the club's long-term projects; tick any that fit)</small></p>
         <div class="pills" id="series" role="group" aria-labelledby="series-l"></div>
       </div>
-      <label class="tick consent"><input type="checkbox" id="pubOk"> <span>The club may also show this photo in its public <a href="index.html#exhibition">exhibition</a>, where anyone can see it. <small class="muted">Anyone who can be recognised in it has agreed.</small></span></label>
+      <label class="tick consent" id="pub-box"><input type="checkbox" id="pubOk"> <span>The club may also show this photo in its public <a href="index.html#exhibition">exhibition</a>, where anyone can see it. <small class="muted">Anyone who can be recognised in it has agreed.</small></span></label>
 
       <details id="ba-box" style="margin-top:16px">
         <summary>Before and after <small class="muted">(optional: the photo before you edited it)</small></summary>
@@ -175,7 +183,7 @@
   var T = PhotoTools, esc = T.esc;
   var INBOX = String(window.CLUB_INBOX || "").replace(/\/+$/, "");
   var KEY = "conscious-frame-member";
-  var code = "", prepared = null, before = null, wantSeries = "", wantEntry = false, theme = null, challenge = null, wantChallenge = false, wantHx = "";
+  var code = "", prepared = null, before = null, wantSeries = "", wantEntry = false, theme = null, challenge = null, wantChallenge = false, wantHx = "", wantEx = false, me = null;
 
   function saved() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
   function remember(c) { try { c ? localStorage.setItem(KEY, c) : localStorage.removeItem(KEY); } catch (e) {} }
@@ -206,7 +214,7 @@
       remember(code);
       $("member-name").textContent = d.name;
       showName(d);
-      $("limit-note").textContent = "You can send up to " + d.weeklyLimit + " photos a week.";
+      me = d;
       $("bio").value = d.bio || "";
       showPicture(d.name, d.picture ? Club_pictureUrl(d.picture, d.token) : "");
       $("my-page").href = "gallery.html?by=" + encodeURIComponent(d.name);
@@ -223,7 +231,8 @@
       }
       var series = d.series || [];
       $("series").innerHTML = series.map(function (s) { return '<label><input type="checkbox" value="' + esc(s.id) + '"' + (s.id === wantSeries ? " checked" : "") + "><span>" + esc(s.name) + "</span></label>"; }).join("");
-      $("series-box").hidden = !series.length;
+      if (wantEx || wantChallenge || wantHx) $("form").querySelector('input[name="where"][value="ex"]').checked = true;
+      showWhere();
       showMine(d.photos);
       $("signin").hidden = true; $("member").hidden = false;
       if (location.hash === "#about-you") { $("about-you").scrollIntoView(); $("bio").focus(); }
@@ -254,7 +263,7 @@
     if (!course) return;
     var sel = $("hx");
     if (sel.options.length < 2) {
-      sel.innerHTML = '<option value="">None</option>' + course.parts.map(function (part) {
+      sel.innerHTML = '<option value="">' + (challenge && challenge.slug ? "None (only the Masters challenge)" : "Choose an exercise") + "</option>" + course.parts.map(function (part) {
         return part.ch.map(function (slug) {
           var ch = course.ch[slug];
           return '<optgroup label="' + esc(ch[0] + ". " + ch[1]) + '">' + course.ex.filter(function (x) { return x[2] === slug; }).map(function (x) {
@@ -264,11 +273,34 @@
       }).join("");
     }
     if (wantHx && sel.querySelector('option[value="' + wantHx + '"]')) sel.value = wantHx;
-    $("hx-box").hidden = false;
     $("hx-month").hidden = !monthly;
     if (monthly) { $("hx-month-name").textContent = exerciseName(monthly); $("hx-use").setAttribute("data-hx", monthly); }
   }
   $("hx-use").addEventListener("click", function () { $("hx").value = this.getAttribute("data-hx") || ""; $("hx").focus(); });
+
+  /* ---------- the gallery, or the gallery's Exercises tab: each with its own weekly allowance ---------- */
+  function isEx() { return $("form").querySelector('input[name="where"]:checked').value === "ex"; }
+  function weekCount(ex) {
+    var now = Date.now();
+    return ((me && me.photos) || []).filter(function (x) { return now - x.sent < 7 * 864e5 && !!x.ex === ex; }).length;
+  }
+  function showWhere() {
+    var ex = isEx(), hasMc = !!(challenge && challenge.slug);
+    $("entry-box").hidden = ex || !theme;
+    $("series-box").hidden = ex || !$("series").children.length;
+    $("pub-box").hidden = ex;
+    $("mc-box").hidden = !ex || !hasMc;
+    $("hx-box").hidden = !ex || !course;
+    $("send").textContent = ex ? "Send your attempt" : "Send for approval";
+    $("where-note").textContent = ex ? "Practice shots are welcome here: rough tries teach as much as good ones. Exercise attempts get hearts and comments but don't count for the Photos of the month." : "";
+    $("where-note").hidden = !ex;
+    if (!me) return;
+    var gl = me.weeklyLimit || 5, el = me.exerciseLimit == null ? 0 : me.exerciseLimit;
+    $("limit-note").textContent = el
+      ? "Each week you can send up to " + gl + " photos to the gallery (" + weekCount(false) + " sent in the last 7 days) and " + el + " exercise attempts (" + weekCount(true) + " sent)."
+      : "You can send up to " + gl + " photos a week.";
+  }
+  $("form").querySelectorAll('input[name="where"]').forEach(function (r) { r.addEventListener("change", function () { showWhere(); setStatus($("status"), ""); }); });
 
   /* ---------- your name: one nobody else in the club has, changed at most once a month ---------- */
   var myName = "";
@@ -359,9 +391,9 @@
   function showMine(list) {
     $("mine-empty").hidden = list.length > 0;
     $("mine").innerHTML = list.map(function (x) {
-      var chip = x.status === "approved" ? '<span class="chip ok">In the gallery</span>'
+      var chip = x.status === "approved" ? '<span class="chip ok">' + (x.ex ? "In Exercises" : "In the gallery") + "</span>"
                : x.status === "declined" ? '<span class="chip no">Not accepted</span>'
-               : '<span class="chip">Waiting for approval</span>';
+               : '<span class="chip">' + (x.ex ? "Exercise attempt, waiting" : "Waiting for approval") + "</span>";
       var extra = x.status === "approved" && x.galleryId ? ' <a href="gallery.html?v=' + Date.now().toString(36) + '#p-' + esc(x.galleryId) + '">View it</a>'
                 : x.status === "declined" && x.note ? '<span class="meta">Note from the admins: ' + esc(x.note) + "</span>" : "";
       return "<li>" + chip + "<b>" + esc(x.title) + "</b><span class=\"meta\">Sent " + T.ago(x.sent) + "</span>" +
@@ -416,13 +448,22 @@
     if (!cats.length) { setStatus($("status"), "Choose a category.", true); $("cat").querySelector("input").focus(); return; }
     ["title", "desc", "lens", "ap", "sh", "iso"].forEach(function (k) { fd.append(k, $(k).value.trim()); });
     cats.forEach(function (c) { fd.append("cat", c); });
-    ticked("series").forEach(function (s) { fd.append("series", s); });
-    if ($("pubOk").checked) fd.append("pubOk", "1");
-    if (theme && $("entry").checked) fd.append("entry", "1");
-    if (challenge && $("mc").checked) fd.append("challenge", "1");
+    var ex = isEx();
+    fd.append("where", ex ? "ex" : "gallery");
+    if (ex) {
+      if (!$("hx").value && !(challenge && challenge.slug && $("mc").checked)) {
+        setStatus($("status"), challenge && challenge.slug ? "Choose the handbook exercise this is an attempt at, or tick this month's Masters challenge." : "Choose the handbook exercise this is an attempt at.", true);
+        $("hx").focus(); return;
+      }
+      if (challenge && challenge.slug && $("mc").checked) fd.append("challenge", "1");
+      if ($("hx").value) fd.append("hx", $("hx").value);
+    } else {
+      ticked("series").forEach(function (s) { fd.append("series", s); });
+      if ($("pubOk").checked) fd.append("pubOk", "1");
+      if (theme && $("entry").checked) fd.append("entry", "1");
+    }
     var fb = $("form").querySelector('input[name="fb"]:checked').value;
     if (fb) fd.append("fb", fb);
-    if ($("hx").value) fd.append("hx", $("hx").value);
     if (before) { fd.append("before", before.blob, "before." + before.ext); fd.append("chg", $("chg").value.trim()); }
     fd.append("w", prepared.full.w); fd.append("h", prepared.full.h);
     fd.append("tw", prepared.thumb.w); fd.append("th", prepared.thumb.h);
@@ -431,13 +472,15 @@
     $("send").disabled = true;
     setStatus($("status"), "Sending…");
     call("/submit", { method: "POST", body: fd }).then(function () {
-      setStatus($("status"), "Sent. An admin will check it soon, and it will appear in the gallery once it's approved.");
+      setStatus($("status"), ex ? "Sent. An admin will check it soon, and it will appear in the gallery's Exercises tab once it's approved."
+                                : "Sent. An admin will check it soon, and it will appear in the gallery once it's approved.");
       var keep = ticked("series"), keepEntry = $("entry").checked, keepMc = $("mc").checked;
       $("form").reset(); $("exif-note").textContent = ""; $("entry").checked = keepEntry; $("mc").checked = keepMc;
+      $("form").querySelector('input[name="where"][value="' + (ex ? "ex" : "gallery") + '"]').checked = true;
       clearBefore(); setStatus($("bef-status"), ""); $("ba-box").open = false;
       $("series").querySelectorAll("input").forEach(function (i) { i.checked = keep.indexOf(i.value) >= 0; });
       $("preview").hidden = true; $("pick").hidden = false; prepared = null;
-      return call("/me").then(function (d) { showMine(d.photos); });
+      return call("/me").then(function (d) { me = d; showMine(d.photos); showWhere(); });
     }).catch(function (e) {
       setStatus($("status"), e.message, true);
       if (e.status === 401) showSignin(e.message);
@@ -451,6 +494,7 @@
   wantEntry = params.get("entry") === "1";
   wantChallenge = params.get("challenge") === "1";
   wantHx = String(params.get("hx") || "").toUpperCase();          // ?hx=B2: from an exercise in the handbook or the Learning page
+  wantEx = params.get("where") === "ex";
   if (fromLink) history.replaceState(null, "", location.pathname);   // don't leave the code in the address bar
   var start = fromLink || saved();
   if (start) signIn(start, !!fromLink); else showSignin();

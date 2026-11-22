@@ -46,6 +46,10 @@
   <p class="muted g-status" id="g-status" aria-live="polite">Loading…</p>
   <noscript><p class="muted">The gallery needs JavaScript switched on.</p></noscript>
   <div id="g-photos" hidden>
+    <div class="g-tabs" id="g-tabs" role="radiogroup" aria-label="Show">
+      <input type="radio" name="tab" id="t-gallery" checked><label for="t-gallery">Gallery</label>
+      <input type="radio" name="tab" id="t-ex"><label for="t-ex">Exercises<span class="n" id="t-ex-n"></span></label>
+    </div>
     <div class="chips" role="radiogroup" aria-label="Category">
       <input type="radio" name="cat" id="c-all" checked><label for="c-all">All</label>
       <input type="radio" name="cat" id="c-landscape"><label for="c-landscape">Landscape</label>
@@ -57,6 +61,7 @@
       <input type="radio" name="cat" id="c-abstract"><label for="c-abstract">Abstract</label>
       <input type="radio" name="cat" id="c-month"><label for="c-month" id="l-month" hidden>This month</label>
     </div>
+    <p class="muted ex-empty" id="ex-empty" hidden>No exercise attempts yet. Choose an exercise in the <a href="handbook/index.html">handbook</a> or on the <a href="learning/index.html">Learning</a> page, try it on your next walk, and <a href="submit.html?where=ex">share your attempt</a>.</p>
     <div class="grid just" id="grid"></div>
   </div>
 </section>

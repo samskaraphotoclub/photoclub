@@ -63,7 +63,8 @@
 
     // The fan: last month's favourites, by the hearts given that month (still in the gallery), else Photos of the month, else the newest.
     var top = ((d.top && d.top.items) || []).filter(function (x) { return d.byId[x.id]; }).slice(0, 3).map(function (x) { return d.byId[x.id]; });
-    var fan = top.length ? top : potw.length ? potw.map(function (x) { return x.p; }) : d.photos.slice(0, 3);
+    var inGallery = d.photos.filter(function (p) { return !p.ex; });     // exercise attempts stay in the gallery's Exercises tab
+    var fan = top.length ? top : potw.length ? potw.map(function (x) { return x.p; }) : inGallery.slice(0, 3);
     var why = top.length ? (fan.length > 1 ? "Most hearts last month. In front: " : "Most hearts last month: ")
             : potw.length ? "Photos of the month. In front: " : fan.length > 1 ? "Newest in the gallery. In front: " : "Newest in the gallery: ";
     if (fan.length) {
@@ -102,8 +103,8 @@
         "</section>";
     }).join("");
 
-    if (d.photos.length) {
-      $("newest").innerHTML = d.photos.slice(0, 8).map(function (p) {
+    if (inGallery.length) {
+      $("newest").innerHTML = inGallery.slice(0, 8).map(function (p) {
         return '<a href="gallery.html#p-' + esc(p.id) + '" style="--ar:' + ar(p) + '" aria-label="' + esc(p.title + " by " + p.by) + '">' + img(Club.photoUrl(d, p, "thumb"), p, "thumb", "") + "</a>";
       }).join("");
       $("newest-section").hidden = false;

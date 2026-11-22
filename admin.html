@@ -106,7 +106,7 @@
       <h2 id="v-cur-h">This month so far</h2>
       <p class="muted" id="v-cur-info"></p>
       <ol class="list ranking" id="v-cur"></ol>
-      <p class="note"><span id="v-rule">Members give hearts to any photo they like, one per photo, up to 20 a day; a heart can be taken back on the day it's given. Each month's favourites are the photos that got the most hearts during that month.</span> Members see each photo's number of hearts on the photo. Only admins see this ranking and how many members gave hearts; nobody sees who gave which.</p>
+      <p class="note"><span id="v-rule">Members give hearts to any photo they like, one per photo, up to 20 a day; a heart can be taken back on the day it's given. Each month's favourites are the photos that got the most hearts during that month.</span> Exercise attempts get hearts too, but they aren't counted here. Members see each photo's number of hearts on the photo. Only admins see this ranking and how many members gave hearts; nobody sees who gave which.</p>
     </section>
   </section>
 
@@ -475,6 +475,16 @@
   function whatsapp(text) { return "https://wa.me/?text=" + encodeURIComponent(text); }
   function siteUrl(path) { return new URL(path, location.href).href.split("#")[0]; }
   // the exhibition tick box: only photos whose photographer agreed may go in
+  // the gallery or the gallery's Exercises tab (exercise attempts: no theme, series or exhibition; they name their exercise)
+  function whereBox(ex) {
+    return '<label class="f">Goes to<select class="e-where"><option value="gallery"' + (ex ? "" : " selected") + '>The gallery</option><option value="ex"' + (ex ? " selected" : "") +
+      ">Exercises (an exercise attempt)</option></select></label>";
+  }
+  function showWhere(el) {
+    var ex = el.querySelector(".e-where").value === "ex";
+    el.querySelectorAll(".gal-only").forEach(function (x) { x.hidden = ex; });
+    el.querySelectorAll(".ex-only").forEach(function (x) { x.hidden = !ex; });
+  }
   function pubBox(name, agreed, on) {
     var first = String(name || "").split(" ")[0];
     return '<label class="tick consent"><input type="checkbox" class="e-pub"' + (on ? " checked" : "") + "> <span>In the public exhibition, where anyone can see it " +
@@ -549,16 +559,17 @@
     var settings = [p.lens, p.ap, p.sh, p.iso ? "ISO " + p.iso : ""].filter(Boolean).join(", ");
     el.innerHTML =
       '<img class="sub-img" alt="' + esc(p.title) + '" width="' + p.tw + '" height="' + p.th + '">' +
-      '<p class="sub-by">From <b>' + esc(p.name) + "</b>, sent " + T.ago(p.sent) + "</p>" +
+      '<p class="sub-by">From <b>' + esc(p.name) + "</b>, sent " + T.ago(p.sent) + (p.ex ? ' <span class="chip">Exercise attempt</span>' : "") + "</p>" +
+      whereBox(!!p.ex) +
       '<label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(p.title) + '"></label>' +
       '<p class="f">Category <small>(one or more)</small></p>' + catPills(p) +
       '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
-      (series.length ? '<p class="f">Series</p>' + seriesPills(series, p) : "") +
-      pubBox(p.name, p.pubOk, false) +
-      '<div class="two"><div><label class="f">Monthly theme' + (p.theme ? " <small>(" + esc(p.name.split(" ")[0]) + " entered it)</small>" : "") + '<select class="e-theme">' + themeOptions(p.theme || "") + "</select></label></div>" +
+      '<div class="gal-only">' + (series.length ? '<p class="f">Series</p>' + seriesPills(series, p) : "") +
+      pubBox(p.name, p.pubOk, false) + "</div>" +
+      '<div class="two"><div class="gal-only"><label class="f">Monthly theme' + (p.theme ? " <small>(" + esc(p.name.split(" ")[0]) + " entered it)</small>" : "") + '<select class="e-theme">' + themeOptions(p.theme || "") + "</select></label></div>" +
       '<div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
-      (p.mc ? '<label class="tick consent"><input type="checkbox" class="e-mc" checked> <span>An attempt at the Masters challenge of ' + esc(monthName(p.mc)) + ' <small class="muted">' + esc(p.name.split(" ")[0]) + " ticked this. Untick it if it doesn't fit.</small></span></label>" : "") +
-      '<label class="f">Handbook exercise' + (p.hx ? " <small>(" + esc(p.name.split(" ")[0]) + " chose it)</small>" : "") + '<select class="e-hx">' + hxOptions(p.hx || "") + "</select></label>" +
+      '<div class="ex-only">' + (p.mc ? '<label class="tick consent"><input type="checkbox" class="e-mc" checked> <span>An attempt at the Masters challenge of ' + esc(monthName(p.mc)) + ' <small class="muted">' + esc(p.name.split(" ")[0]) + " ticked this. Untick it if it doesn't fit.</small></span></label>" : "") +
+      '<label class="f">Handbook exercise' + (p.hx ? " <small>(" + esc(p.name.split(" ")[0]) + " chose it)</small>" : "") + '<select class="e-hx">' + hxOptions(p.hx || "") + "</select></label></div>" +
       (p.bef ? '<div class="sub-before"><p class="f">Before editing <small>(' + esc(p.name.split(" ")[0]) + ' sent the unedited photo too)</small></p><img class="sub-img sub-bef" alt="Before editing">' +
         (p.chg ? '<p class="sub-chg"><b>What I changed:</b> <span' + ml(p.chg) + ">" + esc(p.chg) + "</span></p>" : "") +
         '<label class="tick consent"><input type="checkbox" class="e-keepbef" checked> <span>Show the before photo in the gallery <small class="muted">Untick to leave it out.</small></span></label></div>' : "") +
@@ -568,6 +579,7 @@
       '<div class="row-btns"><button class="btn btn-dark confirm-decline" type="button">Decline photo</button><button class="btn btn-light cancel-decline" type="button">Cancel</button></div></div>' +
       '<p class="status" aria-live="polite"></p>';
     var img = el.querySelector("img"), status = el.querySelector(".status");
+    showWhere(el); el.querySelector(".e-where").addEventListener("change", function () { showWhere(el); });
     inbox("/admin/photo/" + p.sid + "/thumb", { blob: true }).then(function (b) { img.src = URL.createObjectURL(b); }).catch(function () {});
     if (p.bef) inbox("/admin/photo/" + p.sid + "/before", { blob: true }).then(function (b) { el.querySelector(".sub-bef").src = URL.createObjectURL(b); }).catch(function () {});
     var buttons = function (on) { el.querySelectorAll("button").forEach(function (b) { b.disabled = !on; }); };
@@ -584,14 +596,16 @@
       var title = el.querySelector(".e-title").value.trim();
       if (!title) { setStatus(status, "Add a title.", true); return; }
       buttons(false); setStatus(status, "Approving…");
-      var pub = el.querySelector(".e-pub").checked, ser = el.querySelector(".e-series"), cats = ticked(el.querySelector(".e-cats"));
-      if (!cats.length) { setStatus(status, "Choose a category.", true); return; }
-      inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cats: cats, desc: el.querySelector(".e-desc").value.trim(),
+      var ex = el.querySelector(".e-where").value === "ex";
+      var pub = !ex && el.querySelector(".e-pub").checked, ser = el.querySelector(".e-series"), cats = ticked(el.querySelector(".e-cats"));
+      if (!cats.length) { buttons(true); setStatus(status, "Choose a category.", true); return; }
+      if (ex && !el.querySelector(".e-hx").value && !(el.querySelector(".e-mc") && el.querySelector(".e-mc").checked)) { buttons(true); setStatus(status, "Choose the handbook exercise it's an attempt at, or send it to the gallery.", true); return; }
+      inbox("/admin/decide/" + p.sid, { method: "POST", json: { decision: "approved", title: title, cats: cats, desc: el.querySelector(".e-desc").value.trim(), ex: ex,
         series: ser ? ticked(ser) : undefined, pub: pub, pubOk: pub || undefined, theme: el.querySelector(".e-theme").value, fb: el.querySelector(".e-fb").value,
         mc: el.querySelector(".e-mc") ? (el.querySelector(".e-mc").checked ? p.mc : "") : undefined, hx: el.querySelector(".e-hx").value,
         dropBefore: el.querySelector(".e-keepbef") ? !el.querySelector(".e-keepbef").checked : undefined } }).then(function (r) {
         markDecided(p.sid); galleryInfo = null;
-        done(el, "“" + title + "” by " + p.name + " is now in the gallery" + (pub ? " and the public exhibition." : "."), r.id ? "gallery.html#p-" + r.id : "");
+        done(el, "“" + title + "” by " + p.name + (ex ? " is now in the gallery's Exercises tab." : " is now in the gallery" + (pub ? " and the public exhibition." : ".")), r.id ? "gallery.html#p-" + r.id : "");
       }).catch(function (e) { buttons(true); setStatus(status, e.message, true); });
     });
     return el;
@@ -618,8 +632,8 @@
     $("g-status").textContent = "Loading…";
     loadGallery().then(function () {
       var d = galleryData;
-      var pubs = d.photos.filter(function (p) { return p.pub; }).length;
-      $("g-status").textContent = d.photos.length ? d.photos.length + (d.photos.length === 1 ? " photo" : " photos") + " in the gallery, newest first. Only members can see them" +
+      var pubs = d.photos.filter(function (p) { return p.pub; }).length, exs = d.photos.filter(function (p) { return p.ex; }).length;
+      $("g-status").textContent = d.photos.length ? d.photos.length + (d.photos.length === 1 ? " photo" : " photos") + " in the gallery, newest first" + (exs ? " (" + exs + " of them in Exercises)" : "") + ". Only members can see them" +
         (pubs ? ", except the " + pubs + " in the public exhibition." : ". Tick a photo's Edit > public exhibition box to show it to everyone, if the photographer agrees.") : "The gallery is empty.";
       $("g-list").innerHTML = "";
       d.photos.forEach(function (p) { $("g-list").appendChild(galleryRow(d, p)); });
@@ -641,7 +655,7 @@
       li.innerHTML = '<img src="' + esc(thumbUrl(d, p)) + '" alt="" width="72" height="48" loading="lazy">' +
         '<span><b' + ml(p.title) + '><a href="gallery.html#p-' + esc(p.id) + '">' + esc(p.title) + '</a></b><span class="meta">' + esc(p.by) + ", " + esc((p.cats && p.cats.length ? p.cats : [p.cat]).join(", ")) + (p.added ? ", added " + esc(day(p.added)) : "") +
         (Array.isArray(p.series) ? p.series : p.series ? [p.series] : []).map(function (id) { var n = seriesName(d.series, id); return n ? ", " + esc(n) : ""; }).join("") + (p.theme ? ", theme entry " + esc(monthName(p.theme)) : "") + (p.fb === "share" ? ", just sharing" : "") +
-        "</span>" + (p.pub ? '<span class="chip ok">In the exhibition</span>' : "") + "</span>" +
+        "</span>" + (p.pub ? '<span class="chip ok">In the exhibition</span>' : "") + (p.ex ? '<span class="chip">In Exercises</span>' : "") + "</span>" +
         '<div class="row-btns"><button class="btn btn-light btn-small" type="button" data-a="edit">Edit</button><button class="btn btn-light btn-small" type="button" data-a="why">Why it works…</button><button class="btn btn-light btn-small" type="button" data-a="delete">Delete</button></div>' +
         '<p class="status" aria-live="polite"></p>';
       var st = li.querySelector(".status"), row = li.querySelector(".row-btns");
@@ -665,24 +679,28 @@
         '<form class="g-edit" novalidate>' +
         '<label class="f">Title<input type="text" class="e-title" maxlength="80" value="' + esc(p.title) + '"></label>' +
         '<label class="f">Photographer <small>(a member\'s name links it to them)</small><input type="text" class="e-by" maxlength="60" value="' + esc(p.by) + '"></label>' +
+        whereBox(!!p.ex) +
         '<p class="f">Category <small>(one or more)</small></p>' + catPills(p) +
         '<label class="f">Description<textarea class="e-desc" maxlength="400">' + esc(p.desc || "") + "</textarea></label>" +
-        ((d.series || []).length ? '<p class="f">Series</p>' + seriesPills(d.series, p) : "") +
-        pubBox(p.by, p.pubOk, p.pub) +
-        '<div class="two"><div><label class="f">Monthly theme<select class="e-theme">' + themeOptions(p.theme || "") + '</select></label></div><div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
-        '<label class="f">Handbook exercise<select class="e-hx">' + hxOptions(p.hx || "") + "</select></label>" +
+        '<div class="gal-only">' + ((d.series || []).length ? '<p class="f">Series</p>' + seriesPills(d.series, p) : "") +
+        pubBox(p.by, p.pubOk, p.pub) + "</div>" +
+        '<div class="two"><div class="gal-only"><label class="f">Monthly theme<select class="e-theme">' + themeOptions(p.theme || "") + '</select></label></div><div><label class="f">Comments<select class="e-fb">' + fbOptions(p.fb) + "</select></label></div></div>" +
+        '<div class="ex-only"><label class="f">Handbook exercise<select class="e-hx">' + hxOptions(p.hx || "") + "</select></label>" +
+        (p.mc ? '<p class="note">Also an attempt at the Masters challenge of ' + esc(monthName(p.mc)) + ".</p>" : "") + "</div>" +
         (p.bef ? '<label class="tick consent"><input type="checkbox" class="e-dropbef"> <span>Remove the before photo <small class="muted">The photo itself stays.</small></span></label>' : "") +
         '<div class="row-btns"><button class="btn btn-dark btn-small" type="submit">Save</button><button class="btn btn-light btn-small" type="button" data-a="cancel">Cancel</button></div>' +
         '<p class="status" aria-live="polite"></p></form>';
       var form = li.querySelector("form");
+      showWhere(form); form.querySelector(".e-where").addEventListener("change", function () { showWhere(form); });
       form.querySelector('[data-a="cancel"]').addEventListener("click", view);
       form.addEventListener("submit", function (ev) {
         ev.preventDefault();
         var st = form.querySelector(".status");
         setStatus(st, "Saving…");
-        var pub = form.querySelector(".e-pub").checked, cats = ticked(form.querySelector(".e-cats"));
+        var ex = form.querySelector(".e-where").value === "ex";
+        var pub = !ex && form.querySelector(".e-pub").checked, cats = ticked(form.querySelector(".e-cats"));
         if (!cats.length) { setStatus(form.querySelector(".status"), "Choose a category.", true); return; }
-        inbox("/admin/gallery/" + encodeURIComponent(p.id), { method: "POST", json: { title: form.querySelector(".e-title").value, by: form.querySelector(".e-by").value,
+        inbox("/admin/gallery/" + encodeURIComponent(p.id), { method: "POST", json: { title: form.querySelector(".e-title").value, by: form.querySelector(".e-by").value, ex: ex,
           cats: cats, desc: form.querySelector(".e-desc").value, series: ticked(form.querySelector(".e-series")), pub: pub, pubOk: pub || undefined,
           theme: form.querySelector(".e-theme").value, fb: form.querySelector(".e-fb").value, hx: form.querySelector(".e-hx").value,
           dropBefore: form.querySelector(".e-dropbef") ? form.querySelector(".e-dropbef").checked : undefined } }).then(function (r) {

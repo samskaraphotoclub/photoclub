@@ -91,7 +91,7 @@
     box.innerHTML = '<div class="lr-card"><p class="hb-kicker">' + esc(monthName(c.month)) + "</p><h3>" + esc(e[0] + ": " + e[1]) + "</h3>" +
       "<p>From chapter " + ch[0] + ", <i>" + esc(ch[1]) + "</i>. Read the exercise in the handbook, try it on your next walk and share your best frame.</p>" +
       (c.note && !c.slug ? '<p class="lr-note">' + esc(c.note) + "</p>" : "") +
-      '<p class="lr-links"><a href="' + exLink(e) + '">The exercise in the handbook</a></p>' +
+      '<p class="lr-links"><a href="' + exLink(e) + '">The exercise in the handbook</a> · <a href="../gallery.html#exercises">Every attempt in Exercises</a></p>' +
       '<p><a class="btn btn-dark" href="../submit.html?hx=' + esc(e[0]) + '">Send your attempt</a></p></div>' +
       '<h3>' + (photos.length ? (photos.length === 1 ? "1 attempt so far" : photos.length + " attempts so far") : "No attempts yet. Yours could be the first.") + "</h3>" +
       '<ul class="lr-thumbs">' + thumbs(g, photos) + "</ul>";
