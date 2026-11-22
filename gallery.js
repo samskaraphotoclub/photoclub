@@ -96,6 +96,7 @@
     if (chip && chip.classList.contains(ex ? "gal-only" : "ex-only")) $("c-all").checked = true;
     var any = [].some.call(document.querySelectorAll("#grid .tile"), function (t) { return t.classList.contains("ex") === ex; });
     $("ex-empty").hidden = !(ex && !any);
+    partNote();
     if (!byName && !themeMonth) {
       INTRO = INTRO || $("g-intro").textContent;
       $("g-intro").textContent = ex ? "Members' attempts at the handbook's exercises and the monthly Masters challenge, newest first. They're practice, so say what works and what to try next time." : INTRO;
@@ -130,6 +131,12 @@
 
   // a handbook exercise from handbook/exercises.js: [label, title, chapter slug]
   function exercise(label) { var c = window.HB_COURSE; return label && c ? c.ex.filter(function (x) { return x[0] === label; })[0] || null : null; }
+  // the handbook part (0–5) an attempt's exercise comes from, or -1
+  function partOf(p) {
+    var e = exercise(p.hx), parts = (window.HB_COURSE && window.HB_COURSE.parts) || [];
+    for (var i = 0; e && i < parts.length; i++) if (parts[i].ch.indexOf(e[2]) >= 0) return i;
+    return -1;
+  }
   // the lines under a photo's title that can change when its photographer edits it
   function exLines(p) {
     var e = exercise(p.hx);
@@ -155,7 +162,7 @@
       exLines(p);
     return Viewer.tile(p, Club.photoUrl(data, p, "thumb"), Club.photoUrl(data, p, "full"), {
       cls: cats + (Club.thisMonth(data, p) ? " this-month" : "") + ids.map(function (id) { return " s-" + id; }).join("") + (p.theme ? " e-" + p.theme : "") +
-        (p.fb === "share" ? "" : " fb-on") + (p.fb === "ask" ? " fb-ask" : "") + (p.hx ? " hx-on" : "") + (p.mc ? " mc-on" : "") + (p.ex ? " ex" : "") + ((data.picks || []).some(function (x) { return x.id === p.id; }) ? " why-on" : ""),
+        (p.fb === "share" ? "" : " fb-on") + (p.fb === "ask" ? " fb-ask" : "") + (p.hx ? " hx-on" : "") + (p.mc ? " mc-on" : "") + (p.ex ? " ex" + (partOf(p) >= 0 ? " part-" + partOf(p) : "") : "") + ((data.picks || []).some(function (x) { return x.id === p.id; }) ? " why-on" : ""),
       before: p.bef ? Club.photoUrl(data, p, "before") : "",
       series: series, lines: lines, byHref: "gallery.html?by=" + encodeURIComponent(p.by), votes: (data.votes && data.votes[p.id]) || 0,
       extra: p.pub ? '<p class="note">Also in the club\'s public <a href="index.html#p-' + esc(p.id) + '">exhibition</a>, where anyone can see it.</p>' : ""
@@ -176,19 +183,33 @@
       return '<input type="radio" name="cat" class="extra-chip' + only + '" id="' + id + '"><label class="extra-chip' + only + '" for="' + id + '"' + ml(label) + ">" + esc(label) + "</label>"; };
     if (d.entry && !themeMonth && list.some(function (p) { return p.theme === d.entry.month; })) html += chip("c-e", "Theme: " + d.entry.title, "e-" + d.entry.month, function (p) { return p.theme === d.entry.month; });
     (d.series || []).forEach(function (s) { var t = function (p) { return Club.seriesOf(p).indexOf(s.id) >= 0; }; if (list.some(t)) html += chip("c-s-" + s.id, s.name, "s-" + s.id, t); });
+    // in Exercises the handbook's six parts take the place of the categories, then the Masters challenge
+    if (exs.length || !byName) {
+      ((window.HB_COURSE && window.HB_COURSE.parts) || []).forEach(function (part, i) {
+        rules.push(".gallery:has(#c-part-" + i + ":checked) .tile:not(.part-" + i + ") { display: none; }");
+        html += '<input type="radio" name="cat" class="extra-chip ex-only" id="c-part-' + i + '"><label class="extra-chip ex-only" for="c-part-' + i + '">' + esc(part.t) + "</label>";
+      });
+      if (exs.some(function (p) { return p.mc; })) {
+        rules.push(".gallery:has(#c-mc:checked) .tile:not(.mc-on) { display: none; }");
+        html += '<input type="radio" name="cat" class="extra-chip ex-only" id="c-mc"><label class="extra-chip ex-only" for="c-mc">Masters challenge</label>';
+      }
+    }
     $("c-all").nextElementSibling.insertAdjacentHTML("afterend", html);
     if (list.some(function (p) { return p.fb !== "share"; }) && list.some(function (p) { return p.fb === "share"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-fb", "Feedback welcome", "fb-on", function (p) { return p.fb !== "share"; }));
     if (list.some(function (p) { return p.fb === "ask"; })) $("c-month").insertAdjacentHTML("beforebegin", chip("c-ask", "Asking for feedback", "fb-ask", function (p) { return p.fb === "ask"; }));
-    if (exs.some(function (p) { return p.hx; }) && exs.some(function (p) { return p.mc; })) {      // in Exercises: the handbook's or the Masters challenge's
-      $("c-month").insertAdjacentHTML("beforebegin", chip("c-hx", "Handbook exercises", "hx-on", function (p) { return p.ex && p.hx; }));
-      $("c-month").insertAdjacentHTML("beforebegin", chip("c-mc", "Masters challenge", "mc-on", function (p) { return p.ex && p.mc; }));
-    }
     var picked = function (p) { return (d.picks || []).some(function (x) { return x.id === p.id; }); };
     if (list.some(picked)) $("c-month").insertAdjacentHTML("beforebegin", chip("c-why", "Why it works", "why-on", picked));
     style.textContent = rules.join("\n");
   }
 
-  document.addEventListener("change", function (e) { if (e.target.name === "cat") Club.layout(); });   // filters change which photos are in the rows
+  document.addEventListener("change", function (e) { if (e.target.name === "cat") { Club.layout(); partNote(); } });   // filters change which photos are in the rows
+  // Exercises with a part chosen that has no attempts yet
+  function partNote() {
+    var m = $("t-ex").checked && document.querySelector('.chips input[name="cat"]:checked'), i = m && /^c-part-(\d)$/.test(m.id) ? +m.id.slice(7) : -1;
+    var none = i >= 0 && !document.querySelector("#grid .tile.part-" + i);
+    $("ex-none").hidden = !none;
+    if (none) $("ex-none").innerHTML = "No attempts at exercises from <b>" + esc(window.HB_COURSE.parts[i].t) + '</b> yet. Choose one in the <a href="handbook/index.html">handbook</a> and share your attempt.';
+  }
 
   /* ---------- the viewer ---------- */
   Viewer.init({

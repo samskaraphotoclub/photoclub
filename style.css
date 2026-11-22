@@ -216,6 +216,7 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
 .chips label:hover { border-color: var(--solid); }
 .chips input:checked + label { background: var(--solid); color: var(--on-solid); border-color: var(--solid); }
 .chips input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (min-width: 861px) { .chips { flex-wrap: wrap; } }   /* on wide screens a long row of filters wraps; phones scroll it sideways */
 @media (max-width: 860px) {
   .chips { overflow-x: auto; scrollbar-width: none; margin-right: calc(-1 * var(--gutter)); padding-right: var(--gutter); }
   .chips::-webkit-scrollbar { display: none; }
