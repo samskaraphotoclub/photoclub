@@ -1,6 +1,6 @@
 # The Conscious Frame – photo club website
 
-The website of the Photography Club of Samskara Germany e.V. (https://samskara-germany.de/). A lightweight club website: plain HTML, one CSS file and a few small scripts, no frameworks, no web fonts, no cookies or tracking. The gallery is for members only. Members sign in with a personal invite code to see the photos, comment, give hearts and share their own photos from their phones. An admin approves each photo before it appears. A public exhibition shows chosen photos to everyone, with the photographers' permission.
+The website of the Photography Club of Samskara Germany e.V. (https://samskara-germany.de/). A lightweight club website: plain HTML, one CSS file and a few small scripts, no frameworks, no cookies or tracking. One typeface, Bricolage Grotesque (SIL Open Font License, `fonts/OFL.txt`), is stored on the site itself, so no font service is involved. The gallery is for members only. Members sign in with a personal invite code to see the photos, comment, give hearts and share their own photos from their phones. An admin approves each photo before it appears. A public exhibition shows chosen photos to everyone, with the photographers' permission.
 
 ## How it fits together
 
@@ -176,6 +176,7 @@ submit.html            Share a photo: members send photos for approval
 admin.html             Admin: approve photos, gallery, members, hearts, comments, home page, Learning, events, downloads, post a photo, settings
 404.html               Shown for missing pages
 style.css              All styles
+fonts/                 Bricolage Grotesque, the site's typeface (two variable WOFF2 files, Latin and extended Latin) and its licence, OFL.txt
 club.js                Signing in, loading the gallery and exhibition from the inbox, and the rows of photos
 viewer.js              Photo tiles and the photo viewer, used by the gallery and exhibition
 gallery.js             The gallery page: photos, filters, comments (with Report) and hearts

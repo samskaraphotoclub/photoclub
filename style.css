@@ -14,9 +14,11 @@
   --on-red: #ffffff;
   --accent: var(--red); /* red text and dots (a lighter red in dark mode, so it stays readable) */
   --on-ink: #ffffff;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Noto Serif Malayalam", "Malayalam Sangam MN", "Nirmala UI", Kartika, serif;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Malayalam", "Malayalam Sangam MN", "Nirmala UI", Kartika, sans-serif;
-  /* (the Malayalam fonts are the ones Android, iPhone, Mac and Windows already have; no download needed) */
+  /* One typeface for everything since Nov 2026: Bricolage Grotesque, stored on this site (fonts/, see @font-face below).
+     --serif is the headings' font (its name is from when they were a serif); --sans is the text's. Malayalam text uses the
+     Malayalam fonts Android, iPhone, Mac and Windows already have; no download needed. */
+  --serif: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans Malayalam", "Malayalam Sangam MN", "Nirmala UI", Kartika, sans-serif;
+  --sans: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Malayalam", "Malayalam Sangam MN", "Nirmala UI", Kartika, sans-serif;
   --gutter: max(16px, min(4vw, 40px));
   --gap: clamp(20px, 3vw, 32px);
   --ok-bg: #dcefe2; --ok-fg: #1d5733;   /* approved */
@@ -34,11 +36,20 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-padding-top: 76px; -webkit-text-size-adjust: 100%; }
+/* Bricolage Grotesque by Mathieu Triay (SIL Open Font License 1.1, fonts/OFL.txt). The files are on this site, so no font
+   service sees anyone's visit. One variable file per alphabet range: weights 200–800, with optical sizes (small text is
+   drawn sturdier, big headlines tighter). Phones only fetch the second file for letters like ł, ő or ș. */
+@font-face { font-family: "Bricolage Grotesque"; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url("fonts/bricolage-grotesque-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Bricolage Grotesque"; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url("fonts/bricolage-grotesque-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
 body { margin: 0; background: var(--surface); color: var(--ink); font: 17px/1.55 var(--sans); overflow-x: hidden; }
 body:has(.viewer:target), body:has(.viewer.open) { overflow: hidden; }
 img { display: block; max-width: 100%; height: auto; }
 a { color: inherit; text-underline-offset: 3px; }
-h1, h2, h3 { font-family: var(--serif); font-weight: 500; line-height: 1.1; margin: 0; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; margin: 0; }
 h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); }
 h2 { font-size: clamp(1.55rem, 3vw, 2.1rem); margin-bottom: 8px; }
 h3 { font-size: 1.2rem; }
@@ -64,7 +75,7 @@ p { margin: 0 0 1em; }
 /* header and footer */
 .top { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 3px solid var(--red); padding-top: env(safe-area-inset-top); }
 .top .wrap { display: flex; align-items: center; gap: 18px; height: 60px; }
-.brand { display: inline-flex; align-items: center; gap: 10px; font: 600 1.35rem var(--serif); text-decoration: none; margin-right: auto; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font: 700 1.35rem var(--serif); letter-spacing: -.02em; text-decoration: none; margin-right: auto; }
 .brand .logo { width: 40px; height: 40px; flex: none; }
 .top .brand { color: var(--ink); }
 .brand .name { line-height: 1.02; }
@@ -131,7 +142,7 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
 .hero > div { container-type: inline-size; }
 /* sized to its column; a small script on the home page then shrinks it further if the phone's font is wider.
    Without the script, a word that still doesn't fit is hyphenated rather than running off the screen. */
-.theme { font: 500 clamp(2.6rem, 6vw, 6rem)/.9 var(--serif); font-size: clamp(2.6rem, 19cqi, 8rem); letter-spacing: -.03em; margin: 0 0 20px; color: var(--accent);
+.theme { font: 700 clamp(2.6rem, 6vw, 6rem)/.9 var(--serif); font-size: clamp(2.6rem, 19cqi, 8rem); letter-spacing: -.045em; margin: 0 0 20px; color: var(--accent);
   overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
 .lede { font-size: 1.1rem; max-width: 36ch; }
 .about { color: var(--muted); max-width: 40ch; margin: 0; padding-top: 16px; border-top: 1px solid var(--rule); }
@@ -331,7 +342,7 @@ footer .legal a { color: rgb(255 255 255 / .9); margin-left: 4px; white-space: n
 /* who we are: one sentence from the club's statement, set large */
 .club h2.quiet { font: 600 1rem var(--sans); color: var(--muted); margin-bottom: 14px; }
 .creed { position: relative; margin: 0; }
-.creed p { margin: 0; max-width: 25ch; font: 400 clamp(1.85rem, 4.6vw, 3.1rem)/1.14 var(--serif); letter-spacing: -.01em; }
+.creed p { margin: 0; max-width: 25ch; font: 500 clamp(1.85rem, 4.6vw, 3.1rem)/1.14 var(--serif); letter-spacing: -.025em; }
 .creed::before { content: "\201C"; position: absolute; left: -.5em; top: -.12em; font: 400 clamp(3rem, 8vw, 5.4rem)/1 var(--serif); color: var(--accent); }
 .values { list-style: none; padding: 0; margin: 26px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .values li { padding: 7px 14px; border-radius: 999px; background: var(--sheet); font-size: .93rem; }
@@ -350,7 +361,7 @@ details[open] > .more-body { animation: open-up .22s ease-out; }
 .topic { border-top: 1px solid var(--rule); margin-bottom: -1px; }
 .topic > summary { display: grid; grid-template-columns: 28px 1fr 30px; gap: 14px; align-items: start; padding: 18px 0; }
 .topic .ic { width: 26px; height: 26px; margin-top: 2px; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.topic .t b { display: block; font: 500 1.28rem/1.2 var(--serif); }
+.topic .t b { display: block; font: 600 1.28rem/1.2 var(--serif); letter-spacing: -.01em; }
 .topic .t span { display: block; margin-top: 4px; color: var(--muted); font-size: .95rem; line-height: 1.4; }
 .topic .plus { position: relative; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--rule); }
 .topic .plus::before, .topic .plus::after { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 2px; margin: -1px 0 0 -6px; background: currentColor; border-radius: 1px; }
@@ -372,7 +383,7 @@ details[open] > .more-body { animation: open-up .22s ease-out; }
 .club .small { font-size: .92rem; max-width: 62ch; }
 .rules { list-style: none; padding: 0; margin: 26px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); column-gap: 36px; }
 .rules li { border-top: 1px solid var(--rule); padding: 14px 0 16px; color: var(--muted); }
-.rules b { display: block; color: var(--ink); font: 500 1.15rem/1.25 var(--serif); margin-bottom: 4px; }
+.rules b { display: block; color: var(--ink); font: 600 1.15rem/1.25 var(--serif); margin-bottom: 4px; }
 .club .panel h2 { margin-bottom: 12px; }
 .club .panel p { max-width: 62ch; }
 .faq { max-width: 68ch; }
@@ -515,7 +526,7 @@ label.tick.consent { display: flex; gap: 12px; align-items: flex-start; margin-t
 .pick-h { font: 600 1rem var(--sans); margin: 18px 0 4px; letter-spacing: 0; }
 /* Malayalam: its letters are taller and wider than English ones, so lines need more room */
 :lang(ml) { line-height: 1.8; }
-h1:lang(ml), h2:lang(ml), h3:lang(ml) { line-height: 1.4; }
+h1:lang(ml), h2:lang(ml), h3:lang(ml) { line-height: 1.4; letter-spacing: 0; }
 .theme:lang(ml) { line-height: 1.3; letter-spacing: 0; padding-top: .1em; }
 .tile figcaption b:lang(ml), .tile figcaption span:lang(ml) { line-height: 1.6; }
 /* home page, for members: last week's top three photos, fanned out like prints laid on a table.

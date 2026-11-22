@@ -6,7 +6,7 @@
 .hb-crumbs a { color: var(--muted); }
 .hb-kicker { margin: 0 0 8px; font: 600 .78rem/1.2 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
 .page-head p.hb-kicker { color: var(--accent); font-size: .78rem; margin-top: 0; }
-.page-head p.hb-lede { font-family: var(--serif); font-style: italic; font-size: 1.25rem; line-height: 1.45; color: var(--muted); max-width: 46ch; }
+.page-head p.hb-lede { font-family: var(--serif); font-size: 1.2rem; line-height: 1.45; color: var(--muted); max-width: 46ch; }
 .hb-muted { color: var(--muted); }
 
 /* two columns: contents on the left, the text on the right; one column on phones and tablets */
@@ -56,7 +56,7 @@
 .hb-results p { margin: 0; padding: 12px 14px; color: var(--muted); font-size: .92rem; }
 
 /* the text */
-.hb-text { max-width: 740px; font-family: var(--serif); font-size: 1.12rem; line-height: 1.68; }
+.hb-text { max-width: 740px; font-family: var(--serif); font-size: 1.06rem; line-height: 1.66; }
 .hb-text p { margin: 0 0 .95em; }
 .hb-text h2 { margin: 1.9em 0 .55em; font-size: clamp(1.45rem, 2.6vw, 1.85rem); line-height: 1.2; scroll-margin-top: 80px; }
 .hb-text h3 { font-size: 1.15rem; line-height: 1.3; margin: 0 0 .35em; font-weight: 600; }
