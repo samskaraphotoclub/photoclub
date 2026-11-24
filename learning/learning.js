@@ -54,6 +54,20 @@
       more.insertAdjacentHTML("beforeend", '<li><a class="hb-chcard" href="../handbook/walk-cards.html"><span class="hb-chtitle">Walk cards</span><span class="hb-chlede">One technique per card, to print or keep on your phone for a club photo walk.</span></a></li>');
     course ? drawCourse() : (crs.innerHTML = '<p class="muted">The course will show here.</p>');
   }
+  // Which Masters pages are online comes from masters-list.js, so pages brought online after this page was locked count too
+  // (24 Nov 2026: Dorothea Lange again, and Andreas Feininger, who has no entry in the locked data; his exercises show by title).
+  var NUM = "no one two three four five six seven eight nine ten eleven twelve".split(" ");
+  function online(data) {
+    var list = window.MASTERS_LIST || [];
+    list.forEach(function (m) {
+      if (data[m.slug]) data[m.slug].on = m.on !== false;
+      else if (m.on !== false) data[m.slug] = { name: m.name, he: m.he || "he", ex: m.ex.map(function (t) { return [t, ""]; }), on: true };
+    });
+    var n = list.filter(function (m) { return m.on !== false; }).length, more = document.querySelector(".lr-more");
+    if (!more || !n || n >= NUM.length) return;
+    var w = document.createTreeWalker(more, NodeFilter.SHOW_TEXT), t;      // "How three great photographers worked"
+    while ((t = w.nextNode())) t.nodeValue = t.nodeValue.replace(/\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+) great photographers\b/i, NUM[n] + " great photographers");
+  }
   function show(id, on) {
     var h = $(id); if (h) h.hidden = !on;
     var a = document.querySelector('.ms-onpage a[href="#' + id + '"]'); if (a) a.hidden = !on;
@@ -130,7 +144,7 @@
       var m = data[c.slug], ex = m && m.ex[c.ex - 1], his = m && m.he === "she" ? "her" : "his";
       box.id = "mc-" + c.month;
       box.innerHTML = '<p class="hb-kicker">' + esc(monthName(c.month)) + "</p><h3>" + heading(data, c) + "</h3>" +
-        (ex ? "<p>" + esc(ex[1]) + "</p>" : "") +
+        (ex && ex[1] ? "<p>" + esc(ex[1]) + "</p>" : "") +
         (c.note ? '<p class="lr-note">' + esc(c.note) + "</p>" : "") +
         (m && m.on !== false ? '<p class="lr-links"><a href="../masters/' + esc(c.slug) + '.html">How ' + esc(m.name) + " worked</a>" +
           (frames && m.fr !== false ? '<a href="../frames/' + esc(c.slug) + '.html">' + (his === "her" ? "Her" : "His") + " 36 frames</a>" : "") + "</p>" : "") +
@@ -168,6 +182,7 @@
     var data = {};
     frames = $("lr-data").getAttribute("data-frames") !== "0";   // 36 frames can be offline (data-frames="0")
     try { data = JSON.parse($("lr-data").textContent); } catch (e) {}
+    online(data);
     addSections();
     Promise.all([Club.call("/challenges"), Club.gallery().catch(function () { return null; })]).then(function (r) { fill(data, r[0], r[1]); }).catch(function (e) {
       if (e.status === 404) { $("lr-current").innerHTML = '<p class="muted">The Masters challenge starts soon.</p>'; $("lr-past").innerHTML = ""; return; }
